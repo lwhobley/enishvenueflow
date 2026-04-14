@@ -373,7 +373,7 @@ export default function AuthPage() {
           transition: burning ? "opacity 0.6s ease 0.6s" : "none",
         }}
       >
-        {/* ENOSH logo — base static + flame-clipped animated layer */}
+        {/* ENISH logo — base static + flame-clipped animated layer */}
         <div style={{ marginBottom: 36, position: "relative", display: "inline-block" }}>
           {/* Hidden SVG filter definitions */}
           <svg style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }} aria-hidden>
@@ -392,7 +392,7 @@ export default function AuthPage() {
           {/* Static base — the full logo, always visible */}
           <img
             src={enoshLogo}
-            alt="ENOSH"
+            alt="ENISH"
             style={{
               height: 80,
               width: "auto",

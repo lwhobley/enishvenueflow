@@ -210,7 +210,7 @@ export function Layout({ children, isEmployee = false }: { children: React.React
             textTransform: "uppercase",
             color: G.gold,
           }}>
-            ENOSH
+            ENISH
           </span>
           {!isEmployee && (
             <span style={{
