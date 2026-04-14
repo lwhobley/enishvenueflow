@@ -1,22 +1,58 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: VenueFlow API - Hospitality venue management SaaS
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: venues
+    description: Venue management
+  - name: users
+    description: User management
+  - name: roles
+    description: Role management
+  - name: schedules
+    description: Schedule management
+  - name: shifts
+    description: Shift management
+  - name: shiftRequests
+    description: Shift request management
+  - name: reservations
+    description: Reservation management
+  - name: waitlist
+    description: Waitlist management
+  - name: guests
+    description: Guest CRM
+  - name: timeClock
+    description: Time clock management
+  - name: timeOff
+    description: Time off request management
+  - name: floorPlan
+    description: Floor plan management
+  - name: tables
+    description: Table management
+  - name: tipPool
+    description: Tip pool management
+  - name: payroll
+    description: Payroll management
+  - name: documents
+    description: Document management
+  - name: messaging
+    description: Messaging
+  - name: notifications
+    description: Notifications
+  - name: analytics
+    description: Analytics
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +60,1565 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Venues ──────────────────────────────────────────────────────────────────
+  /venues:
+    get:
+      operationId: listVenues
+      tags: [venues]
+      summary: List all venues
+      responses:
+        "200":
+          description: List of venues
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Venue"
+    post:
+      operationId: createVenue
+      tags: [venues]
+      summary: Create a venue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVenueBody"
+      responses:
+        "201":
+          description: Created venue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Venue"
+
+  /venues/{id}:
+    put:
+      operationId: updateVenue
+      tags: [venues]
+      summary: Update venue
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVenueBody"
+      responses:
+        "200":
+          description: Updated venue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Venue"
+
+  # ── Users ────────────────────────────────────────────────────────────────────
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users for venue
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBody"
+      responses:
+        "201":
+          description: Created user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    put:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    delete:
+      operationId: deactivateUser
+      tags: [users]
+      summary: Deactivate user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ── Roles ────────────────────────────────────────────────────────────────────
+  /roles:
+    get:
+      operationId: listRoles
+      tags: [roles]
+      summary: List roles for venue
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Role"
+    post:
+      operationId: createRole
+      tags: [roles]
+      summary: Create role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleBody"
+      responses:
+        "201":
+          description: Created role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+
+  /roles/{id}:
+    put:
+      operationId: updateRole
+      tags: [roles]
+      summary: Update role permissions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleBody"
+      responses:
+        "200":
+          description: Updated role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+    delete:
+      operationId: deleteRole
+      tags: [roles]
+      summary: Delete role
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ── Schedules ─────────────────────────────────────────────────────────────────
+  /schedules:
+    get:
+      operationId: listSchedules
+      tags: [schedules]
+      summary: List schedules for venue
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of schedules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Schedule"
+    post:
+      operationId: createSchedule
+      tags: [schedules]
+      summary: Create schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScheduleBody"
+      responses:
+        "201":
+          description: Created schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Schedule"
+
+  /schedules/{id}/publish:
+    put:
+      operationId: publishSchedule
+      tags: [schedules]
+      summary: Publish schedule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Schedule"
+
+  /schedules/ai-generate:
+    post:
+      operationId: aiGenerateSchedule
+      tags: [schedules]
+      summary: AI-generate a week of shifts using Gemini
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiGenerateScheduleBody"
+      responses:
+        "200":
+          description: Generated shifts preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiGenerateScheduleResponse"
+
+  # ── Shifts ────────────────────────────────────────────────────────────────────
+  /shifts:
+    get:
+      operationId: listShifts
+      tags: [shifts]
+      summary: List shifts
+      parameters:
+        - name: scheduleId
+          in: query
+          schema:
+            type: string
+        - name: userId
+          in: query
+          schema:
+            type: string
+        - name: venueId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of shifts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shift"
+    post:
+      operationId: createShift
+      tags: [shifts]
+      summary: Create shift
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateShiftBody"
+      responses:
+        "201":
+          description: Created shift
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shift"
+
+  /shifts/open:
+    get:
+      operationId: listOpenShifts
+      tags: [shifts]
+      summary: List open shifts for venue
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Open shifts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shift"
+
+  /shifts/bulk:
+    post:
+      operationId: bulkCreateShifts
+      tags: [shifts]
+      summary: Bulk create shifts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkCreateShiftsBody"
+      responses:
+        "201":
+          description: Created shifts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shift"
+    delete:
+      operationId: bulkDeleteShifts
+      tags: [shifts]
+      summary: Bulk delete shifts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkDeleteShiftsBody"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /shifts/copy-day:
+    post:
+      operationId: copyShiftsDay
+      tags: [shifts]
+      summary: Copy shifts from one date to another
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CopyDayBody"
+      responses:
+        "201":
+          description: Copied shifts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shift"
+
+  /shifts/bulk-assign:
+    put:
+      operationId: bulkAssignShifts
+      tags: [shifts]
+      summary: Bulk assign shifts to user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkAssignShiftsBody"
+      responses:
+        "200":
+          description: Assigned shifts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shift"
+
+  /shifts/{id}/assign:
+    put:
+      operationId: assignShift
+      tags: [shifts]
+      summary: Assign user to shift
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignShiftBody"
+      responses:
+        "200":
+          description: Updated shift
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shift"
+
+  /shifts/{id}/pickup:
+    post:
+      operationId: pickupShift
+      tags: [shifts]
+      summary: Employee picks up open shift
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PickupShiftBody"
+      responses:
+        "200":
+          description: Shift picked up
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shift"
+
+  # ── Shift Requests ────────────────────────────────────────────────────────────
+  /shift-requests:
+    get:
+      operationId: listShiftRequests
+      tags: [shiftRequests]
+      summary: List shift requests
+      parameters:
+        - name: venueId
+          in: query
+          schema:
+            type: string
+        - name: userId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Shift requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShiftRequest"
+    post:
+      operationId: createShiftRequest
+      tags: [shiftRequests]
+      summary: Create shift request (drop/swap/pickup)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateShiftRequestBody"
+      responses:
+        "201":
+          description: Created request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShiftRequest"
+
+  /shift-requests/{id}/approve:
+    put:
+      operationId: approveShiftRequest
+      tags: [shiftRequests]
+      summary: Approve shift request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShiftRequest"
+
+  /shift-requests/{id}/reject:
+    put:
+      operationId: rejectShiftRequest
+      tags: [shiftRequests]
+      summary: Reject shift request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShiftRequest"
+
+  # ── Reservations ──────────────────────────────────────────────────────────────
+  /reservations:
+    get:
+      operationId: listReservations
+      tags: [reservations]
+      summary: List reservations
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: date
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Reservations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reservation"
+    post:
+      operationId: createReservation
+      tags: [reservations]
+      summary: Create reservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReservationBody"
+      responses:
+        "201":
+          description: Created reservation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+
+  /reservations/{id}:
+    put:
+      operationId: updateReservation
+      tags: [reservations]
+      summary: Update reservation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReservationBody"
+      responses:
+        "200":
+          description: Updated reservation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+    delete:
+      operationId: cancelReservation
+      tags: [reservations]
+      summary: Cancel reservation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ── Waitlist ──────────────────────────────────────────────────────────────────
+  /waitlist:
+    get:
+      operationId: listWaitlist
+      tags: [waitlist]
+      summary: List waitlist for venue
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Waitlist entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WaitlistEntry"
+    post:
+      operationId: addToWaitlist
+      tags: [waitlist]
+      summary: Add to waitlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWaitlistEntryBody"
+      responses:
+        "201":
+          description: Created waitlist entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WaitlistEntry"
+
+  /waitlist/{id}:
+    put:
+      operationId: updateWaitlistEntry
+      tags: [waitlist]
+      summary: Update waitlist entry status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWaitlistEntryBody"
+      responses:
+        "200":
+          description: Updated entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WaitlistEntry"
+
+  # ── Guests ────────────────────────────────────────────────────────────────────
+  /guests:
+    get:
+      operationId: listGuests
+      tags: [guests]
+      summary: List guests
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: vipOnly
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Guests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Guest"
+    post:
+      operationId: createGuest
+      tags: [guests]
+      summary: Create guest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGuestBody"
+      responses:
+        "201":
+          description: Created guest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Guest"
+
+  /guests/{id}:
+    get:
+      operationId: getGuest
+      tags: [guests]
+      summary: Get guest detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Guest detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Guest"
+    put:
+      operationId: updateGuest
+      tags: [guests]
+      summary: Update guest
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGuestBody"
+      responses:
+        "200":
+          description: Updated guest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Guest"
+    delete:
+      operationId: deleteGuest
+      tags: [guests]
+      summary: Delete guest
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ── Time Clock ────────────────────────────────────────────────────────────────
+  /time-clock/in:
+    post:
+      operationId: clockIn
+      tags: [timeClock]
+      summary: Clock in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClockInBody"
+      responses:
+        "201":
+          description: Clocked in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeClockEntry"
+
+  /time-clock/out:
+    post:
+      operationId: clockOut
+      tags: [timeClock]
+      summary: Clock out
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClockOutBody"
+      responses:
+        "200":
+          description: Clocked out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeClockEntry"
+
+  /time-clock/active:
+    get:
+      operationId: listActiveClockIns
+      tags: [timeClock]
+      summary: List currently clocked in users
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Active clock-ins
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimeClockEntry"
+
+  /time-clock/entries:
+    get:
+      operationId: listTimeClockEntries
+      tags: [timeClock]
+      summary: List time clock entries
+      parameters:
+        - name: venueId
+          in: query
+          schema:
+            type: string
+        - name: userId
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+        - name: endDate
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimeClockEntry"
+
+  /time-clock/entries/{id}:
+    put:
+      operationId: updateTimeClockEntry
+      tags: [timeClock]
+      summary: Manual edit time clock entry (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTimeClockEntryBody"
+      responses:
+        "200":
+          description: Updated entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeClockEntry"
+
+  # ── Time Off ──────────────────────────────────────────────────────────────────
+  /time-off:
+    get:
+      operationId: listTimeOffRequests
+      tags: [timeOff]
+      summary: List time-off requests
+      parameters:
+        - name: venueId
+          in: query
+          schema:
+            type: string
+        - name: userId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Time-off requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimeOffRequest"
+    post:
+      operationId: createTimeOffRequest
+      tags: [timeOff]
+      summary: Submit time-off request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTimeOffRequestBody"
+      responses:
+        "201":
+          description: Created request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeOffRequest"
+
+  /time-off/{id}/approve:
+    put:
+      operationId: approveTimeOff
+      tags: [timeOff]
+      summary: Approve time-off request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeOffRequest"
+
+  /time-off/{id}/deny:
+    put:
+      operationId: denyTimeOff
+      tags: [timeOff]
+      summary: Deny time-off request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeOffRequest"
+
+  # ── Floor Plan ────────────────────────────────────────────────────────────────
+  /floor-sections:
+    get:
+      operationId: listFloorSections
+      tags: [floorPlan]
+      summary: List floor sections
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FloorSection"
+    post:
+      operationId: createFloorSection
+      tags: [floorPlan]
+      summary: Create floor section
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFloorSectionBody"
+      responses:
+        "201":
+          description: Created section
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FloorSection"
+
+  # ── Tables ────────────────────────────────────────────────────────────────────
+  /tables:
+    get:
+      operationId: listTables
+      tags: [tables]
+      summary: List tables
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: sectionId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tables
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Table"
+    post:
+      operationId: createTable
+      tags: [tables]
+      summary: Create table
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTableBody"
+      responses:
+        "201":
+          description: Created table
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Table"
+
+  /tables/{id}:
+    put:
+      operationId: updateTable
+      tags: [tables]
+      summary: Update table status or position
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTableBody"
+      responses:
+        "200":
+          description: Updated table
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Table"
+    delete:
+      operationId: deleteTable
+      tags: [tables]
+      summary: Delete table
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ── Tip Pool ──────────────────────────────────────────────────────────────────
+  /tip-pools:
+    get:
+      operationId: listTipPools
+      tags: [tipPool]
+      summary: List tip pools
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tip pools
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TipPool"
+    post:
+      operationId: createTipPool
+      tags: [tipPool]
+      summary: Create tip pool
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTipPoolBody"
+      responses:
+        "201":
+          description: Created tip pool
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TipPool"
+
+  /tip-pools/{id}/distribute:
+    post:
+      operationId: distributeTipPool
+      tags: [tipPool]
+      summary: Distribute tip pool
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Distributed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TipPool"
+
+  /tip-pools/{id}/entries:
+    get:
+      operationId: listTipPoolEntries
+      tags: [tipPool]
+      summary: List tip pool entries
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TipPoolEntry"
+
+  # ── Payroll ───────────────────────────────────────────────────────────────────
+  /payroll:
+    get:
+      operationId: listPayrollRecords
+      tags: [payroll]
+      summary: List payroll records
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: periodStart
+          in: query
+          schema:
+            type: string
+        - name: periodEnd
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Payroll records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PayrollRecord"
+
+  /payroll/generate:
+    post:
+      operationId: generatePayroll
+      tags: [payroll]
+      summary: Generate payroll records for a period
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GeneratePayrollBody"
+      responses:
+        "201":
+          description: Generated records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PayrollRecord"
+
+  # ── Documents ─────────────────────────────────────────────────────────────────
+  /documents:
+    get:
+      operationId: listDocuments
+      tags: [documents]
+      summary: List documents
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Document"
+    post:
+      operationId: createDocument
+      tags: [documents]
+      summary: Create document record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDocumentBody"
+      responses:
+        "201":
+          description: Created document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+
+  /documents/expiring:
+    get:
+      operationId: listExpiringDocuments
+      tags: [documents]
+      summary: Documents expiring within 30 days
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Expiring documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Document"
+
+  /documents/{id}:
+    delete:
+      operationId: deleteDocument
+      tags: [documents]
+      summary: Delete document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ── Messaging ─────────────────────────────────────────────────────────────────
+  /messages:
+    get:
+      operationId: listMessages
+      tags: [messaging]
+      summary: List messages by channel
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: channel
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [general, managers, announcements]
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+    post:
+      operationId: sendMessage
+      tags: [messaging]
+      summary: Send message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageBody"
+      responses:
+        "201":
+          description: Sent message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  # ── Notifications ─────────────────────────────────────────────────────────────
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List notifications for user
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/{id}/read:
+    put:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Marked read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+
+  /notifications/read-all:
+    put:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+              required: [userId]
+      responses:
+        "200":
+          description: Marked all read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ── Analytics ─────────────────────────────────────────────────────────────────
+  /analytics/dashboard:
+    get:
+      operationId: getDashboardAnalytics
+      tags: [analytics]
+      summary: Dashboard summary stats
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /analytics/labor:
+    get:
+      operationId: getLaborAnalytics
+      tags: [analytics]
+      summary: Labor hours and cost by date range
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Labor analytics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LaborAnalyticsEntry"
+
+  /analytics/employees:
+    get:
+      operationId: getEmployeeAnalytics
+      tags: [analytics]
+      summary: Per-employee hours, pay, attendance
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Employee analytics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeAnalyticsEntry"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +1626,1134 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+
+    Venue:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        address:
+          type: string
+        timezone:
+          type: string
+        subscriptionTier:
+          type: string
+          enum: [free, pro, enterprise]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, address, timezone, subscriptionTier, isActive, createdAt]
+
+    CreateVenueBody:
+      type: object
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+        timezone:
+          type: string
+        subscriptionTier:
+          type: string
+          enum: [free, pro, enterprise]
+      required: [name, address, timezone]
+
+    UpdateVenueBody:
+      type: object
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+        timezone:
+          type: string
+        subscriptionTier:
+          type: string
+          enum: [free, pro, enterprise]
+        isActive:
+          type: boolean
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        venueId:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+        roleId:
+          type: string
+          nullable: true
+        roleName:
+          type: string
+          nullable: true
+        roleColor:
+          type: string
+          nullable: true
+        isAdmin:
+          type: boolean
+        isActive:
+          type: boolean
+        avatarUrl:
+          type: string
+          nullable: true
+        hireDate:
+          type: string
+          nullable: true
+        hourlyRate:
+          type: number
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, venueId, fullName, email, isAdmin, isActive, createdAt]
+
+    CreateUserBody:
+      type: object
+      properties:
+        venueId:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+        roleId:
+          type: string
+        isAdmin:
+          type: boolean
+        hireDate:
+          type: string
+        hourlyRate:
+          type: number
+      required: [venueId, fullName, email]
+
+    UpdateUserBody:
+      type: object
+      properties:
+        fullName:
+          type: string
+        email:
+          type: string
+        roleId:
+          type: string
+        isAdmin:
+          type: boolean
+        isActive:
+          type: boolean
+        hireDate:
+          type: string
+        hourlyRate:
+          type: number
+        avatarUrl:
+          type: string
+
+    Role:
+      type: object
+      properties:
+        id:
+          type: string
+        venueId:
+          type: string
+        name:
+          type: string
+        permissions:
+          type: object
+          additionalProperties: true
+        color:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, venueId, name, color, createdAt]
+
+    CreateRoleBody:
+      type: object
+      properties:
+        venueId:
+          type: string
+        name:
+          type: string
+        color:
+          type: string
+        permissions:
+          type: object
+          additionalProperties: true
+      required: [venueId, name, color]
+
+    UpdateRoleBody:
+      type: object
+      properties:
+        name:
+          type: string
+        color:
+          type: string
+        permissions:
+          type: object
+          additionalProperties: true
+
+    Schedule:
+      type: object
+      properties:
+        id:
+          type: string
+        venueId:
+          type: string
+        weekStart:
+          type: string
+          format: date
+        weekEnd:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [draft, published]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, venueId, weekStart, weekEnd, status, createdAt]
+
+    CreateScheduleBody:
+      type: object
+      properties:
+        venueId:
+          type: string
+        weekStart:
+          type: string
+          format: date
+        weekEnd:
+          type: string
+          format: date
+      required: [venueId, weekStart, weekEnd]
+
+    AiGenerateScheduleBody:
+      type: object
+      properties:
+        venueId:
+          type: string
+        weekStart:
+          type: string
+          format: date
+        laborTargetPct:
+          type: number
+          description: Target labor cost as a percentage of revenue
+        notes:
+          type: string
+      required: [venueId, weekStart, laborTargetPct]
+
+    AiGenerateScheduleResponse:
+      type: object
+      properties:
+        scheduleId:
+          type: string
+        shifts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Shift"
+        summary:
+          type: string
+      required: [scheduleId, shifts, summary]
+
+    Shift:
+      type: object
+      properties:
+        id:
+          type: string
+        scheduleId:
+          type: string
+        userId:
+          type: string
+          nullable: true
+        userName:
+          type: string
+          nullable: true
+        roleId:
+          type: string
+        roleName:
+          type: string
+          nullable: true
+        roleColor:
+          type: string
+          nullable: true
+        sectionId:
+          type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [open, scheduled, confirmed, cancelled]
+        notes:
+          type: string
+          nullable: true
+      required: [id, scheduleId, roleId, startTime, endTime, status]
+
+    CreateShiftBody:
+      type: object
+      properties:
+        scheduleId:
+          type: string
+        userId:
+          type: string
+        roleId:
+          type: string
+        sectionId:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        notes:
+          type: string
+      required: [scheduleId, roleId, startTime, endTime]
+
+    AssignShiftBody:
+      type: object
+      properties:
+        userId:
+          type: string
+          nullable: true
+      required: [userId]
+
+    PickupShiftBody:
+      type: object
+      properties:
+        userId:
+          type: string
+      required: [userId]
+
+    BulkCreateShiftsBody:
+      type: object
+      properties:
+        shifts:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateShiftBody"
+      required: [shifts]
+
+    BulkDeleteShiftsBody:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+      required: [ids]
+
+    CopyDayBody:
+      type: object
+      properties:
+        scheduleId:
+          type: string
+        fromDate:
+          type: string
+          format: date
+        toDate:
+          type: string
+          format: date
+      required: [scheduleId, fromDate, toDate]
+
+    BulkAssignShiftsBody:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+        userId:
+          type: string
+      required: [ids, userId]
+
+    ShiftRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        userName:
+          type: string
+          nullable: true
+        shiftId:
+          type: string
+        type:
+          type: string
+          enum: [drop, swap, pickup]
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        requestedWithId:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, userId, shiftId, type, status, createdAt]
+
+    CreateShiftRequestBody:
+      type: object
+      properties:
+        userId:
+          type: string
+        shiftId:
+          type: string
+        type:
+          type: string
+          enum: [drop, swap, pickup]
+        requestedWithId:
+          type: string
+        notes:
+          type: string
+      required: [userId, shiftId, type]
+
+    Reservation:
+      type: object
+      properties:
+        id:
+          type: string
+        venueId:
+          type: string
+        guestId:
+          type: string
+          nullable: true
+        guestName:
+          type: string
+        guestEmail:
+          type: string
+          nullable: true
+        guestPhone:
+          type: string
+          nullable: true
+        partySize:
+          type: integer
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+        durationMinutes:
+          type: integer
+        tableId:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, confirmed, seated, completed, cancelled, no_show]
+        notes:
+          type: string
+          nullable: true
+        source:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, venueId, guestName, partySize, date, time, durationMinutes, status, createdAt]
+
+    CreateReservationBody:
+      type: object
+      properties:
+        venueId:
+          type: string
+        guestName:
+          type: string
+        guestEmail:
+          type: string
+        guestPhone:
+          type: string
+        partySize:
+          type: integer
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+        durationMinutes:
+          type: integer
+        tableId:
+          type: string
+        notes:
+          type: string
+        source:
+          type: string
+      required: [venueId, guestName, partySize, date, time]
+
+    UpdateReservationBody:
+      type: object
+      properties:
+        guestName:
+          type: string
+        guestEmail:
+          type: string
+        guestPhone:
+          type: string
+        partySize:
+          type: integer
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+        tableId:
+          type: string
+        status:
+          type: string
+          enum: [pending, confirmed, seated, completed, cancelled, no_show]
+        notes:
+          type: string
+
+    WaitlistEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        venueId:
+          type: string
+        guestName:
+          type: string
+        guestPhone:
+          type: string
+          nullable: true
+        partySize:
+          type: integer
+        quotedWait:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [waiting, seated, left]
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, venueId, guestName, partySize, status, createdAt]
+
+    CreateWaitlistEntryBody:
+      type: object
+      properties:
+        venueId:
+          type: string
+        guestName:
+          type: string
+        guestPhone:
+          type: string
+        partySize:
+          type: integer
+        quotedWait:
+          type: integer
+        notes:
+          type: string
+      required: [venueId, guestName, partySize]
+
+    UpdateWaitlistEntryBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [waiting, seated, left]
+        quotedWait:
+          type: integer
+        notes:
+          type: string
+
+    Guest:
+      type: object
+      properties:
+        id:
+          type: string
+        venueId:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        birthday:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        vipLevel:
+          type: integer
+          minimum: 0
+          maximum: 3
+        visitCount:
+          type: integer
+        lastVisit:
+          type: string
+          nullable: true
+        totalSpent:
+          type: number
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, venueId, fullName, tags, vipLevel, visitCount, totalSpent, createdAt]
+
+    CreateGuestBody:
+      type: object
+      properties:
+        venueId:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        birthday:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        vipLevel:
+          type: integer
+        notes:
+          type: string
+      required: [venueId, fullName]
+
+    UpdateGuestBody:
+      type: object
+      properties:
+        fullName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        birthday:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        vipLevel:
+          type: integer
+        notes:
+          type: string
+        visitCount:
+          type: integer
+        totalSpent:
+          type: number
+
+    TimeClockEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        userName:
+          type: string
+          nullable: true
+        venueId:
+          type: string
+        clockIn:
+          type: string
+          format: date-time
+        clockOut:
+          type: string
+          format: date-time
+          nullable: true
+        totalHours:
+          type: number
+          nullable: true
+        breakMinutes:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [active, completed]
+        notes:
+          type: string
+          nullable: true
+      required: [id, userId, venueId, clockIn, status]
+
+    ClockInBody:
+      type: object
+      properties:
+        userId:
+          type: string
+        venueId:
+          type: string
+        notes:
+          type: string
+      required: [userId, venueId]
+
+    ClockOutBody:
+      type: object
+      properties:
+        userId:
+          type: string
+        venueId:
+          type: string
+        breakMinutes:
+          type: integer
+        notes:
+          type: string
+      required: [userId, venueId]
+
+    UpdateTimeClockEntryBody:
+      type: object
+      properties:
+        clockIn:
+          type: string
+          format: date-time
+        clockOut:
+          type: string
+          format: date-time
+        breakMinutes:
+          type: integer
+        notes:
+          type: string
+
+    TimeOffRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        userName:
+          type: string
+          nullable: true
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        type:
+          type: string
+          enum: [vacation, sick, personal]
+        status:
+          type: string
+          enum: [pending, approved, denied]
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, userId, startDate, endDate, type, status, createdAt]
+
+    CreateTimeOffRequestBody:
+      type: object
+      properties:
+        userId:
+          type: string
+        venueId:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        type:
+          type: string
+          enum: [vacation, sick, personal]
+        notes:
+          type: string
+      required: [userId, venueId, startDate, endDate, type]
+
+    FloorSection:
+      type: object
+      properties:
+        id:
+          type: string
+        venueId:
+          type: string
+        name:
+          type: string
+        capacity:
+          type: integer
+        color:
+          type: string
+      required: [id, venueId, name, capacity, color]
+
+    CreateFloorSectionBody:
+      type: object
+      properties:
+        venueId:
+          type: string
+        name:
+          type: string
+        capacity:
+          type: integer
+        color:
+          type: string
+      required: [venueId, name, capacity, color]
+
+    Table:
+      type: object
+      properties:
+        id:
+          type: string
+        venueId:
+          type: string
+        sectionId:
+          type: string
+        sectionName:
+          type: string
+          nullable: true
+        label:
+          type: string
+        capacity:
+          type: integer
+        status:
+          type: string
+          enum: [available, occupied, reserved, cleaning]
+        x:
+          type: number
+        y:
+          type: number
+        width:
+          type: number
+        height:
+          type: number
+      required: [id, venueId, sectionId, label, capacity, status, x, y, width, height]
+
+    CreateTableBody:
+      type: object
+      properties:
+        venueId:
+          type: string
+        sectionId:
+          type: string
+        label:
+          type: string
+        capacity:
+          type: integer
+        x:
+          type: number
+        y:
+          type: number
+        width:
+          type: number
+        height:
+          type: number
+      required: [venueId, sectionId, label, capacity, x, y, width, height]
+
+    UpdateTableBody:
+      type: object
+      properties:
+        label:
+          type: string
+        capacity:
+          type: integer
+        status:
+          type: string
+          enum: [available, occupied, reserved, cleaning]
+        x:
+          type: number
+        y:
+          type: number
+        width:
+          type: number
+        height:
+          type: number
+
+    TipPool:
+      type: object
+      properties:
+        id:
+          type: string
+        venueId:
+          type: string
+        scheduleId:
+          type: string
+        totalTips:
+          type: number
+        distributionMethod:
+          type: string
+          enum: [equal, hours, points]
+        status:
+          type: string
+          enum: [draft, distributed]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, venueId, scheduleId, totalTips, distributionMethod, status, createdAt]
+
+    CreateTipPoolBody:
+      type: object
+      properties:
+        venueId:
+          type: string
+        scheduleId:
+          type: string
+        totalTips:
+          type: number
+        distributionMethod:
+          type: string
+          enum: [equal, hours, points]
+      required: [venueId, scheduleId, totalTips, distributionMethod]
+
+    TipPoolEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        poolId:
+          type: string
+        userId:
+          type: string
+        userName:
+          type: string
+          nullable: true
+        hoursWorked:
+          type: number
+        points:
+          type: number
+        tipAmount:
+          type: number
+      required: [id, poolId, userId, hoursWorked, points, tipAmount]
+
+    PayrollRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        userName:
+          type: string
+          nullable: true
+        venueId:
+          type: string
+        periodStart:
+          type: string
+          format: date
+        periodEnd:
+          type: string
+          format: date
+        regularHours:
+          type: number
+        overtimeHours:
+          type: number
+        regularPay:
+          type: number
+        overtimePay:
+          type: number
+        tipAmount:
+          type: number
+        totalPay:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, userId, venueId, periodStart, periodEnd, regularHours, overtimeHours, regularPay, overtimePay, tipAmount, totalPay, createdAt]
+
+    GeneratePayrollBody:
+      type: object
+      properties:
+        venueId:
+          type: string
+        periodStart:
+          type: string
+          format: date
+        periodEnd:
+          type: string
+          format: date
+      required: [venueId, periodStart, periodEnd]
+
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+        venueId:
+          type: string
+        userId:
+          type: string
+          nullable: true
+        userName:
+          type: string
+          nullable: true
+        title:
+          type: string
+        type:
+          type: string
+          enum: [license, cert, policy, other]
+        fileUrl:
+          type: string
+        expiryDate:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, expired, expiring_soon]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, venueId, title, type, fileUrl, status, createdAt]
+
+    CreateDocumentBody:
+      type: object
+      properties:
+        venueId:
+          type: string
+        userId:
+          type: string
+        title:
+          type: string
+        type:
+          type: string
+          enum: [license, cert, policy, other]
+        fileUrl:
+          type: string
+        expiryDate:
+          type: string
+      required: [venueId, title, type, fileUrl]
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        venueId:
+          type: string
+        senderId:
+          type: string
+        senderName:
+          type: string
+          nullable: true
+        channel:
+          type: string
+          enum: [general, managers, announcements]
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, venueId, senderId, channel, content, createdAt]
+
+    SendMessageBody:
+      type: object
+      properties:
+        venueId:
+          type: string
+        senderId:
+          type: string
+        channel:
+          type: string
+          enum: [general, managers, announcements]
+        content:
+          type: string
+      required: [venueId, senderId, channel, content]
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        type:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        isRead:
+          type: boolean
+        referenceId:
+          type: string
+          nullable: true
+        referenceType:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, userId, type, title, content, isRead, createdAt]
+
+    DashboardStats:
+      type: object
+      properties:
+        activeStaffCount:
+          type: integer
+        shiftsToday:
+          type: integer
+        openShifts:
+          type: integer
+        laborPct:
+          type: number
+        waitlistCount:
+          type: integer
+        reservationsToday:
+          type: integer
+        clockedInNow:
+          type: integer
+        pendingTimeOff:
+          type: integer
+        pendingShiftRequests:
+          type: integer
+      required: [activeStaffCount, shiftsToday, openShifts, laborPct, waitlistCount, reservationsToday, clockedInNow, pendingTimeOff, pendingShiftRequests]
+
+    LaborAnalyticsEntry:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        totalHours:
+          type: number
+        totalCost:
+          type: number
+        scheduledShifts:
+          type: integer
+      required: [date, totalHours, totalCost, scheduledShifts]
+
+    EmployeeAnalyticsEntry:
+      type: object
+      properties:
+        userId:
+          type: string
+        userName:
+          type: string
+        totalHours:
+          type: number
+        regularHours:
+          type: number
+        overtimeHours:
+          type: number
+        totalPay:
+          type: number
+        shiftsWorked:
+          type: integer
+      required: [userId, userName, totalHours, regularHours, overtimeHours, totalPay, shiftsWorked]
