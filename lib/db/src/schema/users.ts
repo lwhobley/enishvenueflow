@@ -13,6 +13,7 @@ export const users = pgTable("users", {
   avatarUrl: text("avatar_url"),
   hireDate: text("hire_date"),
   hourlyRate: numeric("hourly_rate", { precision: 10, scale: 2 }),
+  pinHash: text("pin_hash"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

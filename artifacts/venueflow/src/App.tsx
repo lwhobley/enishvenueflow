@@ -3,10 +3,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider } from "@/hooks/use-app-context";
+import { AuthProvider, useAuth } from "@/contexts/auth-context";
 import { Layout } from "@/components/layout";
+import AuthPage from "@/pages/auth";
 import NotFound from "@/pages/not-found";
 
-// Pages
+// Manager Pages
 import ManagerDashboard from "@/pages/manager/dashboard";
 import ManagerSchedule from "@/pages/manager/schedule";
 import ManagerEmployees from "@/pages/manager/employees";
@@ -39,90 +41,53 @@ function Router() {
       <Route path="/">
         <Redirect to="/manager/dashboard" />
       </Route>
-      
-      {/* Manager Routes */}
-      <Route path="/manager/dashboard">
-        <Layout><ManagerDashboard /></Layout>
-      </Route>
-      <Route path="/manager/schedule">
-        <Layout><ManagerSchedule /></Layout>
-      </Route>
-      <Route path="/manager/ai-schedule">
-        <Layout><ManagerAISchedule /></Layout>
-      </Route>
-      <Route path="/manager/employees">
-        <Layout><ManagerEmployees /></Layout>
-      </Route>
-      <Route path="/manager/floor">
-        <Layout><ManagerFloor /></Layout>
-      </Route>
-      <Route path="/manager/reservations">
-        <Layout><ManagerReservations /></Layout>
-      </Route>
-      <Route path="/manager/guests">
-        <Layout><ManagerGuests /></Layout>
-      </Route>
-      <Route path="/manager/analytics">
-        <Layout><ManagerAnalytics /></Layout>
-      </Route>
-      <Route path="/manager/time-clock">
-        <Layout><ManagerTimeClock /></Layout>
-      </Route>
-      <Route path="/manager/time-off">
-        <Layout><ManagerTimeOff /></Layout>
-      </Route>
-      <Route path="/manager/payroll">
-        <Layout><ManagerPayroll /></Layout>
-      </Route>
-      <Route path="/manager/tip-pool">
-        <Layout><ManagerTipPool /></Layout>
-      </Route>
-      <Route path="/manager/documents">
-        <Layout><ManagerDocuments /></Layout>
-      </Route>
-      <Route path="/manager/chat">
-        <Layout><ManagerChat /></Layout>
-      </Route>
-      <Route path="/manager/settings">
-        <Layout><ManagerSettings /></Layout>
-      </Route>
-      <Route path="/manager/venues">
-        <Layout><ManagerVenues /></Layout>
-      </Route>
-
-      {/* Employee Routes */}
-      <Route path="/employee/dashboard">
-        <Layout isEmployee><EmployeeDashboard /></Layout>
-      </Route>
-      <Route path="/employee/schedule">
-        <Layout isEmployee><EmployeeSchedule /></Layout>
-      </Route>
-      <Route path="/employee/floor">
-        <Layout isEmployee><EmployeeFloor /></Layout>
-      </Route>
-      <Route path="/employee/chat">
-        <Layout isEmployee><EmployeeChat /></Layout>
-      </Route>
-      <Route path="/employee/time-clock">
-        <Layout isEmployee><EmployeeTimeClock /></Layout>
-      </Route>
-
+      <Route path="/manager/dashboard"><Layout><ManagerDashboard /></Layout></Route>
+      <Route path="/manager/schedule"><Layout><ManagerSchedule /></Layout></Route>
+      <Route path="/manager/ai-schedule"><Layout><ManagerAISchedule /></Layout></Route>
+      <Route path="/manager/employees"><Layout><ManagerEmployees /></Layout></Route>
+      <Route path="/manager/floor"><Layout><ManagerFloor /></Layout></Route>
+      <Route path="/manager/reservations"><Layout><ManagerReservations /></Layout></Route>
+      <Route path="/manager/guests"><Layout><ManagerGuests /></Layout></Route>
+      <Route path="/manager/analytics"><Layout><ManagerAnalytics /></Layout></Route>
+      <Route path="/manager/time-clock"><Layout><ManagerTimeClock /></Layout></Route>
+      <Route path="/manager/time-off"><Layout><ManagerTimeOff /></Layout></Route>
+      <Route path="/manager/payroll"><Layout><ManagerPayroll /></Layout></Route>
+      <Route path="/manager/tip-pool"><Layout><ManagerTipPool /></Layout></Route>
+      <Route path="/manager/documents"><Layout><ManagerDocuments /></Layout></Route>
+      <Route path="/manager/chat"><Layout><ManagerChat /></Layout></Route>
+      <Route path="/manager/settings"><Layout><ManagerSettings /></Layout></Route>
+      <Route path="/manager/venues"><Layout><ManagerVenues /></Layout></Route>
+      <Route path="/employee/dashboard"><Layout isEmployee><EmployeeDashboard /></Layout></Route>
+      <Route path="/employee/schedule"><Layout isEmployee><EmployeeSchedule /></Layout></Route>
+      <Route path="/employee/floor"><Layout isEmployee><EmployeeFloor /></Layout></Route>
+      <Route path="/employee/chat"><Layout isEmployee><EmployeeChat /></Layout></Route>
+      <Route path="/employee/time-clock"><Layout isEmployee><EmployeeTimeClock /></Layout></Route>
       <Route component={NotFound} />
     </Switch>
+  );
+}
+
+function AppContent() {
+  const { user } = useAuth();
+  if (!user) return <AuthPage />;
+  return (
+    <AppProvider>
+      <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+        <Router />
+      </WouterRouter>
+    </AppProvider>
   );
 }
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppProvider>
+      <AuthProvider>
         <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
+          <AppContent />
           <Toaster />
         </TooltipProvider>
-      </AppProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
