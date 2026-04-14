@@ -45,61 +45,77 @@
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
 }
 
+/* ── Fine Dining Luxury Palette ───────────────────── */
 :root {
-  --background: 0 0% 98%;
-  --foreground: 220 10% 10%;
+  /* Warm espresso dark foundation */
+  --background: 22 18% 7%;       /* #120C08 deep espresso */
+  --foreground: 40 55% 91%;      /* #F0E6C8 champagne ivory */
 
-  --card: 0 0% 100%;
-  --card-foreground: 220 10% 10%;
-  --card-border: 220 13% 91%;
+  /* Card surfaces */
+  --card: 22 20% 10%;            /* #1A1009 warm card */
+  --card-foreground: 40 55% 91%;
+  --card-border: 36 40% 20%;     /* subtle gold border */
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 220 10% 10%;
-  --popover-border: 220 13% 91%;
+  /* Popover/dropdown */
+  --popover: 22 22% 9%;
+  --popover-foreground: 40 55% 91%;
+  --popover-border: 36 35% 18%;
 
-  --primary: 258 69% 54%;
-  --primary-foreground: 0 0% 100%;
-  --primary-border: hsl(258 69% 44%);
+  /* Gold primary */
+  --primary: 38 52% 52%;         /* #C9A84B gold */
+  --primary-foreground: 22 18% 7%;
+  --primary-border: hsl(38 52% 38%);
 
-  --secondary: 220 9% 95%;
-  --secondary-foreground: 220 10% 10%;
-  --secondary-border: hsl(220 13% 85%);
+  /* Warm secondary */
+  --secondary: 25 18% 14%;
+  --secondary-foreground: 40 45% 80%;
+  --secondary-border: hsl(30 20% 22%);
 
-  --muted: 220 9% 95%;
-  --muted-foreground: 220 5% 46%;
+  /* Muted */
+  --muted: 24 15% 14%;
+  --muted-foreground: 34 22% 52%; /* warm brown-grey */
 
-  --accent: 220 9% 95%;
-  --accent-foreground: 220 10% 10%;
+  /* Accent */
+  --accent: 36 30% 16%;
+  --accent-foreground: 38 52% 70%;
 
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 0 0% 100%;
+  /* Destructive — deep rose */
+  --destructive: 0 58% 48%;
+  --destructive-foreground: 40 55% 95%;
 
-  --border: 220 13% 91%;
-  --input: 220 13% 91%;
-  --ring: 258 69% 54%;
-  --radius: 0.5rem;
+  --border: 32 25% 18%;          /* warm dark gold border */
+  --input:  24 18% 15%;
+  --ring:   38 52% 52%;
+  --radius: 0.75rem;             /* rounder everywhere */
 
-  --sidebar: 222 47% 11%;
-  --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 217 33% 18%;
-  --sidebar-accent: 217 33% 18%;
-  --sidebar-accent-foreground: 210 40% 98%;
+  /* Sidebar — deepest espresso */
+  --sidebar: 20 24% 6%;          /* #0F0A06 */
+  --sidebar-foreground: 40 40% 78%;
+  --sidebar-border: 30 20% 14%;
+  --sidebar-accent: 32 25% 12%;
+  --sidebar-accent-foreground: 38 50% 80%;
 }
 
 * { box-sizing: border-box; }
 
-body {
+html, body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
   background: hsl(var(--background));
   color: hsl(var(--foreground));
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ── Logo flame animation ─────────────────────────── */
+/* Scrollbar luxury */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(201,168,75,0.18); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(201,168,75,0.30); }
 
+/* ── Logo flame animation ─────────────────────────── */
 .logo-flame-dance {
   animation: logo-flame-dance 0.72s ease-in-out infinite;
 }
@@ -116,7 +132,7 @@ body {
   100% { transform: rotate(-1.8deg) scaleY(0.97) scaleX(1.01); filter: url(#flame-wobble) brightness(0.91) drop-shadow(0 0 6px rgba(255,80,0,0.5)); }
 }
 
-/* ── PIN shake on error ───────────────────────────── */
+/* ── PIN shake ────────────────────────────────────── */
 @keyframes pin-shake {
   0%, 100% { transform: translateX(0); }
   15%       { transform: translateX(-8px); }
@@ -125,7 +141,37 @@ body {
   75%       { transform: translateX(5px); }
   90%       { transform: translateX(-2px); }
 }
+.pin-shake { animation: pin-shake 0.45s ease-in-out; }
 
-.pin-shake {
-  animation: pin-shake 0.45s ease-in-out;
+/* ── Luxury nav slide-in ──────────────────────────── */
+@keyframes lux-slidein {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Luxury fade-up ───────────────────────────────── */
+@keyframes lux-fadeup {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Time clock rings ─────────────────────────────── */
+@keyframes tc-ring {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+@keyframes tc-pulse {
+  0%, 100% { transform: scale(1);   opacity: 0.28; }
+  50%       { transform: scale(2.2); opacity: 0; }
+}
+@keyframes tc-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+@keyframes tc-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes tc-fadein {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }

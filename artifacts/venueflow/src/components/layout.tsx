@@ -1,55 +1,51 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import {
-  LayoutDashboard,
-  Calendar,
-  Wand2,
-  Users,
-  Map,
-  BookOpen,
-  UserSquare,
-  BarChart,
-  Clock,
-  CalendarOff,
-  DollarSign,
-  Coins,
-  FileText,
-  MessageSquare,
-  Settings,
-  MapPin,
-  Building2,
-  Menu,
-  X,
-  CalendarCheck,
+  LayoutDashboard, Calendar, Wand2, Users, Map, BookOpen,
+  UserSquare, BarChart, Clock, CalendarOff, DollarSign, Coins,
+  FileText, MessageSquare, Settings, MapPin, Menu, X, CalendarCheck,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+
+// ── Fine dining palette ───────────────────────────────────────────────────────
+const G = {
+  bg:       "#0C0806",
+  surface:  "#18100A",
+  surfaceHi:"#1E1510",
+  gold:     "#C9A84B",
+  goldDim:  "rgba(201,168,75,0.18)",
+  goldHair: "rgba(201,168,75,0.10)",
+  champ:    "#EAD9A4",
+  champDim: "rgba(234,217,164,0.48)",
+  muted:    "rgba(234,217,164,0.38)",
+  border:   "rgba(201,168,75,0.11)",
+};
 
 const managerNavItems = [
-  { href: "/manager/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/manager/schedule", icon: Calendar, label: "Schedule" },
-  { href: "/manager/ai-schedule", icon: Wand2, label: "AI Schedule" },
-  { href: "/manager/employees", icon: Users, label: "Employees" },
-  { href: "/manager/floor", icon: Map, label: "Floor Plan" },
-  { href: "/manager/reservations", icon: BookOpen, label: "Reservations" },
-  { href: "/manager/guests", icon: UserSquare, label: "Guests" },
-  { href: "/manager/analytics", icon: BarChart, label: "Analytics" },
-  { href: "/manager/time-clock", icon: Clock, label: "Time Clock" },
-  { href: "/manager/time-off", icon: CalendarOff, label: "Time Off" },
-  { href: "/manager/payroll", icon: DollarSign, label: "Payroll" },
-  { href: "/manager/tip-pool", icon: Coins, label: "Tip Pool" },
-  { href: "/manager/documents", icon: FileText, label: "Documents" },
-  { href: "/manager/chat", icon: MessageSquare, label: "Chat" },
-  { href: "/manager/settings", icon: Settings, label: "Settings" },
-  { href: "/manager/venues", icon: MapPin, label: "Venues" },
+  { href: "/manager/dashboard",  icon: LayoutDashboard, label: "Dashboard"    },
+  { href: "/manager/schedule",   icon: Calendar,        label: "Schedule"     },
+  { href: "/manager/ai-schedule",icon: Wand2,           label: "AI Schedule"  },
+  { href: "/manager/employees",  icon: Users,           label: "Employees"    },
+  { href: "/manager/floor",      icon: Map,             label: "Floor Plan"   },
+  { href: "/manager/reservations",icon: BookOpen,       label: "Reservations" },
+  { href: "/manager/guests",     icon: UserSquare,      label: "Guests"       },
+  { href: "/manager/analytics",  icon: BarChart,        label: "Analytics"    },
+  { href: "/manager/time-clock", icon: Clock,           label: "Time Clock"   },
+  { href: "/manager/time-off",   icon: CalendarOff,     label: "Time Off"     },
+  { href: "/manager/payroll",    icon: DollarSign,      label: "Payroll"      },
+  { href: "/manager/tip-pool",   icon: Coins,           label: "Tip Pool"     },
+  { href: "/manager/documents",  icon: FileText,        label: "Documents"    },
+  { href: "/manager/chat",       icon: MessageSquare,   label: "Chat"         },
+  { href: "/manager/settings",   icon: Settings,        label: "Settings"     },
+  { href: "/manager/venues",     icon: MapPin,          label: "Venues"       },
 ];
 
 const employeeNavItems = [
-  { href: "/employee/dashboard", icon: LayoutDashboard, label: "My Dashboard" },
-  { href: "/employee/schedule", icon: Calendar, label: "My Schedule" },
-  { href: "/employee/availability", icon: CalendarCheck, label: "My Availability" },
-  { href: "/employee/floor", icon: Map, label: "Floor Plan" },
-  { href: "/employee/chat", icon: MessageSquare, label: "Chat" },
-  { href: "/employee/time-clock", icon: Clock, label: "Time Clock" },
+  { href: "/employee/dashboard",   icon: LayoutDashboard, label: "My Dashboard"   },
+  { href: "/employee/schedule",    icon: Calendar,        label: "My Schedule"    },
+  { href: "/employee/availability",icon: CalendarCheck,   label: "My Availability"},
+  { href: "/employee/floor",       icon: Map,             label: "Floor Plan"     },
+  { href: "/employee/chat",        icon: MessageSquare,   label: "Chat"           },
+  { href: "/employee/time-clock",  icon: Clock,           label: "Time Clock"     },
 ];
 
 export function Layout({ children, isEmployee = false }: { children: React.ReactNode; isEmployee?: boolean }) {
@@ -58,83 +54,115 @@ export function Layout({ children, isEmployee = false }: { children: React.React
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navItems = isEmployee ? employeeNavItems : managerNavItems;
 
-  // Close when clicking outside
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (open && dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      if (open && dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setOpen(false);
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  // Close on route change
-  useEffect(() => {
-    setOpen(false);
-  }, [location]);
+  useEffect(() => { setOpen(false); }, [location]);
 
-  const currentPage = navItems.find(
-    (item) => location === item.href || location.startsWith(item.href + "/")
-  );
+  const currentPage = navItems.find((item) => location === item.href || location.startsWith(item.href + "/"));
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      {/* Top bar */}
-      <header
-        className={cn(
-          "h-12 flex-shrink-0 flex items-center px-4 gap-3 border-b z-30 relative",
-          !isEmployee
-            ? "bg-sidebar text-sidebar-foreground border-sidebar-border"
-            : "bg-background border-border"
-        )}
-      >
-        {/* Menu button + dropdown anchor */}
-        <div ref={dropdownRef} className="relative">
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: G.bg }}>
+
+      {/* ── Top bar ─────────────────────────────────────────────────────── */}
+      <header style={{
+        height: 56,
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        padding: "0 20px",
+        gap: 14,
+        background: G.surface,
+        borderBottom: `1px solid ${G.border}`,
+        position: "relative",
+        zIndex: 30,
+      }}>
+
+        {/* Hamburger + dropdown anchor */}
+        <div ref={dropdownRef} style={{ position: "relative" }}>
           <button
             onClick={() => setOpen((v) => !v)}
-            className={cn(
-              "p-1.5 rounded-md transition-colors",
-              !isEmployee
-                ? "hover:bg-sidebar-accent text-sidebar-foreground"
-                : "hover:bg-accent text-foreground"
-            )}
-            aria-label="Toggle navigation"
+            aria-label="Navigation"
+            style={{
+              width: 36, height: 36,
+              borderRadius: 10,
+              border: `1px solid ${G.goldHair}`,
+              background: open ? G.goldDim : "transparent",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer",
+              color: G.gold,
+              transition: "background 0.2s, border-color 0.2s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = G.goldDim; }}
+            onMouseLeave={(e) => { if (!open) e.currentTarget.style.background = "transparent"; }}
           >
-            {open ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            {open
+              ? <X size={15} />
+              : <Menu size={15} />
+            }
           </button>
 
-          {/* Dropdown panel */}
+          {/* ── Dropdown nav panel ── */}
           {open && (
-            <div
-              className={cn(
-                "absolute top-full left-0 mt-1 w-52 rounded-lg shadow-xl border z-50 flex flex-col",
-                !isEmployee
-                  ? "bg-sidebar text-sidebar-foreground border-sidebar-border"
-                  : "bg-popover text-popover-foreground border-border"
-              )}
-            >
-              {/* Scrollable nav list */}
-              <nav className="overflow-y-auto max-h-[min(420px,70vh)] py-1.5 px-1.5 space-y-0.5">
+            <div style={{
+              position: "absolute",
+              top: "calc(100% + 8px)",
+              left: 0,
+              width: 224,
+              background: G.surface,
+              border: `1px solid ${G.border}`,
+              borderRadius: 20,
+              boxShadow: `0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px ${G.goldHair}, inset 0 1px 0 rgba(201,168,75,0.06)`,
+              backdropFilter: "blur(20px)",
+              overflow: "hidden",
+              animation: "lux-slidein 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
+              zIndex: 50,
+            }}>
+
+              {/* Section label */}
+              <div style={{
+                padding: "14px 18px 8px",
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: 3,
+                textTransform: "uppercase",
+                color: G.muted,
+              }}>
+                {isEmployee ? "Employee" : "Management"}
+              </div>
+
+              {/* Nav items */}
+              <nav style={{ padding: "0 8px 8px", display: "flex", flexDirection: "column", gap: 1, maxHeight: "min(440px,70vh)", overflowY: "auto" }}>
                 {navItems.map((item) => {
-                  const isActive =
-                    location === item.href || location.startsWith(item.href + "/");
+                  const isActive = location === item.href || location.startsWith(item.href + "/");
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={cn(
-                        "flex items-center gap-2.5 px-2.5 py-1.5 text-sm font-medium rounded-md transition-colors",
-                        isActive
-                          ? !isEmployee
-                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                            : "bg-accent text-accent-foreground"
-                          : !isEmployee
-                          ? "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                      )}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "9px 12px",
+                        borderRadius: 12,
+                        fontSize: 13,
+                        fontWeight: isActive ? 600 : 400,
+                        letterSpacing: 0.3,
+                        color: isActive ? G.champ : G.muted,
+                        background: isActive ? G.goldDim : "transparent",
+                        textDecoration: "none",
+                        transition: "all 0.15s ease",
+                        borderLeft: isActive ? `2px solid ${G.gold}` : "2px solid transparent",
+                      }}
+                      onMouseEnter={(e) => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = "rgba(201,168,75,0.07)"; (e.currentTarget as HTMLElement).style.color = G.champ; } }}
+                      onMouseLeave={(e) => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = G.muted; } }}
                     >
-                      <item.icon className="w-4 h-4 flex-shrink-0" />
+                      <item.icon size={14} style={{ flexShrink: 0, opacity: isActive ? 1 : 0.7 }} />
                       {item.label}
                     </Link>
                   );
@@ -142,19 +170,25 @@ export function Layout({ children, isEmployee = false }: { children: React.React
               </nav>
 
               {/* Footer link */}
-              <div
-                className={cn(
-                  "px-3 py-2 border-t text-xs",
-                  !isEmployee ? "border-sidebar-border" : "border-border"
-                )}
-              >
+              <div style={{
+                borderTop: `1px solid ${G.border}`,
+                padding: "10px 18px",
+                fontSize: 11,
+                letterSpacing: 1,
+              }}>
                 {isEmployee ? (
-                  <Link href="/manager/dashboard" className="text-muted-foreground hover:text-foreground">
-                    Switch to Manager
+                  <Link href="/manager/dashboard" style={{ color: G.muted, textDecoration: "none" }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = G.gold; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = G.muted; }}
+                  >
+                    ← Manager View
                   </Link>
                 ) : (
-                  <Link href="/employee/dashboard" className="text-sidebar-foreground/60 hover:text-sidebar-foreground">
-                    Switch to Employee
+                  <Link href="/employee/dashboard" style={{ color: G.muted, textDecoration: "none" }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = G.gold; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = G.muted; }}
+                  >
+                    → Employee View
                   </Link>
                 )}
               </div>
@@ -162,27 +196,49 @@ export function Layout({ children, isEmployee = false }: { children: React.React
           )}
         </div>
 
-        {/* Logo */}
-        <div className="flex items-center gap-2 font-bold text-sm select-none">
-          <Building2 className="w-4 h-4" />
-          VenueFlow
+        {/* Wordmark */}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          userSelect: "none",
+        }}>
+          <span style={{
+            fontSize: 14,
+            fontWeight: 700,
+            letterSpacing: 4,
+            textTransform: "uppercase",
+            color: G.gold,
+          }}>
+            ENOSH
+          </span>
+          {!isEmployee && (
+            <span style={{
+              fontSize: 10,
+              letterSpacing: 2,
+              textTransform: "uppercase",
+              color: G.muted,
+              paddingLeft: 8,
+              borderLeft: `1px solid ${G.border}`,
+            }}>
+              Venue Management
+            </span>
+          )}
         </div>
 
-        {/* Current page label */}
+        {/* Breadcrumb */}
         {currentPage && (
-          <span
-            className={cn(
-              "text-xs font-medium",
-              !isEmployee ? "text-sidebar-foreground/50" : "text-muted-foreground"
-            )}
-          >
-            / {currentPage.label}
-          </span>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 4, height: 4, borderRadius: "50%", background: G.goldDim, display: "block" }} />
+            <span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", color: G.muted }}>
+              {currentPage.label}
+            </span>
+          </div>
         )}
       </header>
 
-      {/* Page content */}
-      <main className="flex-1 overflow-y-auto p-8">
+      {/* ── Page content ─────────────────────────────────────────────────── */}
+      <main style={{ flex: 1, overflowY: "auto", padding: 32 }}>
         {children}
       </main>
     </div>

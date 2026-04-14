@@ -4,17 +4,33 @@ import {
   useListTimeClockEntries, getListTimeClockEntriesQueryKey,
   useListActiveClockIns, getListActiveClockInsQueryKey,
 } from "@workspace/api-client-react";
-import { format, formatDuration, intervalToDuration } from "date-fns";
+import { format, intervalToDuration } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { MapPin, Wifi, WifiOff, CheckCircle2, XCircle, Loader2, Clock4, CalendarCheck, AlertTriangle } from "lucide-react";
+import { MapPin, CalendarCheck, AlertTriangle, Loader2, Clock4 } from "lucide-react";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ── Fine dining palette ───────────────────────────────────────────────────────
+const G = {
+  bg:      "#0C0806",
+  surface: "rgba(201,168,75,0.04)",
+  border:  "rgba(201,168,75,0.10)",
+  borderHi:"rgba(201,168,75,0.22)",
+  gold:    "#C9A84B",
+  goldSoft:"rgba(201,168,75,0.55)",
+  champ:   "#EAD9A4",
+  sage:    "#85B878",      // warm sage green — success
+  rose:    "#C84848",      // deep rose — error/clock-out
+  amber:   "#C47C35",      // warm amber — warning
+  text:    "#EAD9A4",
+  sub:     "rgba(234,217,164,0.38)",
+};
+
+// ── Venue coords ──────────────────────────────────────────────────────────────
 const VENUE_LAT  = 29.736002;
 const VENUE_LNG  = -95.461831;
 const MAX_FEET   = 10;
 const MAX_M      = MAX_FEET * 0.3048;
-const GPS_BUFFER = 25; // metres accuracy buffer
+const GPS_BUFFER = 25;
 
 function haversineM(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371000;
@@ -27,121 +43,95 @@ function haversineM(lat1: number, lon1: number, lat2: number, lon2: number) {
 function toFeet(m: number) { return (m * 3.28084).toFixed(0); }
 function pad(n: number)    { return String(n).padStart(2, "0"); }
 
-// ─── Geo state machine ────────────────────────────────────────────────────────
-type GeoPhase = "idle" | "requesting" | "denied" | "inRange" | "outRange" | "error";
+type GeoPhase  = "idle" | "requesting" | "denied" | "inRange" | "outRange" | "error";
 type ShiftPhase = "loading" | "scheduled" | "none";
 
-// ─── Color palette ────────────────────────────────────────────────────────────
-const C = {
-  bg:      "#080C18",
-  surface: "rgba(255,255,255,0.04)",
-  border:  "rgba(255,255,255,0.07)",
-  hi:      "#7B6FFF",   // indigo accent
-  mint:    "#00D68F",   // success
-  amber:   "#FFB347",   // warning
-  rose:    "#FF4757",   // error
-  text:    "#DDE1FF",
-  sub:     "#6070A0",
-};
-
-// ─── Animated concentric rings ────────────────────────────────────────────────
+// ── Animated rings ────────────────────────────────────────────────────────────
 function Rings({ color, count = 3 }: { color: string; count?: number }) {
   return (
     <>
       {Array.from({ length: count }).map((_, i) => (
-        <span
-          key={i}
-          style={{
-            position: "absolute",
-            inset: 0,
-            borderRadius: "50%",
-            border: `1px solid ${color}`,
-            animation: `tc-ring ${1.6 + i * 0.5}s ease-out infinite`,
-            animationDelay: `${i * 0.4}s`,
-            opacity: 0,
-          }}
-        />
+        <span key={i} style={{
+          position: "absolute", inset: 0, borderRadius: "50%",
+          border: `1px solid ${color}`,
+          animation: `tc-ring ${2 + i * 0.6}s ease-out infinite`,
+          animationDelay: `${i * 0.5}s`,
+          opacity: 0,
+        }} />
       ))}
     </>
   );
 }
 
-// ─── GPS dot ──────────────────────────────────────────────────────────────────
+// ── GPS dot ───────────────────────────────────────────────────────────────────
 function GpsSignal({ phase }: { phase: GeoPhase }) {
-  const color = phase === "inRange" ? C.mint : phase === "outRange" || phase === "denied" ? C.rose : C.amber;
+  const color = phase === "inRange" ? G.sage : phase === "outRange" || phase === "denied" ? G.rose : G.amber;
   const label = {
     idle: "Tap to enable GPS",
     requesting: "Locating…",
-    denied: "Location denied",
-    inRange: "In range ✓",
+    denied: "Permission denied",
+    inRange: "In range",
     outRange: "Out of range",
-    error: "GPS error",
+    error: "GPS unavailable",
   }[phase];
-
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <span style={{ position: "relative", width: 10, height: 10, display: "flex" }}>
-        {phase === "requesting" ? (
-          <Loader2 size={10} style={{ color: C.amber, animation: "spin 1s linear infinite" }} />
-        ) : (
-          <>
-            <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: color, opacity: 0.35, animation: "tc-pulse 1.4s ease-out infinite" }} />
-            <span style={{ position: "relative", width: "100%", height: "100%", borderRadius: "50%", background: color }} />
-          </>
-        )}
+      <span style={{ position: "relative", width: 8, height: 8, display: "flex" }}>
+        {phase === "requesting"
+          ? <Loader2 size={8} style={{ color: G.amber, animation: "tc-spin 1s linear infinite" }} />
+          : <>
+              <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: color, opacity: 0.3, animation: "tc-pulse 1.6s ease-out infinite" }} />
+              <span style={{ width: "100%", height: "100%", borderRadius: "50%", background: color, position: "relative" }} />
+            </>
+        }
       </span>
-      <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", color }}>{label}</span>
+      <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase", color }}>{label}</span>
     </div>
   );
 }
 
-// ─── Status pill ──────────────────────────────────────────────────────────────
-function Pill({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string; color: string }) {
+// ── Stat pill ─────────────────────────────────────────────────────────────────
+function StatPill({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string; color: string }) {
   return (
     <div style={{
-      flex: 1, minWidth: 0, padding: "14px 16px",
-      background: C.surface,
-      border: `1px solid ${C.border}`,
-      borderRadius: 14,
-      backdropFilter: "blur(12px)",
+      flex: 1, minWidth: 0,
+      padding: "14px 18px",
+      background: G.surface,
+      border: `1px solid ${G.border}`,
+      borderRadius: 18,
+      backdropFilter: "blur(16px)",
     }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-        <Icon size={12} style={{ color: C.sub }} />
-        <span style={{ fontSize: 10, color: C.sub, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase" }}>{label}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
+        <Icon size={11} style={{ color: G.sub }} />
+        <span style={{ fontSize: 9, color: G.sub, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" }}>{label}</span>
       </div>
-      <p style={{ fontSize: 13, fontWeight: 700, color, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</p>
+      <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", letterSpacing: 0.3 }}>{value}</p>
     </div>
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────────
 export default function EmployeeTimeClock() {
   const { activeVenue, activeUser } = useAppContext();
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  // Live clock
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  // Geo
-  const [geoPhase, setGeoPhase]     = useState<GeoPhase>("idle");
-  const [distM, setDistM]           = useState<number | null>(null);
-  const [geoPos, setGeoPos]         = useState<GeolocationPosition | null>(null);
-  const watchRef                    = useRef<number | null>(null);
+  const [geoPhase, setGeoPhase] = useState<GeoPhase>("idle");
+  const [distM, setDistM]       = useState<number | null>(null);
+  const [geoPos, setGeoPos]     = useState<GeolocationPosition | null>(null);
+  const watchRef                = useRef<number | null>(null);
 
-  // Shift check
   const [shiftPhase, setShiftPhase] = useState<ShiftPhase>("loading");
   const [shiftLabel, setShiftLabel] = useState("Checking…");
+  const [acting, setActing]         = useState(false);
+  const [elapsedMs, setElapsedMs]   = useState(0);
 
-  // Action state
-  const [acting, setActing] = useState(false);
-  const [elapsedMs, setElapsedMs] = useState(0);
-
-  // API data
   const venueId = activeVenue?.id || "";
   const userId  = activeUser?.id  || "";
 
@@ -157,7 +147,6 @@ export default function EmployeeTimeClock() {
   const activeEntry = activeEntries?.find((e) => e.userId === userId);
   const isClockedIn = !!activeEntry;
 
-  // Elapsed time while clocked in
   useEffect(() => {
     if (!isClockedIn || !activeEntry) { setElapsedMs(0); return; }
     const update = () => setElapsedMs(Date.now() - new Date(activeEntry.clockIn).getTime());
@@ -173,16 +162,14 @@ export default function EmployeeTimeClock() {
     fetch(`/api/shifts?venueId=${venueId}&userId=${userId}`)
       .then((r) => r.json())
       .then((shifts: Array<{ startTime: string; endTime: string }>) => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const today = new Date(); today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
         const todayShifts = shifts.filter((s) => {
           const st = new Date(s.startTime);
           return st >= today && st < tomorrow;
         });
         if (todayShifts.length === 0) {
-          setShiftPhase("none");
-          setShiftLabel("No shifts today");
+          setShiftPhase("none"); setShiftLabel("No shifts today");
         } else {
           const next = todayShifts.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
           setShiftPhase("scheduled");
@@ -210,22 +197,19 @@ export default function EmployeeTimeClock() {
     );
   }, []);
 
-  useEffect(() => { return () => { if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current); }; }, []);
+  useEffect(() => {
+    return () => { if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current); };
+  }, []);
 
-  // ── Clock-in / out actions ──────────────────────────────────────────────────
   async function handleClockIn() {
     if (!venueId || !userId || acting) return;
-
+    if (geoPhase === "idle") { startGeo(); return; }
     if (geoPhase !== "inRange") {
-      if (geoPhase === "idle") { startGeo(); return; }
-      toast({ title: "Location required", description: "You must be within 10 feet of the venue.", variant: "destructive" });
-      return;
+      toast({ title: "Location required", description: "You must be within 10 feet of the venue.", variant: "destructive" }); return;
     }
     if (shiftPhase !== "scheduled") {
-      toast({ title: "Not scheduled", description: "You are not scheduled to work right now.", variant: "destructive" });
-      return;
+      toast({ title: "Not scheduled", description: "You are not scheduled to work right now.", variant: "destructive" }); return;
     }
-
     setActing(true);
     try {
       const res = await fetch("/api/time-clock/in", {
@@ -241,9 +225,9 @@ export default function EmployeeTimeClock() {
       });
       if (!res.ok) {
         const err = await res.json();
-        toast({ title: "Clock-in failed", description: err.message, variant: "destructive" });
+        toast({ title: "Clock-in declined", description: err.message, variant: "destructive" });
       } else {
-        toast({ title: "Clocked in", description: "Your shift has started. Have a great day! 🎯" });
+        toast({ title: "Welcome in", description: "Your shift has begun." });
         qc.invalidateQueries({ queryKey: getListActiveClockInsQueryKey({ venueId }) });
         qc.invalidateQueries({ queryKey: getListTimeClockEntriesQueryKey({ venueId, userId }) });
         refetchActive(); refetchHistory();
@@ -262,9 +246,9 @@ export default function EmployeeTimeClock() {
       });
       if (!res.ok) {
         const err = await res.json();
-        toast({ title: "Clock-out failed", description: err.message, variant: "destructive" });
+        toast({ title: "Error", description: err.message, variant: "destructive" });
       } else {
-        toast({ title: "Clocked out", description: "Great work today! 👏" });
+        toast({ title: "Shift complete", description: "Have a wonderful evening." });
         qc.invalidateQueries({ queryKey: getListActiveClockInsQueryKey({ venueId }) });
         qc.invalidateQueries({ queryKey: getListTimeClockEntriesQueryKey({ venueId, userId }) });
         refetchActive(); refetchHistory();
@@ -272,124 +256,107 @@ export default function EmployeeTimeClock() {
     } finally { setActing(false); }
   }
 
-  // ── Derived display values ──────────────────────────────────────────────────
-  const H  = pad(now.getHours());
-  const M  = pad(now.getMinutes());
-  const S  = pad(now.getSeconds());
+  // ── Derived ────────────────────────────────────────────────────────────────
+  const H = pad(now.getHours());
+  const M = pad(now.getMinutes());
+  const S = pad(now.getSeconds());
   const secPct = (now.getSeconds() / 60) * 100;
 
   const elapsedStr = (() => {
     if (!isClockedIn || elapsedMs <= 0) return null;
-    const dur = intervalToDuration({ start: 0, end: elapsedMs });
-    return `${pad(dur.hours ?? 0)}:${pad(dur.minutes ?? 0)}:${pad(dur.seconds ?? 0)}`;
+    const d = intervalToDuration({ start: 0, end: elapsedMs });
+    return `${pad(d.hours ?? 0)}:${pad(d.minutes ?? 0)}:${pad(d.seconds ?? 0)}`;
   })();
 
   const distDisplay = distM !== null
-    ? distM <= MAX_M + GPS_BUFFER
-      ? `${toFeet(distM)} ft`
-      : `${toFeet(distM)} ft away`
+    ? `${toFeet(distM)} ft`
     : null;
 
-  const btnColor = isClockedIn ? C.rose : shiftPhase === "scheduled" && geoPhase === "inRange" ? C.mint : C.hi;
-  const btnLabel = acting ? "…" : isClockedIn ? "CLOCK OUT" : geoPhase === "idle" ? "TAP TO START" : geoPhase === "requesting" ? "LOCATING…" : "CLOCK IN";
-  const canAct   = !acting && (isClockedIn || (geoPhase === "inRange" && shiftPhase === "scheduled"));
+  const btnColor = isClockedIn ? G.rose : (geoPhase === "inRange" && shiftPhase === "scheduled") ? G.sage : G.gold;
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: "100%", background: C.bg, color: C.text, fontFamily: "system-ui, sans-serif", padding: "0 0 40px" }}>
+    <div style={{ minHeight: "100%", background: G.bg, color: G.text, fontFamily: "system-ui, sans-serif", paddingBottom: 48 }}>
+      <div style={{ maxWidth: 420, margin: "0 auto", padding: "28px 20px 0" }}>
 
-      {/* Keyframes injected inline */}
-      <style>{`
-        @keyframes tc-ring {
-          0%   { transform: scale(1);   opacity: 0.6; }
-          100% { transform: scale(2.2); opacity: 0; }
-        }
-        @keyframes tc-pulse {
-          0%, 100% { transform: scale(1);   opacity: 0.3; }
-          50%      { transform: scale(2.2); opacity: 0; }
-        }
-        @keyframes tc-shimmer {
-          0%   { background-position: -200% center; }
-          100% { background-position:  200% center; }
-        }
-        @keyframes tc-spin {
-          to { transform: rotate(360deg); }
-        }
-        @keyframes tc-fadein {
-          from { opacity: 0; transform: translateY(8px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
+        {/* ── Live clock ─────────────────────────────────────────────── */}
+        <div style={{ textAlign: "center", padding: "32px 0 28px", animation: "tc-fadein 0.5s ease" }}>
 
-      <div style={{ maxWidth: 440, margin: "0 auto", padding: "24px 16px 0" }}>
+          {/* Decorative hairline */}
+          <div style={{ width: 40, height: 1, background: `linear-gradient(90deg, transparent, ${G.goldSoft}, transparent)`, margin: "0 auto 24px" }} />
 
-        {/* ── Live clock ── */}
-        <div style={{ textAlign: "center", padding: "32px 0 24px", animation: "tc-fadein 0.4s ease" }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 4 }}>
-            <span style={{ fontSize: 76, fontWeight: 800, letterSpacing: -4, fontVariantNumeric: "tabular-nums", lineHeight: 1, color: C.text }}>{H}:{M}</span>
-            <span style={{ fontSize: 36, fontWeight: 600, letterSpacing: -2, color: C.hi, fontVariantNumeric: "tabular-nums", minWidth: 44 }}>{S}</span>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 3 }}>
+            <span style={{
+              fontSize: 80, fontWeight: 300, letterSpacing: -3,
+              fontVariantNumeric: "tabular-nums", lineHeight: 1,
+              color: G.champ,
+            }}>{H}:{M}</span>
+            <span style={{
+              fontSize: 36, fontWeight: 300, letterSpacing: -1,
+              color: G.goldSoft, fontVariantNumeric: "tabular-nums",
+              minWidth: 48,
+            }}>{S}</span>
           </div>
-          <p style={{ margin: "6px 0 0", fontSize: 13, color: C.sub, letterSpacing: 1 }}>
-            {format(now, "EEEE, MMMM d, yyyy").toUpperCase()}
+
+          <p style={{ margin: "10px 0 0", fontSize: 11, color: G.sub, letterSpacing: 3, textTransform: "uppercase" }}>
+            {format(now, "EEEE · MMMM d, yyyy")}
           </p>
 
-          {/* Seconds progress bar */}
-          <div style={{ height: 2, background: "rgba(255,255,255,0.06)", borderRadius: 2, marginTop: 14, overflow: "hidden" }}>
+          {/* Seconds bar */}
+          <div style={{ height: 1, background: "rgba(201,168,75,0.08)", borderRadius: 1, marginTop: 20, overflow: "hidden" }}>
             <div style={{
               height: "100%", width: `${secPct}%`,
-              background: `linear-gradient(90deg, ${C.hi}, ${C.mint})`,
-              borderRadius: 2,
+              background: `linear-gradient(90deg, ${G.goldSoft}, ${G.gold})`,
               transition: "width 0.98s linear",
             }} />
           </div>
+
+          {/* Decorative hairline */}
+          <div style={{ width: 40, height: 1, background: `linear-gradient(90deg, transparent, ${G.goldSoft}, transparent)`, margin: "20px auto 0" }} />
         </div>
 
-        {/* ── Status pills ── */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 28, animation: "tc-fadein 0.4s ease 0.05s both" }}>
-          <Pill
+        {/* ── Status pills ───────────────────────────────────────────── */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 32, animation: "tc-fadein 0.5s ease 0.06s both" }}>
+          <StatPill
             icon={MapPin}
-            label="GPS"
+            label="Location"
             value={
-              geoPhase === "inRange"    ? distDisplay ?? "In range" :
+              geoPhase === "inRange"    ? (distDisplay ? `${distDisplay} away` : "In range") :
               geoPhase === "outRange"   ? (distDisplay ?? "Out of range") :
               geoPhase === "requesting" ? "Scanning…" :
-              geoPhase === "denied"     ? "Permission denied" :
-              geoPhase === "error"      ? "GPS unavailable" :
+              geoPhase === "denied"     ? "Access denied" :
+              geoPhase === "error"      ? "Unavailable" :
               "Not started"
             }
-            color={
-              geoPhase === "inRange"  ? C.mint :
-              geoPhase === "outRange" || geoPhase === "denied" || geoPhase === "error" ? C.rose :
-              C.amber
-            }
+            color={geoPhase === "inRange" ? G.sage : geoPhase === "outRange" || geoPhase === "denied" ? G.rose : G.amber}
           />
-          <Pill
+          <StatPill
             icon={CalendarCheck}
             label="Shift"
             value={shiftLabel}
-            color={shiftPhase === "scheduled" ? C.mint : shiftPhase === "none" ? C.rose : C.sub}
+            color={shiftPhase === "scheduled" ? G.champ : shiftPhase === "none" ? G.rose : G.sub}
           />
         </div>
 
-        {/* ── Big action button ── */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 36, animation: "tc-fadein 0.4s ease 0.1s both" }}>
+        {/* ── Action button ──────────────────────────────────────────── */}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 36, animation: "tc-fadein 0.5s ease 0.12s both" }}>
           <div style={{ position: "relative", width: 200, height: 200 }}>
 
-            {/* Animated rings when clocked in */}
-            {isClockedIn && <Rings color={C.rose} count={3} />}
-            {geoPhase === "inRange" && !isClockedIn && <Rings color={C.mint} count={2} />}
+            {/* Rings */}
+            {isClockedIn && <Rings color={G.rose} count={3} />}
+            {!isClockedIn && geoPhase === "inRange" && <Rings color={G.sage} count={2} />}
 
-            {/* Outer track ring */}
+            {/* SVG arc */}
             <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", transform: "rotate(-90deg)" }} viewBox="0 0 200 200">
-              <circle cx="100" cy="100" r="92" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
+              <circle cx="100" cy="100" r="90" fill="none" stroke="rgba(201,168,75,0.06)" strokeWidth="1" />
               <circle
-                cx="100" cy="100" r="92" fill="none"
+                cx="100" cy="100" r="90" fill="none"
                 stroke={btnColor}
-                strokeWidth="6"
+                strokeWidth="1.5"
                 strokeLinecap="round"
-                strokeDasharray={`${2 * Math.PI * 92}`}
-                strokeDashoffset={`${2 * Math.PI * 92 * (1 - (isClockedIn ? secPct / 100 : (geoPhase === "inRange" ? 1 : 0.2)))}`}
-                style={{ transition: "stroke-dashoffset 0.98s linear, stroke 0.4s ease" }}
+                strokeDasharray={`${2 * Math.PI * 90}`}
+                strokeDashoffset={`${2 * Math.PI * 90 * (1 - (isClockedIn ? secPct / 100 : geoPhase === "inRange" ? 1 : 0.15))}`}
+                style={{ transition: "stroke-dashoffset 0.98s linear, stroke 0.5s ease", opacity: 0.7 }}
               />
             </svg>
 
@@ -398,91 +365,93 @@ export default function EmployeeTimeClock() {
               onClick={isClockedIn ? handleClockOut : geoPhase === "idle" ? startGeo : handleClockIn}
               disabled={acting}
               style={{
-                position: "absolute",
-                inset: 12,
+                position: "absolute", inset: 16,
                 borderRadius: "50%",
-                border: `2px solid ${btnColor}40`,
-                background: `radial-gradient(circle at 40% 35%, ${btnColor}22, ${btnColor}08)`,
+                border: `1px solid ${btnColor}30`,
+                background: `radial-gradient(ellipse at 40% 35%, ${btnColor}14, ${btnColor}05)`,
                 cursor: acting ? "default" : "pointer",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-                transition: "all 0.25s ease",
-                backdropFilter: "blur(12px)",
-                boxShadow: `0 0 40px ${btnColor}18, inset 0 1px 0 rgba(255,255,255,0.08)`,
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8,
+                transition: "all 0.35s ease",
+                backdropFilter: "blur(16px)",
+                boxShadow: `0 0 60px ${btnColor}10, inset 0 1px 0 rgba(255,255,255,0.04)`,
               }}
-              onMouseEnter={(e) => { if (!acting) (e.currentTarget.style.transform = "scale(1.03)"); }}
+              onMouseEnter={(e) => { if (!acting) (e.currentTarget.style.transform = "scale(1.04)"); }}
               onMouseLeave={(e) => { (e.currentTarget.style.transform = "scale(1)"); }}
-              onMouseDown={(e) => { (e.currentTarget.style.transform = "scale(0.97)"); }}
-              onMouseUp={(e) => { (e.currentTarget.style.transform = "scale(1.03)"); }}
+              onMouseDown={(e)  => { (e.currentTarget.style.transform = "scale(0.97)"); }}
+              onMouseUp={(e)    => { (e.currentTarget.style.transform = "scale(1.04)"); }}
             >
               {acting ? (
-                <Loader2 size={28} style={{ color: btnColor, animation: "tc-spin 1s linear infinite" }} />
+                <Loader2 size={26} style={{ color: btnColor, animation: "tc-spin 1s linear infinite" }} />
               ) : isClockedIn ? (
                 <>
-                  <div style={{ width: 28, height: 28, background: C.rose, borderRadius: 6 }} />
-                  <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: C.rose }}>CLOCK OUT</span>
+                  <div style={{ width: 22, height: 22, background: G.rose, borderRadius: 6, opacity: 0.9 }} />
+                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 3, color: G.rose, textTransform: "uppercase" }}>Clock Out</span>
                 </>
               ) : (
                 <>
-                  <Clock4 size={28} style={{ color: btnColor }} />
-                  <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: btnColor }}>{btnLabel}</span>
+                  <Clock4 size={26} style={{ color: btnColor, opacity: 0.9 }} />
+                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 3, color: btnColor, textTransform: "uppercase" }}>
+                    {geoPhase === "idle" ? "Begin" : geoPhase === "requesting" ? "Locating…" : "Clock In"}
+                  </span>
                 </>
               )}
             </button>
           </div>
         </div>
 
-        {/* Elapsed time while clocked in */}
+        {/* ── Elapsed timer ──────────────────────────────────────────── */}
         {isClockedIn && elapsedStr && (
           <div style={{
-            textAlign: "center", marginBottom: 24, padding: "14px 20px",
-            background: `${C.mint}10`, border: `1px solid ${C.mint}30`, borderRadius: 14,
-            animation: "tc-fadein 0.3s ease",
+            textAlign: "center", marginBottom: 28,
+            padding: "18px 24px",
+            background: `${G.sage}08`,
+            border: `1px solid ${G.sage}20`,
+            borderRadius: 20,
+            animation: "tc-fadein 0.4s ease",
           }}>
-            <div style={{ fontSize: 11, color: C.mint, fontWeight: 700, letterSpacing: 2, marginBottom: 4 }}>CLOCKED IN FOR</div>
-            <div style={{ fontSize: 34, fontWeight: 800, color: C.mint, fontVariantNumeric: "tabular-nums", letterSpacing: -1 }}>{elapsedStr}</div>
-            <div style={{ fontSize: 11, color: C.sub, marginTop: 4 }}>
+            <div style={{ fontSize: 9, color: G.sage, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase", marginBottom: 6 }}>Time Elapsed</div>
+            <div style={{ fontSize: 38, fontWeight: 200, color: G.champ, fontVariantNumeric: "tabular-nums", letterSpacing: -1 }}>{elapsedStr}</div>
+            <div style={{ fontSize: 11, color: G.sub, marginTop: 5, letterSpacing: 1 }}>
               Since {format(new Date(activeEntry!.clockIn), "h:mm a")}
             </div>
           </div>
         )}
 
-        {/* GPS tip when idle or out of range */}
+        {/* ── Location hint ──────────────────────────────────────────── */}
         {!isClockedIn && (geoPhase === "idle" || geoPhase === "outRange") && (
           <div style={{
-            display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 24,
-            padding: "12px 16px",
-            background: `${geoPhase === "idle" ? C.hi : C.rose}08`,
-            border: `1px solid ${geoPhase === "idle" ? C.hi : C.rose}20`,
-            borderRadius: 12,
-            animation: "tc-fadein 0.3s ease",
+            display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 28,
+            padding: "14px 18px",
+            background: `${geoPhase === "idle" ? G.gold : G.rose}06`,
+            border: `1px solid ${geoPhase === "idle" ? G.gold : G.rose}18`,
+            borderRadius: 16,
+            animation: "tc-fadein 0.4s ease",
           }}>
             {geoPhase === "idle"
-              ? <MapPin size={15} style={{ color: C.hi, marginTop: 1, flexShrink: 0 }} />
-              : <AlertTriangle size={15} style={{ color: C.rose, marginTop: 1, flexShrink: 0 }} />
+              ? <MapPin size={14} style={{ color: G.goldSoft, marginTop: 1, flexShrink: 0 }} />
+              : <AlertTriangle size={14} style={{ color: G.rose, marginTop: 1, flexShrink: 0 }} />
             }
-            <p style={{ margin: 0, fontSize: 12, color: C.sub, lineHeight: 1.5 }}>
+            <p style={{ margin: 0, fontSize: 12, color: G.sub, lineHeight: 1.7, letterSpacing: 0.3 }}>
               {geoPhase === "idle"
-                ? "Tap the button above to start location check. You must be within 10 feet of 5851 Westheimer Rd to clock in."
-                : `You are ${distDisplay ?? "too far"} from the venue. Move closer to 5851 Westheimer Rd, Houston, TX 77056 and wait for GPS to update.`
+                ? "Tap the clock above to begin location verification. You must be within 10 feet of 5851 Westheimer Rd."
+                : `You are ${distDisplay ?? "too far"} from the venue. Please move to 5851 Westheimer Rd, Houston TX and wait for GPS to refresh.`
               }
             </p>
           </div>
         )}
 
-        {/* ── Recent entries ── */}
+        {/* ── Recent entries ─────────────────────────────────────────── */}
         <div style={{
-          background: C.surface, border: `1px solid ${C.border}`,
-          borderRadius: 16, overflow: "hidden",
-          backdropFilter: "blur(12px)",
-          animation: "tc-fadein 0.4s ease 0.15s both",
+          background: G.surface,
+          border: `1px solid ${G.border}`,
+          borderRadius: 22,
+          overflow: "hidden",
+          backdropFilter: "blur(16px)",
+          animation: "tc-fadein 0.5s ease 0.18s both",
         }}>
-          <div style={{ padding: "16px 20px 12px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Recent Entries</span>
-            <span style={{ fontSize: 11, color: C.sub }}>Last {Math.min(history?.length ?? 0, 7)} shifts</span>
+          <div style={{ padding: "18px 22px 14px", borderBottom: `1px solid ${G.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase", color: G.goldSoft }}>Recent Shifts</span>
+            <span style={{ fontSize: 10, color: G.sub, letterSpacing: 1 }}>{Math.min(history?.length ?? 0, 7)} entries</span>
           </div>
 
           {history && history.length > 0 ? (
@@ -490,62 +459,56 @@ export default function EmployeeTimeClock() {
               {[...history].reverse().slice(0, 7).map((entry, i) => {
                 const isActive = !entry.clockOut;
                 return (
-                  <div
-                    key={entry.id}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 12,
-                      padding: "12px 20px",
-                      borderBottom: i < Math.min(history.length, 7) - 1 ? `1px solid ${C.border}` : "none",
-                      transition: "background 0.15s",
-                    }}
-                  >
-                    {/* Date column */}
-                    <div style={{ width: 52, flexShrink: 0 }}>
-                      <div style={{ fontSize: 16, fontWeight: 800, color: C.text, lineHeight: 1 }}>
+                  <div key={entry.id} style={{
+                    display: "flex", alignItems: "center", gap: 14,
+                    padding: "14px 22px",
+                    borderBottom: i < Math.min(history.length, 7) - 1 ? `1px solid ${G.border}` : "none",
+                  }}>
+                    {/* Date */}
+                    <div style={{ width: 44, flexShrink: 0 }}>
+                      <div style={{ fontSize: 18, fontWeight: 300, color: G.champ, lineHeight: 1 }}>
                         {format(new Date(entry.clockIn), "d")}
                       </div>
-                      <div style={{ fontSize: 10, color: C.sub, fontWeight: 600, letterSpacing: 0.5 }}>
-                        {format(new Date(entry.clockIn), "MMM EEE").toUpperCase()}
+                      <div style={{ fontSize: 9, color: G.sub, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase" }}>
+                        {format(new Date(entry.clockIn), "MMM")}
                       </div>
                     </div>
 
                     {/* Timeline bar */}
-                    <div style={{ flex: 1, position: "relative" }}>
-                      <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ height: 1, background: "rgba(201,168,75,0.08)", borderRadius: 1 }}>
                         <div style={{
-                          height: "100%",
-                          width: isActive ? "100%" : "100%",
+                          height: "100%", width: "100%",
                           background: isActive
-                            ? `linear-gradient(90deg, ${C.mint}, ${C.hi})`
-                            : `linear-gradient(90deg, ${C.hi}80, ${C.sub}40)`,
-                          borderRadius: 2,
-                          animation: isActive ? "tc-shimmer 2s linear infinite" : undefined,
+                            ? `linear-gradient(90deg, ${G.sage}, ${G.gold})`
+                            : `linear-gradient(90deg, ${G.goldSoft}, rgba(201,168,75,0.12))`,
+                          borderRadius: 1,
+                          animation: isActive ? "tc-shimmer 2.5s linear infinite" : undefined,
                           backgroundSize: "200% auto",
                         }} />
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
-                        <span style={{ fontSize: 11, color: C.sub }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 7 }}>
+                        <span style={{ fontSize: 11, color: G.sub, letterSpacing: 0.5 }}>
                           {format(new Date(entry.clockIn), "h:mm a")}
                         </span>
-                        <span style={{ fontSize: 11, color: isActive ? C.mint : C.sub }}>
-                          {isActive ? "Active now" : entry.clockOut ? format(new Date(entry.clockOut), "h:mm a") : "—"}
+                        <span style={{ fontSize: 11, color: isActive ? G.sage : G.sub, letterSpacing: 0.5 }}>
+                          {isActive ? "Active" : entry.clockOut ? format(new Date(entry.clockOut), "h:mm a") : "—"}
                         </span>
                       </div>
                     </div>
 
-                    {/* Hours badge */}
-                    <div style={{
-                      width: 52, textAlign: "right", flexShrink: 0,
-                    }}>
+                    {/* Hours */}
+                    <div style={{ width: 44, textAlign: "right", flexShrink: 0 }}>
                       {isActive ? (
                         <span style={{
-                          fontSize: 10, fontWeight: 700, color: C.mint,
-                          background: `${C.mint}15`, padding: "3px 7px", borderRadius: 20,
-                        }}>LIVE</span>
+                          fontSize: 9, fontWeight: 700, color: G.sage,
+                          background: `${G.sage}15`, padding: "3px 8px", borderRadius: 20,
+                          letterSpacing: 1, textTransform: "uppercase",
+                        }}>Live</span>
                       ) : (
-                        <span style={{ fontSize: 14, fontWeight: 800, color: C.text }}>
+                        <span style={{ fontSize: 16, fontWeight: 300, color: G.champ }}>
                           {(entry.totalHours as number | null)?.toFixed(1) ?? "—"}
-                          <span style={{ fontSize: 10, color: C.sub, marginLeft: 2 }}>h</span>
+                          <span style={{ fontSize: 10, color: G.sub }}> h</span>
                         </span>
                       )}
                     </div>
@@ -554,16 +517,16 @@ export default function EmployeeTimeClock() {
               })}
             </div>
           ) : (
-            <div style={{ padding: "32px 20px", textAlign: "center", color: C.sub, fontSize: 13 }}>
-              No time entries yet.
+            <div style={{ padding: "36px 22px", textAlign: "center", color: G.sub, fontSize: 13, letterSpacing: 0.5 }}>
+              No time entries yet
             </div>
           )}
         </div>
 
-        {/* GeoStatus row at bottom */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 20, padding: "0 4px" }}>
+        {/* Footer */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 22, padding: "0 2px" }}>
           <GpsSignal phase={geoPhase} />
-          <span style={{ fontSize: 11, color: C.sub }}>5851 Westheimer Rd · Houston TX</span>
+          <span style={{ fontSize: 10, color: G.sub, letterSpacing: 1 }}>5851 Westheimer Rd · Houston, TX</span>
         </div>
 
       </div>
