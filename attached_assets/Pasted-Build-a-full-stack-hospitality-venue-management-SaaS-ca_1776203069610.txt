@@ -1,0 +1,240 @@
+Build a full-stack hospitality venue management SaaS called VenueFlow.
+
+## Stack
+- Backend: Python FastAPI + SQLAlchemy (async) + PostgreSQL + Alembic migrations
+- Frontend: React + Tailwind CSS + shadcn/ui components
+- Payments: Stripe
+- AI: Anthropic Claude API (for AI schedule generation)
+- No authentication — app is open, always logged in as a hardcoded admin user
+
+## App Structure
+
+### Backend
+- `backend/server.py` — FastAPI app factory, CORS from env var CORS_ORIGINS, all routers registered at /api prefix
+- `backend/database.py` — async SQLAlchemy engine + get_db dependency
+- `backend/models.py` — all SQLAlchemy models
+- `backend/permissions.py` — no auth, get_current_user returns hardcoded _OpenUser stub (is_admin=True), require_permission always passes
+- `backend/routers/` — one file per feature domain
+
+### Frontend
+- `frontend/src/App.js` — React Router, / and /login both redirect to /manager, no auth wrappers
+- `frontend/src/pages/manager/` — all manager pages
+- `frontend/src/pages/employee/` — all employee pages
+- `frontend/src/components/` — shared UI components
+
+---
+
+## Database Models
+
+Build these SQLAlchemy async models:
+
+**Venue** — id (uuid), name, address, timezone, subscription_tier, stripe_customer_id, stripe_subscription_id, is_active, created_at
+
+**User** — id (uuid), venue_id (FK), full_name, email, role_id (FK), is_admin, is_active, avatar_url, hire_date, hourly_rate, created_at
+
+**Role** — id (uuid), venue_id (FK), name, permissions (JSONB), color, created_at
+
+**Schedule** — id (uuid), venue_id (FK), week_start (date), week_end (date), status (draft/published), created_at
+
+**Shift** — id (uuid), schedule_id (FK), user_id (FK nullable), role_id (FK), section_id (FK nullable), start_time, end_time, status (open/scheduled/confirmed/cancelled), notes
+
+**ShiftRequest** — id (uuid), user_id (FK), shift_id (FK), type (drop/swap/pickup), status (pending/approved/rejected), requested_with (FK nullable), notes, created_at
+
+**TimeClockEntry** — id (uuid), user_id (FK), venue_id (FK), clock_in, clock_out, total_hours, break_minutes, status (active/completed), notes, created_at
+
+**TimeOffRequest** — id (uuid), user_id (FK), start_date, end_date, type (vacation/sick/personal), status (pending/approved/denied), notes, created_at
+
+**Reservation** — id (uuid), venue_id (FK), guest_id (FK nullable), guest_name, guest_email, guest_phone, party_size, date, time, duration_minutes, table_id (FK nullable), status (pending/confirmed/seated/completed/cancelled/no_show), notes, source, is_recurring, recurrence_rule, created_at
+
+**WaitlistEntry** — id (uuid), venue_id (FK), guest_name, guest_phone, party_size, quoted_wait, status (waiting/seated/left), notes, created_at
+
+**Guest** — id (uuid), venue_id (FK), full_name, email, phone, birthday, tags (JSONB array), vip_level (0-3), visit_count, last_visit, total_spent, notes, created_at
+
+**FloorSection** — id (uuid), venue_id (FK), name, capacity, color
+
+**Table** — id (uuid), venue_id (FK), section_id (FK), label, capacity, status (available/occupied/reserved/cleaning), x, y, width, height
+
+**TipPool** — id (uuid), venue_id (FK), schedule_id (FK), total_tips, distribution_method (equal/hours/points), status (draft/distributed), created_at
+
+**TipPoolEntry** — id (uuid), pool_id (FK), user_id (FK), hours_worked, points, tip_amount
+
+**PayrollRecord** — id (uuid), user_id (FK), venue_id (FK), period_start, period_end, regular_hours, overtime_hours, regular_pay, overtime_pay, tip_amount, total_pay, export_format, exported_at, created_at
+
+**Document** — id (uuid), venue_id (FK), user_id (FK nullable), title, type (license/cert/policy/other), file_url, expiry_date, status (active/expired/expiring_soon), created_at
+
+**Message** — id (uuid), venue_id (FK), sender_id (FK), channel (general/managers/announcements), content, created_at
+
+**Notification** — id (uuid), user_id (FK), type, title, content, is_read, reference_id, reference_type, created_at
+
+**BillingEvent** — id (uuid), venue_id (FK), type, amount, stripe_event_id, description, created_at
+
+---
+
+## Backend API Routers
+
+### shifts.py — /shifts
+- POST /shifts — create shift
+- GET /shifts — list shifts (filter by schedule_id, user_id)
+- PUT /shifts/{id}/assign — assign user to shift
+- GET /shifts/open — open shifts for venue
+- POST /shifts/{id}/pickup — employee picks up open shift
+- POST /shifts/bulk — bulk create shifts
+- POST /shifts/copy-day — copy all shifts from one date to another
+- DELETE /shifts/bulk — bulk delete shifts
+- PUT /shifts/bulk-assign — bulk assign shifts to user
+- POST /shift-requests — create drop/swap/pickup request
+- GET /shift-requests — list shift requests
+- PUT /shift-requests/{id}/approve — approve request
+- PUT /shift-requests/{id}/reject — reject request
+
+### reservations.py — /reservations
+- POST /reservations — create reservation
+- GET /reservations — list by venue, date filter
+- PUT /reservations/{id} — update (status, table, etc)
+- DELETE /reservations/{id} — cancel
+- GET /waitlist — list waitlist for venue
+- POST /waitlist — add to waitlist
+- PUT /waitlist/{id} — update waitlist entry status
+
+### guests.py — /guests
+- POST /guests — create guest
+- GET /guests — list with search, VIP filter
+- GET /guests/{id} — guest detail + visit history
+- PUT /guests/{id} — update guest (tags, vip_level, notes)
+- DELETE /guests/{id} — delete guest
+
+### analytics.py — /analytics
+- GET /analytics/dashboard — summary stats (total shifts, coverage %, labor cost %, active reservations, waitlist count)
+- GET /analytics/labor — labor hours + cost by date range
+- GET /analytics/sales — revenue vs labor % chart data
+- GET /analytics/employees — per-employee hours, pay, attendance
+
+### time_clock.py — /time-clock
+- POST /time-clock/in — clock in
+- POST /time-clock/out — clock out
+- GET /time-clock/active — currently clocked in users
+- GET /time-clock/entries — list entries by venue/user/date
+- PUT /time-clock/entries/{id} — manual edit (admin)
+- GET /time-off — list time-off requests
+- POST /time-off — submit time-off request
+- PUT /time-off/{id}/approve — approve
+- PUT /time-off/{id}/deny — deny
+
+### billing.py — /billing
+- POST /billing/create-checkout — Stripe checkout session
+- POST /billing/webhook — Stripe webhook handler
+- GET /billing/status — current subscription status
+- GET /billing/events — billing history
+- POST /billing/portal — customer portal session
+
+### messaging.py — /messaging
+- GET /messages — list messages by channel
+- POST /messages — send message
+- GET /notifications — list notifications for user
+- PUT /notifications/{id}/read — mark read
+- PUT /notifications/read-all — mark all read
+
+### roles.py — /roles
+- GET /roles — list roles for venue
+- POST /roles — create role
+- PUT /roles/{id} — update role permissions
+- DELETE /roles/{id} — delete role
+
+### files.py — /files
+- POST /files/upload — upload document
+- GET /files — list documents for venue/user
+- DELETE /files/{id} — delete document
+- GET /files/expiring — documents expiring within 30 days
+
+### schedules.py — /schedules
+- GET /schedules — list schedules for venue
+- POST /schedules — create schedule
+- PUT /schedules/{id}/publish — publish schedule
+- POST /schedules/ai-generate — call Claude API to generate a full week of shifts based on staff, roles, availability, and a labor_target_pct parameter
+
+### users.py — /users
+- GET /users — list users for venue
+- POST /users — create user
+- PUT /users/{id} — update user
+- DELETE /users/{id} — deactivate user
+
+### venues.py — /venues
+- GET /venues — list all venues
+- POST /venues — create venue
+- PUT /venues/{id} — update venue
+
+---
+
+## Frontend Pages
+
+### Manager Pages (frontend/src/pages/manager/)
+
+**ManagerDashboard.js** — Summary cards: active staff count, shifts today, open shifts, labor %, waitlist count, reservations today. Recent notifications list. Quick links to all sections.
+
+**ManagerSchedule.js** — Weekly calendar grid. Each day shows shifts by role color. Can create, edit, delete shifts. Drag-and-drop assign staff. Publish button. Copy day button.
+
+**ManagerAISchedule.js** — Input: week start date, labor target %, special notes. Button calls /schedules/ai-generate. Shows generated shifts in preview grid before publishing.
+
+**ManagerEmployees.js** — Table of staff: name, role, hire date, hourly rate, status. Add/edit/deactivate user modal. Role assignment dropdown.
+
+**ManagerFloor.js** — Visual floor map. Tables shown as draggable boxes with status color coding (available=green, occupied=red, reserved=yellow, cleaning=gray). Click table to update status. Section labels.
+
+**ManagerReservations.js** — Reservation list with date filter. Status badge per reservation. Add reservation form. Waitlist tab. Update status inline (confirm, seat, no-show, cancel).
+
+**ManagerGuestCRM.js** — Guest list with search. VIP star rating display. Click guest to view full profile: visit history, total spent, tags, notes. Add/edit guest modal.
+
+**ManagerAnalytics.js** — Charts: labor cost % trend (line chart), shifts per day (bar chart), employee hours breakdown (bar chart). Date range filter.
+
+**ManagerTimeClock.js** — Live table of who's clocked in now with duration. Full entry history with date filter. Admin manual edit modal.
+
+**ManagerTimeOff.js** — Pending time-off requests list. Approve/Deny buttons. Approved/Denied history tabs.
+
+**ManagerPayroll.js** — Per-employee payroll table: regular hours, OT hours, tips, total pay for pay period. Export to CSV button (Standard/ADP/Gusto format selector).
+
+**ManagerTipPool.js** — Create tip pool for a schedule. Enter total tips. Select distribution method. Preview payout per employee. Distribute button.
+
+**ManagerDocuments.js** — Document list with type badge and expiry date. Upload new document form. Expiring Soon alert section for docs within 30 days.
+
+**ManagerChat.js** — Channel selector (General, Managers, Announcements). Message list with sender name + timestamp. Message input box. Real-time feel (poll every 5 seconds).
+
+**ManagerBilling.js** — Current plan display. Upgrade/manage button that opens Stripe portal. Billing event history list.
+
+**ManagerSettings.js** — Venue name, address, timezone fields. Role management: list roles, edit permissions checkboxes per role. Save button.
+
+**ManagerVenues.js** — List of all venues. Add venue form. Click venue to switch active venue context.
+
+### Employee Pages (frontend/src/pages/employee/)
+
+**EmployeeDashboard.js** — My upcoming shifts this week. Clock-in/out button. My notifications. My time-off requests.
+
+**EmployeeSchedule.js** — My shifts in weekly calendar view. Open shifts I can pick up. Request drop/swap buttons.
+
+**EmployeeFloor.js** — Read-only floor map showing current table statuses.
+
+**EmployeeChat.js** — Same chat interface as manager but only General channel.
+
+**EmployeeTimeClock.js** — Large clock-in / clock-out button. My clock history. Submit time-off request form.
+
+---
+
+## Additional Requirements
+
+- All API calls from frontend use axios with baseURL from REACT_APP_BACKEND_URL env var
+- No bearer tokens or auth headers on any requests
+- All pages load without any login check or protected route wrapper
+- Use shadcn/ui components (Card, Button, Badge, Dialog, Input, Select, Table) for all UI
+- Tailwind CSS for layout and spacing
+- Toast notifications using sonner for success/error feedback
+- Error boundary wrapping the whole app
+- All forms use controlled React state
+- Backend returns proper HTTP status codes and JSON error messages
+- Alembic migrations for all schema changes
+- `start.sh` runs `alembic upgrade head` then starts uvicorn
+- Environment variables: DATABASE_URL, CORS_ORIGINS, ANTHROPIC_API_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
+
+## Design
+- Dark sidebar navigation for manager pages with icons
+- Clean white card-based content area
+- Color palette: #5B3FD9 primary purple, #F9FAFB background, #111827 text
+- Mobile-responsive layouts
+- Status badges use color-coded pills (green=active, yellow=pending, red=cancelled/expired)
