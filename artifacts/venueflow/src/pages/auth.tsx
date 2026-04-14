@@ -373,82 +373,56 @@ export default function AuthPage() {
           transition: burning ? "opacity 0.6s ease 0.6s" : "none",
         }}
       >
-        {/* ENOSH logo */}
-        <div style={{ marginBottom: 36, position: "relative" }}>
+        {/* ENOSH logo — base static + flame-clipped animated layer */}
+        <div style={{ marginBottom: 36, position: "relative", display: "inline-block" }}>
+          {/* Hidden SVG filter definitions */}
+          <svg style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }} aria-hidden>
+            <defs>
+              <filter id="flame-wobble" x="-20%" y="-30%" width="140%" height="160%" colorInterpolationFilters="sRGB">
+                <feTurbulence type="turbulence" baseFrequency="0.018 0.08" numOctaves="3" seed="5" result="noise">
+                  <animate attributeName="baseFrequency" values="0.018 0.08;0.032 0.12;0.022 0.09;0.014 0.07;0.028 0.11;0.018 0.08" dur="0.55s" repeatCount="indefinite" />
+                  <animate attributeName="seed" values="5;12;7;19;3;5" dur="2.4s" repeatCount="indefinite" />
+                </feTurbulence>
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="5" xChannelSelector="R" yChannelSelector="G" result="displaced" />
+                <feComposite in="displaced" in2="SourceGraphic" operator="atop" />
+              </filter>
+            </defs>
+          </svg>
+
+          {/* Static base — the full logo, always visible */}
           <img
             src={enoshLogo}
             alt="ENOSH"
             style={{
               height: 80,
               width: "auto",
-              filter: "drop-shadow(0 0 24px rgba(201,162,39,0.45)) drop-shadow(0 0 8px rgba(204,17,0,0.3))",
+              display: "block",
+              filter: "drop-shadow(0 0 28px rgba(201,162,39,0.4)) drop-shadow(0 0 10px rgba(204,17,0,0.25))",
             }}
           />
-          {/* Animated flame overlay over the O position */}
+
+          {/* Animated flame layer — same image, clipped to the flame column, turbulence filter applied */}
           <div
-            className="flame-wrapper"
             style={{
               position: "absolute",
-              top: "-18px",
-              left: "50%",
-              transform: "translateX(-54%)",
+              inset: 0,
+              clipPath: "inset(0 44% 0 37%)",
               pointerEvents: "none",
+              overflow: "visible",
             }}
           >
-            <svg
-              viewBox="0 0 48 80"
-              width={38}
-              height={62}
-              xmlns="http://www.w3.org/2000/svg"
-              style={{ overflow: "visible", display: "block" }}
-            >
-              <defs>
-                <radialGradient id="fg1" cx="50%" cy="65%" r="55%">
-                  <stop offset="0%" stopColor="#FFD060" />
-                  <stop offset="45%" stopColor="#FF4400" />
-                  <stop offset="100%" stopColor="#CC0000" />
-                </radialGradient>
-                <radialGradient id="fg2" cx="50%" cy="70%" r="45%">
-                  <stop offset="0%" stopColor="#FFF0A0" />
-                  <stop offset="50%" stopColor="#FFB020" />
-                  <stop offset="100%" stopColor="#FF5500" />
-                </radialGradient>
-                <filter id="fblur" x="-40%" y="-40%" width="180%" height="180%">
-                  <feGaussianBlur stdDeviation="1.5" />
-                </filter>
-              </defs>
-
-              {/* Outer glow */}
-              <path
-                className="flame-outer"
-                d="M24 78 C6 62 2 44 12 29 C17 21 15 12 21 4 C22 2 23 0 24 0 C25 0 26 2 27 4 C33 12 31 21 36 29 C46 44 42 62 24 78 Z"
-                fill="#CC0000"
-                opacity="0.5"
-                filter="url(#fblur)"
-              />
-              {/* Main flame */}
-              <path
-                className="flame-main"
-                d="M24 76 C9 60 6 44 14 31 C19 23 17 14 22 7 C23 5 23.5 3 24 2 C24.5 3 25 5 26 7 C31 14 29 23 34 31 C42 44 39 60 24 76 Z"
-                fill="url(#fg1)"
-              />
-              {/* Bright inner */}
-              <path
-                className="flame-inner"
-                d="M24 68 C14 55 13 43 19 34 C22 29 21 22 24 16 C27 22 26 29 29 34 C35 43 34 55 24 68 Z"
-                fill="url(#fg2)"
-                opacity="0.92"
-              />
-              {/* Hot core */}
-              <path
-                className="flame-core"
-                d="M24 58 C18 48 18 40 22 34 C23 32 24 29 24 28 C24 29 25 32 26 34 C30 40 30 48 24 58 Z"
-                fill="#FFFFC0"
-                opacity="0.85"
-              />
-              {/* Base ember */}
-              <ellipse className="flame-ember" cx="24" cy="77" rx="12" ry="4" fill="#FF4400" opacity="0.35" filter="url(#fblur)" />
-            </svg>
+            <img
+              src={enoshLogo}
+              alt=""
+              aria-hidden
+              className="logo-flame-dance"
+              style={{
+                height: 80,
+                width: "auto",
+                display: "block",
+                transformOrigin: "50% 88%",
+              }}
+            />
           </div>
         </div>
 

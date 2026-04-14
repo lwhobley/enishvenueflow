@@ -98,72 +98,22 @@ body {
   color: hsl(var(--foreground));
 }
 
-/* ── Flame animations ─────────────────────────────── */
+/* ── Logo flame animation ─────────────────────────── */
 
-.flame-outer {
-  transform-origin: 50% 100%;
-  animation:
-    flame-sway-slow 2.4s ease-in-out infinite alternate,
-    flame-opacity 0.22s ease-in-out infinite alternate;
+.logo-flame-dance {
+  animation: logo-flame-dance 0.72s ease-in-out infinite;
 }
 
-.flame-main {
-  transform-origin: 50% 100%;
-  animation:
-    flame-sway-fast 1.7s ease-in-out infinite alternate-reverse,
-    flame-scale 0.18s ease-in-out infinite alternate;
-}
-
-.flame-inner {
-  transform-origin: 50% 100%;
-  animation:
-    flame-sway-slow 2.1s ease-in-out infinite alternate,
-    flame-scale 0.25s ease-in-out infinite alternate-reverse;
-}
-
-.flame-core {
-  transform-origin: 50% 100%;
-  animation: core-pulse 0.28s ease-in-out infinite alternate;
-}
-
-.flame-ember {
-  animation: ember-glow 0.6s ease-in-out infinite alternate;
-}
-
-@keyframes flame-sway-slow {
-  0%   { transform: rotate(-3.5deg) scaleX(1); }
-  33%  { transform: rotate(1deg) scaleX(1.04); }
-  66%  { transform: rotate(-1.5deg) scaleX(0.97); }
-  100% { transform: rotate(3deg) scaleX(1.02); }
-}
-
-@keyframes flame-sway-fast {
-  0%   { transform: rotate(-2deg) scaleX(0.98); }
-  25%  { transform: rotate(2.5deg) scaleX(1.05); }
-  75%  { transform: rotate(-1deg) scaleX(1.02); }
-  100% { transform: rotate(2deg) scaleX(0.96); }
-}
-
-@keyframes flame-scale {
-  0%   { transform: scaleY(1); }
-  50%  { transform: scaleY(1.04); }
-  100% { transform: scaleY(0.97); }
-}
-
-@keyframes flame-opacity {
-  0%   { opacity: 0.45; }
-  50%  { opacity: 0.6; }
-  100% { opacity: 0.42; }
-}
-
-@keyframes core-pulse {
-  0%   { opacity: 0.75; transform: scaleY(1); }
-  100% { opacity: 1; transform: scaleY(1.06); }
-}
-
-@keyframes ember-glow {
-  0%   { opacity: 0.25; rx: 10; }
-  100% { opacity: 0.5; rx: 14; }
+@keyframes logo-flame-dance {
+  0%   { transform: rotate(-1.8deg) scaleY(0.97) scaleX(1.01); filter: url(#flame-wobble) brightness(0.91) drop-shadow(0 0 6px rgba(255,80,0,0.5)); }
+  10%  { transform: rotate(0.6deg) scaleY(1.04) scaleX(0.98);  filter: url(#flame-wobble) brightness(1.12) drop-shadow(0 0 9px rgba(255,120,0,0.6)); }
+  22%  { transform: rotate(-1.2deg) scaleY(1.06) scaleX(1.02); filter: url(#flame-wobble) brightness(0.95) drop-shadow(0 0 5px rgba(255,60,0,0.4)); }
+  35%  { transform: rotate(1.6deg) scaleY(0.98) scaleX(0.97);  filter: url(#flame-wobble) brightness(1.15) drop-shadow(0 0 10px rgba(255,140,0,0.65)); }
+  48%  { transform: rotate(-0.9deg) scaleY(1.05) scaleX(1.01); filter: url(#flame-wobble) brightness(0.92) drop-shadow(0 0 7px rgba(255,80,0,0.45)); }
+  60%  { transform: rotate(2.0deg) scaleY(0.96) scaleX(0.99);  filter: url(#flame-wobble) brightness(1.10) drop-shadow(0 0 8px rgba(255,100,0,0.55)); }
+  72%  { transform: rotate(-0.5deg) scaleY(1.07) scaleX(1.02); filter: url(#flame-wobble) brightness(0.98) drop-shadow(0 0 6px rgba(255,70,0,0.5)); }
+  85%  { transform: rotate(1.7deg) scaleY(0.99) scaleX(0.98);  filter: url(#flame-wobble) brightness(1.14) drop-shadow(0 0 11px rgba(255,130,0,0.6)); }
+  100% { transform: rotate(-1.8deg) scaleY(0.97) scaleX(1.01); filter: url(#flame-wobble) brightness(0.91) drop-shadow(0 0 6px rgba(255,80,0,0.5)); }
 }
 
 /* ── PIN shake on error ───────────────────────────── */
