@@ -13,6 +13,7 @@ import floorplanRouter from "./floorplan";
 import tippayrollRouter from "./tippayroll";
 import messagingRouter from "./messaging";
 import analyticsRouter from "./analytics";
+import availabilityRouter from "./availability";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(floorplanRouter);
 router.use(tippayrollRouter);
 router.use(messagingRouter);
 router.use(analyticsRouter);
+router.use(availabilityRouter);
 
 export default router;

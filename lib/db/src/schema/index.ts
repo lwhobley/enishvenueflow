@@ -9,3 +9,4 @@ export * from "./timeclock";
 export * from "./floorplan";
 export * from "./tippayroll";
 export * from "./messaging";
+export * from "./availability";

@@ -20,6 +20,7 @@ import {
   Building2,
   Menu,
   X,
+  CalendarCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +46,7 @@ const managerNavItems = [
 const employeeNavItems = [
   { href: "/employee/dashboard", icon: LayoutDashboard, label: "My Dashboard" },
   { href: "/employee/schedule", icon: Calendar, label: "My Schedule" },
+  { href: "/employee/availability", icon: CalendarCheck, label: "My Availability" },
   { href: "/employee/floor", icon: Map, label: "Floor Plan" },
   { href: "/employee/chat", icon: MessageSquare, label: "Chat" },
   { href: "/employee/time-clock", icon: Clock, label: "Time Clock" },
