@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 
 export interface AuthUser {
   id: string;
@@ -28,9 +29,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   });
 
+  const { subscribe } = usePushNotifications();
+
+  // Subscribe to push when a user is already logged in on mount
+  useEffect(() => {
+    if (user) {
+      const t = setTimeout(() => subscribe(user.id, user.venueId), 3000);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
   const login = (u: AuthUser) => {
     setUser(u);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
+    // Request push permission after login (delay allows SW to settle)
+    setTimeout(() => subscribe(u.id, u.venueId), 2500);
   };
 
   const logout = () => {

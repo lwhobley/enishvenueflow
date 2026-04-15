@@ -41,3 +41,10 @@ externalPort = 3001
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+VAPID_PUBLIC_KEY = "BBvrGn7mGDH-ranZK_D3V0l6uYQqg40Nqer4Vx-UxZR2kVmORhxHmPvsjTPa8wtSkXJY53KBAIgI0VlNJcqID1k"
+VAPID_PRIVATE_KEY = "y7ZRTMu9MT3WmkTfDqf2m0NFW1gaQh-SItJIVwjphqY"
+VAPID_EMAIL = "mailto:admin@enish.com"

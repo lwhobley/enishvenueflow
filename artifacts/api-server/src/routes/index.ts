@@ -14,6 +14,7 @@ import tippayrollRouter from "./tippayroll";
 import messagingRouter from "./messaging";
 import analyticsRouter from "./analytics";
 import availabilityRouter from "./availability";
+import pushRouter from "./push";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(tippayrollRouter);
 router.use(messagingRouter);
 router.use(analyticsRouter);
 router.use(availabilityRouter);
+router.use(pushRouter);
 
 export default router;
