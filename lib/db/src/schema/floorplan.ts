@@ -25,6 +25,7 @@ export const tables = pgTable("tables", {
   y: numeric("y", { precision: 8, scale: 2 }).notNull().default("0"),
   width: numeric("width", { precision: 8, scale: 2 }).notNull().default("80"),
   height: numeric("height", { precision: 8, scale: 2 }).notNull().default("80"),
+  shape: text("shape").notNull().default("square"),
 });
 
 export const insertTableSchema = createInsertSchema(tables).omit({ id: true });

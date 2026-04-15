@@ -58,13 +58,13 @@ router.get("/tables", async (req, res) => {
 
 router.post("/tables", async (req, res) => {
   try {
-    const { venueId, sectionId, label, capacity, x = 0, y = 0, width = 80, height = 80 } = req.body;
+    const { venueId, sectionId, label, capacity, x = 0, y = 0, width = 80, height = 80, shape = "square" } = req.body;
     if (!venueId || !sectionId || !label || !capacity) {
       return res.status(400).json({ message: "venueId, sectionId, label, capacity required" });
     }
     const [table] = await db.insert(tables).values({
       venueId, sectionId, label, capacity,
-      x: String(x), y: String(y), width: String(width), height: String(height),
+      x: String(x), y: String(y), width: String(width), height: String(height), shape,
     }).returning();
     res.status(201).json(formatTable(table));
   } catch (err) {
@@ -77,7 +77,7 @@ router.put("/tables/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const updates: Record<string, unknown> = {};
-    const { label, capacity, status, x, y, width, height } = req.body;
+    const { label, capacity, status, x, y, width, height, shape } = req.body;
     if (label !== undefined) updates.label = label;
     if (capacity !== undefined) updates.capacity = capacity;
     if (status !== undefined) updates.status = status;
@@ -85,6 +85,7 @@ router.put("/tables/:id", async (req, res) => {
     if (y !== undefined) updates.y = String(y);
     if (width !== undefined) updates.width = String(width);
     if (height !== undefined) updates.height = String(height);
+    if (shape !== undefined) updates.shape = shape;
     const [updated] = await db.update(tables).set(updates).where(eq(tables.id, id)).returning();
     if (!updated) return res.status(404).json({ message: "Table not found" });
     res.json(formatTable(updated));
