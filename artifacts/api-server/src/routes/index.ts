@@ -15,6 +15,7 @@ import messagingRouter from "./messaging";
 import analyticsRouter from "./analytics";
 import availabilityRouter from "./availability";
 import pushRouter from "./push";
+import integrationsRouter from "./integrations";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(messagingRouter);
 router.use(analyticsRouter);
 router.use(availabilityRouter);
 router.use(pushRouter);
+router.use(integrationsRouter);
 
 export default router;

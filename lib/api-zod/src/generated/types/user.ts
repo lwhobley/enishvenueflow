@@ -11,13 +11,18 @@ export interface User {
   venueId: string;
   fullName: string;
   email: string;
+  phone?: string | null;
+  dateOfBirth?: string | null;
+  address?: string | null;
   roleId?: string | null;
   roleName?: string | null;
   roleColor?: string | null;
+  positions: string[];
   isAdmin: boolean;
   isActive: boolean;
   avatarUrl?: string | null;
   hireDate?: string | null;
   hourlyRate?: number | null;
+  externalId?: string | null;
   createdAt: Date;
 }

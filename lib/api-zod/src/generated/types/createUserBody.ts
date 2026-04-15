@@ -9,9 +9,14 @@
 export interface CreateUserBody {
   venueId: string;
   fullName: string;
-  email: string;
+  email?: string;
+  phone?: string;
+  dateOfBirth?: string;
+  address?: string;
   roleId?: string;
+  positions?: string[];
   isAdmin?: boolean;
   hireDate?: string;
   hourlyRate?: number;
+  pin?: string;
 }

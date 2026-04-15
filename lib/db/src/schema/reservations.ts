@@ -17,6 +17,7 @@ export const reservations = pgTable("reservations", {
   status: text("status").notNull().default("pending"),
   notes: text("notes"),
   source: text("source"),
+  externalId: text("external_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

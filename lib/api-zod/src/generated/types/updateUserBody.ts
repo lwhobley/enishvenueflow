@@ -9,10 +9,15 @@
 export interface UpdateUserBody {
   fullName?: string;
   email?: string;
+  phone?: string;
+  dateOfBirth?: string;
+  address?: string;
   roleId?: string;
+  positions?: string[];
   isAdmin?: boolean;
   isActive?: boolean;
   hireDate?: string;
   hourlyRate?: number;
   avatarUrl?: string;
+  pin?: string;
 }

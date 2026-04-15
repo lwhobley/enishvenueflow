@@ -75,14 +75,19 @@ export const ListUsersResponseItem = zod.object({
   venueId: zod.string(),
   fullName: zod.string(),
   email: zod.string(),
+  phone: zod.string().nullish(),
+  dateOfBirth: zod.string().nullish(),
+  address: zod.string().nullish(),
   roleId: zod.string().nullish(),
   roleName: zod.string().nullish(),
   roleColor: zod.string().nullish(),
+  positions: zod.array(zod.string()),
   isAdmin: zod.boolean(),
   isActive: zod.boolean(),
   avatarUrl: zod.string().nullish(),
   hireDate: zod.string().nullish(),
   hourlyRate: zod.number().nullish(),
+  externalId: zod.string().nullish(),
   createdAt: zod.coerce.date(),
 });
 export const ListUsersResponse = zod.array(ListUsersResponseItem);
@@ -93,11 +98,16 @@ export const ListUsersResponse = zod.array(ListUsersResponseItem);
 export const CreateUserBody = zod.object({
   venueId: zod.string(),
   fullName: zod.string(),
-  email: zod.string(),
+  email: zod.string().optional(),
+  phone: zod.string().optional(),
+  dateOfBirth: zod.string().optional(),
+  address: zod.string().optional(),
   roleId: zod.string().optional(),
+  positions: zod.array(zod.string()).optional(),
   isAdmin: zod.boolean().optional(),
   hireDate: zod.string().optional(),
   hourlyRate: zod.number().optional(),
+  pin: zod.string().optional(),
 });
 
 /**
@@ -110,12 +120,17 @@ export const UpdateUserParams = zod.object({
 export const UpdateUserBody = zod.object({
   fullName: zod.string().optional(),
   email: zod.string().optional(),
+  phone: zod.string().optional(),
+  dateOfBirth: zod.string().optional(),
+  address: zod.string().optional(),
   roleId: zod.string().optional(),
+  positions: zod.array(zod.string()).optional(),
   isAdmin: zod.boolean().optional(),
   isActive: zod.boolean().optional(),
   hireDate: zod.string().optional(),
   hourlyRate: zod.number().optional(),
   avatarUrl: zod.string().optional(),
+  pin: zod.string().optional(),
 });
 
 export const UpdateUserResponse = zod.object({
@@ -123,14 +138,19 @@ export const UpdateUserResponse = zod.object({
   venueId: zod.string(),
   fullName: zod.string(),
   email: zod.string(),
+  phone: zod.string().nullish(),
+  dateOfBirth: zod.string().nullish(),
+  address: zod.string().nullish(),
   roleId: zod.string().nullish(),
   roleName: zod.string().nullish(),
   roleColor: zod.string().nullish(),
+  positions: zod.array(zod.string()),
   isAdmin: zod.boolean(),
   isActive: zod.boolean(),
   avatarUrl: zod.string().nullish(),
   hireDate: zod.string().nullish(),
   hourlyRate: zod.number().nullish(),
+  externalId: zod.string().nullish(),
   createdAt: zod.coerce.date(),
 });
 

@@ -70,36 +70,71 @@ export interface User {
   venueId: string;
   fullName: string;
   email: string;
+  phone?: string | null;
+  dateOfBirth?: string | null;
+  address?: string | null;
   roleId?: string | null;
   roleName?: string | null;
   roleColor?: string | null;
+  positions: string[];
   isAdmin: boolean;
   isActive: boolean;
   avatarUrl?: string | null;
   hireDate?: string | null;
   hourlyRate?: number | null;
+  externalId?: string | null;
   createdAt: string;
 }
 
 export interface CreateUserBody {
   venueId: string;
   fullName: string;
-  email: string;
+  email?: string;
+  phone?: string;
+  dateOfBirth?: string;
+  address?: string;
   roleId?: string;
+  positions?: string[];
   isAdmin?: boolean;
   hireDate?: string;
   hourlyRate?: number;
+  pin?: string;
 }
 
 export interface UpdateUserBody {
   fullName?: string;
   email?: string;
+  phone?: string;
+  dateOfBirth?: string;
+  address?: string;
   roleId?: string;
+  positions?: string[];
   isAdmin?: boolean;
   isActive?: boolean;
   hireDate?: string;
   hourlyRate?: number;
   avatarUrl?: string;
+  pin?: string;
+}
+
+export interface ToastSyncBody {
+  venueId: string;
+  clientId: string;
+  clientSecret: string;
+  restaurantGuid: string;
+}
+
+export interface OpenTableSyncBody {
+  venueId: string;
+  apiKey: string;
+  restaurantId: string;
+}
+
+export interface SyncResult {
+  message: string;
+  created: number;
+  updated: number;
+  total: number;
 }
 
 export type RolePermissions = { [key: string]: unknown };
