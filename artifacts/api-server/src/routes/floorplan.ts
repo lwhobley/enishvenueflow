@@ -105,6 +105,54 @@ router.delete("/tables/:id", async (req, res) => {
   }
 });
 
+router.post("/floor-layout/seed", async (req, res) => {
+  try {
+    const { venueId, sections: sectionDefs, tables: tableDefs, chairs: chairDefs } = req.body;
+    if (!venueId) return res.status(400).json({ message: "venueId required" });
+
+    await db.delete(chairs).where(eq(chairs.venueId, venueId));
+    await db.delete(tables).where(eq(tables.venueId, venueId));
+    await db.delete(floorSections).where(eq(floorSections.venueId, venueId));
+
+    const sectionIdMap: Record<string, string> = {};
+    for (const sec of sectionDefs) {
+      const [s] = await db
+        .insert(floorSections)
+        .values({ venueId, name: sec.name, capacity: 0, color: sec.color ?? "#6366f1" })
+        .returning();
+      sectionIdMap[sec.key] = s.id;
+    }
+
+    for (const t of tableDefs) {
+      await db.insert(tables).values({
+        venueId,
+        sectionId: sectionIdMap[t.sectionKey],
+        label: t.label,
+        capacity: t.capacity,
+        x: String(t.x),
+        y: String(t.y),
+        width: String(t.w),
+        height: String(t.h),
+      });
+    }
+
+    if (chairDefs?.length) {
+      await db.insert(chairs).values(
+        chairDefs.map((c: { x: number; y: number }) => ({
+          venueId,
+          x: String(c.x),
+          y: String(c.y),
+        }))
+      );
+    }
+
+    res.json({ message: "Layout seeded", tables: tableDefs.length, chairs: chairDefs?.length ?? 0 });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to seed layout" });
+  }
+});
+
 function formatChair(c: typeof chairs.$inferSelect) {
   return { ...c, x: parseFloat(c.x), y: parseFloat(c.y) };
 }
