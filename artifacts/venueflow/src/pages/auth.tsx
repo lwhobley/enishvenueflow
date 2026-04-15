@@ -261,7 +261,7 @@ const PAD_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "←", "0", "✓"
 
 function Keypad({ onPress, disabled }: { onPress: (k: string) => void; disabled: boolean }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, width: 228, margin: "0 auto" }}>
+    <div className="pin-keypad">
       {PAD_KEYS.map((k) => {
         const isAction = k === "←" || k === "✓";
         const isConfirm = k === "✓";
@@ -393,10 +393,8 @@ export default function AuthPage() {
           <img
             src={enoshLogo}
             alt="ENISH"
+            className="auth-logo"
             style={{
-              height: 80,
-              width: "auto",
-              display: "block",
               filter: "drop-shadow(0 0 28px rgba(201,162,39,0.4)) drop-shadow(0 0 10px rgba(204,17,0,0.25))",
             }}
           />
@@ -415,11 +413,8 @@ export default function AuthPage() {
               src={enoshLogo}
               alt=""
               aria-hidden
-              className="logo-flame-dance"
+              className="auth-logo logo-flame-dance"
               style={{
-                height: 80,
-                width: "auto",
-                display: "block",
                 transformOrigin: "50% 88%",
               }}
             />
@@ -442,7 +437,7 @@ export default function AuthPage() {
 
         {/* Card */}
         <div
-          className={shake ? "pin-shake" : ""}
+          className={`pin-card${shake ? " pin-shake" : ""}`}
           style={{
             background: "rgba(12,6,4,0.72)",
             border: "1px solid rgba(201,162,39,0.15)",
@@ -450,7 +445,6 @@ export default function AuthPage() {
             padding: "24px 28px 28px",
             backdropFilter: "blur(20px)",
             boxShadow: "0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,162,39,0.06)",
-            width: 284,
           }}
         >
           <PinDots length={pin.length} />

@@ -238,7 +238,7 @@ export function Layout({ children, isEmployee = false }: { children: React.React
       </header>
 
       {/* ── Page content ─────────────────────────────────────────────────── */}
-      <main style={{ flex: 1, overflowY: "auto", padding: 32 }}>
+      <main className="layout-main">
         {children}
       </main>
     </div>

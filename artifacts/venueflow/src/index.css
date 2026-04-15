@@ -107,6 +107,64 @@ html, body {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* ── Auth logo — responsive ───────────────────────── */
+.auth-logo {
+  height: 80px;
+  width: auto;
+  max-width: calc(100vw - 48px);
+  display: block;
+}
+
+/* ── PIN card — responsive ────────────────────────── */
+.pin-card {
+  width: 284px;
+  max-width: calc(100vw - 40px);
+}
+
+/* ── Keypad — responsive ──────────────────────────── */
+.pin-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: min(228px, calc(100vw - 80px));
+  margin: 0 auto;
+}
+
+/* ── Layout main content ─────────────────────────── */
+.layout-main {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 32px;
+}
+
+@media (max-width: 480px) {
+  .layout-main {
+    padding: 16px;
+  }
+  .auth-logo {
+    height: 60px;
+  }
+  /* prevent any table from blowing out mobile layout */
+  table {
+    font-size: 12px;
+  }
+}
+
+/* Ensure no element creates horizontal scroll */
+#root {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Tables scroll horizontally inside their container instead of breaking layout */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Scrollbar luxury */
