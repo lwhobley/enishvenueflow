@@ -809,6 +809,7 @@ export type ListShiftsParams = {
 
 export type ListOpenShiftsParams = {
   venueId: string;
+  roleId?: string;
 };
 
 export type ListShiftRequestsParams = {

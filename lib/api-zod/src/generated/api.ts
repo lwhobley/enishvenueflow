@@ -323,6 +323,7 @@ export const CreateShiftBody = zod.object({
  */
 export const ListOpenShiftsQueryParams = zod.object({
   venueId: zod.coerce.string(),
+  roleId: zod.coerce.string().optional(),
 });
 
 export const ListOpenShiftsResponseItem = zod.object({

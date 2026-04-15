@@ -415,6 +415,11 @@ paths:
           required: true
           schema:
             type: string
+        - name: roleId
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: Open shifts
