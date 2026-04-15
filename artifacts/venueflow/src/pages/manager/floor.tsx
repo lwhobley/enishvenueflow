@@ -334,12 +334,12 @@ export default function ManagerFloor() {
           className="absolute top-0 left-0 select-none"
           style={{ width:CW, height:CH, transform:`scale(${scale})`, transformOrigin:"top left" }}
         >
-          {/* Floor plan image — faded, purely as room reference */}
+          {/* Floor plan image — the actual venue layout */}
           <img
             src={floorPlanBg}
             alt="Venue floor plan"
             className="floor-bg absolute inset-0 pointer-events-none"
-            style={{ width:CW, height:CH, opacity:0.25 }}
+            style={{ width:CW, height:CH, opacity:1 }}
             draggable={false}
           />
 
@@ -358,9 +358,10 @@ export default function ManagerFloor() {
             return (
               <div
                 key={table.id}
-                className={`absolute flex flex-col items-center justify-center shadow-lg cursor-grab active:cursor-grabbing ${sel?"ring-2 ring-white ring-offset-1 shadow-2xl":""}`}
+                className={`absolute flex flex-col items-center justify-center cursor-grab active:cursor-grabbing ${sel?"ring-4 ring-white ring-offset-2":"ring-2 ring-white/80"}`}
                 style={{ left:x, top:y, width:w, height:h, backgroundColor:bg,
-                         borderRadius:round?"50%":"8px", userSelect:"none" }}
+                         borderRadius:round?"50%":"8px", userSelect:"none",
+                         boxShadow:"0 4px 12px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.4)" }}
                 onMouseDown={e => handleMouseDown(e,{type:"table",id:table.id},x,y)}
                 onDoubleClick={e => { e.stopPropagation(); setEditingId(table.id); setEditingLabel(table.label); }}
               >
@@ -396,8 +397,9 @@ export default function ManagerFloor() {
                 key={chair.id}
                 className={`absolute rounded-full cursor-grab active:cursor-grabbing shadow ${sel?"ring-2 ring-white":""}`}
                 style={{ left:Number(chair.x)-12, top:Number(chair.y)-12,
-                         width:24, height:24, backgroundColor:"#6b7280",
-                         border:"2px solid #4b5563", userSelect:"none" }}
+                         width:24, height:24, backgroundColor:"#374151",
+                         border:"2.5px solid #fff", userSelect:"none",
+                         boxShadow:"0 2px 6px rgba(0,0,0,0.6)" }}
                 onMouseDown={e => handleMouseDown(e,{type:"chair",id:chair.id},Number(chair.x),Number(chair.y))}
               />
             );
