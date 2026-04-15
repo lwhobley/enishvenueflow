@@ -53,6 +53,48 @@ export async function seedIfEmpty() {
         permissions: { reservations: true, timeclock: true },
         color: "#9B7BB5",
       },
+      {
+        id: "role-dishwasher",
+        venueId: "venue-enosh",
+        name: "Dishwasher",
+        permissions: { timeclock: true },
+        color: "#6B7280",
+      },
+      {
+        id: "role-prep",
+        venueId: "venue-enosh",
+        name: "Prep",
+        permissions: { timeclock: true },
+        color: "#D97706",
+      },
+      {
+        id: "role-line-cook",
+        venueId: "venue-enosh",
+        name: "Line Cook",
+        permissions: { timeclock: true },
+        color: "#DC2626",
+      },
+      {
+        id: "role-server-assistant",
+        venueId: "venue-enosh",
+        name: "Server Assistant",
+        permissions: { schedule: true, timeclock: true },
+        color: "#059669",
+      },
+      {
+        id: "role-barback",
+        venueId: "venue-enosh",
+        name: "Barback",
+        permissions: { schedule: true, timeclock: true },
+        color: "#7C3AED",
+      },
+      {
+        id: "role-shift-manager",
+        venueId: "venue-enosh",
+        name: "Shift Manager",
+        permissions: { schedule: true, timeclock: true, all: false },
+        color: "#1D4ED8",
+      },
     ]);
 
     await db.insert(users).values([
