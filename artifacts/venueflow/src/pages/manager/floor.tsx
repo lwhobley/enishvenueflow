@@ -189,41 +189,52 @@ export default function ManagerFloor() {
     setAddMode(null);
   }, [addMode, activeVenue?.id, ensureSection, createTableMut, tables?.length, queryClient, tablesQK]);
 
+  // Keep latest drag-save data in refs so window listeners can access them
+  const chairsRef   = useRef<ChairRecord[]>([]);
+  const tableOvRef  = useRef<Record<string, { x: number; y: number }>>({});
+  useEffect(() => { chairsRef.current = chairs; }, [chairs]);
+  useEffect(() => { tableOvRef.current = tableOv; }, [tableOv]);
+
   const handleMouseDown = useCallback((e: React.MouseEvent, target: DragTarget, ox: number, oy: number) => {
     e.stopPropagation(); e.preventDefault();
     setSelected(target);
     dragRef.current = { target, sx: e.clientX, sy: e.clientY, ox, oy };
-  }, []);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!dragRef.current) return;
-    const s = scaleRef.current;
-    const dx = (e.clientX - dragRef.current.sx) / s;
-    const dy = (e.clientY - dragRef.current.sy) / s;
-    const nx = Math.max(0, Math.min(CW - 10, dragRef.current.ox + dx));
-    const ny = Math.max(0, Math.min(CH - 10, dragRef.current.oy + dy));
-    if (dragRef.current.target.type === "chair") {
-      setChairs(prev => prev.map(c => c.id === dragRef.current!.target.id ? { ...c, x: nx, y: ny } : c));
-    } else {
-      setTableOv(prev => ({ ...prev, [dragRef.current!.target.id]: { x: nx, y: ny } }));
-    }
-  }, []);
-
-  const handleMouseUp = useCallback(async () => {
-    if (!dragRef.current) return;
-    const { target } = dragRef.current;
-    if (target.type === "chair") {
-      const ch = chairs.find(c => c.id === target.id);
-      if (ch) await apiFetch(`/chairs/${target.id}`, { method: "PUT", body: JSON.stringify({ x: ch.x, y: ch.y }) });
-    } else {
-      const ov = tableOv[target.id];
-      if (ov) {
-        await updateTable.mutateAsync({ id: target.id, data: { x: ov.x, y: ov.y } });
-        queryClient.invalidateQueries({ queryKey: tablesQK });
+    const onMove = (ev: MouseEvent) => {
+      if (!dragRef.current) return;
+      const s = scaleRef.current;
+      const dx = (ev.clientX - dragRef.current.sx) / s;
+      const dy = (ev.clientY - dragRef.current.sy) / s;
+      const nx = Math.max(0, Math.min(CW - 10, dragRef.current.ox + dx));
+      const ny = Math.max(0, Math.min(CH - 10, dragRef.current.oy + dy));
+      if (dragRef.current.target.type === "chair") {
+        setChairs(prev => prev.map(c => c.id === dragRef.current!.target.id ? { ...c, x: nx, y: ny } : c));
+      } else {
+        setTableOv(prev => ({ ...prev, [dragRef.current!.target.id]: { x: nx, y: ny } }));
       }
-    }
-    dragRef.current = null;
-  }, [chairs, tableOv, updateTable, queryClient, tablesQK]);
+    };
+
+    const onUp = async () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      if (!dragRef.current) return;
+      const { target: t } = dragRef.current;
+      dragRef.current = null;
+      if (t.type === "chair") {
+        const ch = chairsRef.current.find(c => c.id === t.id);
+        if (ch) await apiFetch(`/chairs/${t.id}`, { method: "PUT", body: JSON.stringify({ x: ch.x, y: ch.y }) });
+      } else {
+        const ov = tableOvRef.current[t.id];
+        if (ov) {
+          await updateTable.mutateAsync({ id: t.id, data: { x: ov.x, y: ov.y } });
+          queryClient.invalidateQueries({ queryKey: tablesQK });
+        }
+      }
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [updateTable, queryClient, tablesQK]);
 
   const handleRemove = useCallback(async () => {
     if (!selected) return;
@@ -304,9 +315,6 @@ export default function ManagerFloor() {
         ref={containerRef}
         className={`w-full overflow-hidden border rounded-xl relative bg-neutral-200 ${addMode ? "cursor-crosshair" : ""}`}
         style={{ height: CH * scale }}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
         onClick={handleCanvasClick}
         onKeyDown={e => { if (e.key === "Escape") setAddMode(null); }}
         tabIndex={0}
