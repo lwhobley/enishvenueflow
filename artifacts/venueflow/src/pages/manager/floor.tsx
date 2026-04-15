@@ -13,7 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, SquarePlus, LayoutTemplate, Loader2 } from "lucide-react";
-import floorPlanBg from "@assets/IMG_2196_1776230923456.png";
+import floorPlanBg from "@assets/IMG_2248_1776293611211.png";
 
 type ChairRecord = { id: string; venueId: string; x: number; y: number };
 type DragTarget  = { type: "table" | "chair"; id: string };
