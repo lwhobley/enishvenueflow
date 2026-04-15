@@ -43,7 +43,7 @@ router.put("/reservations/:id", async (req, res) => {
     const updates: Record<string, unknown> = {};
     const fields = ["guestName", "guestEmail", "guestPhone", "partySize", "date", "time", "tableId", "status", "notes"];
     for (const f of fields) {
-      if (req.body[f] !== undefined) updates[f === "tableId" ? "tableId" : f] = req.body[f];
+      if (req.body[f] !== undefined) updates[f] = req.body[f];
     }
     const [updated] = await db.update(reservations).set(updates).where(eq(reservations.id, id)).returning();
     if (!updated) return res.status(404).json({ message: "Reservation not found" });
