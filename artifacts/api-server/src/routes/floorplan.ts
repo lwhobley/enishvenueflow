@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { floorSections, tables } from "@workspace/db";
+import { floorSections, tables, chairs } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router = Router();
@@ -102,6 +102,61 @@ router.delete("/tables/:id", async (req, res) => {
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to delete table" });
+  }
+});
+
+function formatChair(c: typeof chairs.$inferSelect) {
+  return { ...c, x: parseFloat(c.x), y: parseFloat(c.y) };
+}
+
+router.get("/chairs", async (req, res) => {
+  try {
+    const { venueId } = req.query as { venueId: string };
+    if (!venueId) return res.status(400).json({ message: "venueId required" });
+    const all = await db.select().from(chairs).where(eq(chairs.venueId, venueId));
+    res.json(all.map(formatChair));
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to list chairs" });
+  }
+});
+
+router.post("/chairs", async (req, res) => {
+  try {
+    const { venueId, x = 0, y = 0 } = req.body;
+    if (!venueId) return res.status(400).json({ message: "venueId required" });
+    const [chair] = await db.insert(chairs).values({ venueId, x: String(x), y: String(y) }).returning();
+    res.status(201).json(formatChair(chair));
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to create chair" });
+  }
+});
+
+router.put("/chairs/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { x, y } = req.body;
+    const updates: Record<string, unknown> = {};
+    if (x !== undefined) updates.x = String(x);
+    if (y !== undefined) updates.y = String(y);
+    const [updated] = await db.update(chairs).set(updates).where(eq(chairs.id, id)).returning();
+    if (!updated) return res.status(404).json({ message: "Chair not found" });
+    res.json(formatChair(updated));
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to update chair" });
+  }
+});
+
+router.delete("/chairs/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.delete(chairs).where(eq(chairs.id, id));
+    res.json({ message: "Chair deleted" });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to delete chair" });
   }
 });
 

@@ -30,3 +30,14 @@ export const tables = pgTable("tables", {
 export const insertTableSchema = createInsertSchema(tables).omit({ id: true });
 export type InsertTable = z.infer<typeof insertTableSchema>;
 export type Table = typeof tables.$inferSelect;
+
+export const chairs = pgTable("chairs", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  venueId: text("venue_id").notNull(),
+  x: numeric("x", { precision: 8, scale: 2 }).notNull().default("0"),
+  y: numeric("y", { precision: 8, scale: 2 }).notNull().default("0"),
+});
+
+export const insertChairSchema = createInsertSchema(chairs).omit({ id: true });
+export type InsertChair = z.infer<typeof insertChairSchema>;
+export type Chair = typeof chairs.$inferSelect;
