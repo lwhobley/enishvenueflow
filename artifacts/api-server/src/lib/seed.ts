@@ -95,6 +95,13 @@ export async function seedIfEmpty() {
         permissions: { schedule: true, timeclock: true, all: false },
         color: "#1D4ED8",
       },
+      {
+        id: "role-server-bartender",
+        venueId: "venue-enosh",
+        name: "Server Bartender",
+        permissions: { schedule: true, timeclock: true },
+        color: "#E57C4A",
+      },
     ]);
 
     await db.insert(users).values([
