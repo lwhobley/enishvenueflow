@@ -195,16 +195,15 @@ export default function ManagerFloor() {
   useEffect(() => { chairsRef.current = chairs; }, [chairs]);
   useEffect(() => { tableOvRef.current = tableOv; }, [tableOv]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, target: DragTarget, ox: number, oy: number) => {
-    e.stopPropagation(); e.preventDefault();
+  const startDrag = useCallback((clientX: number, clientY: number, target: DragTarget, ox: number, oy: number) => {
     setSelected(target);
-    dragRef.current = { target, sx: e.clientX, sy: e.clientY, ox, oy };
+    dragRef.current = { target, sx: clientX, sy: clientY, ox, oy };
 
-    const onMove = (ev: MouseEvent) => {
+    const applyMove = (cx: number, cy: number) => {
       if (!dragRef.current) return;
       const s = scaleRef.current;
-      const dx = (ev.clientX - dragRef.current.sx) / s;
-      const dy = (ev.clientY - dragRef.current.sy) / s;
+      const dx = (cx - dragRef.current.sx) / s;
+      const dy = (cy - dragRef.current.sy) / s;
       const nx = Math.max(0, Math.min(CW - 10, dragRef.current.ox + dx));
       const ny = Math.max(0, Math.min(CH - 10, dragRef.current.oy + dy));
       if (dragRef.current.target.type === "chair") {
@@ -214,9 +213,8 @@ export default function ManagerFloor() {
       }
     };
 
-    const onUp = async () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
+    const finishDrag = async () => {
+      cleanup();
       if (!dragRef.current) return;
       const { target: t } = dragRef.current;
       dragRef.current = null;
@@ -232,9 +230,33 @@ export default function ManagerFloor() {
       }
     };
 
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+    const onMouseMove = (ev: MouseEvent) => applyMove(ev.clientX, ev.clientY);
+    const onMouseUp   = () => finishDrag();
+    const onTouchMove = (ev: TouchEvent) => { ev.preventDefault(); applyMove(ev.touches[0].clientX, ev.touches[0].clientY); };
+    const onTouchEnd  = () => finishDrag();
+
+    const cleanup = () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup",   onMouseUp);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend",  onTouchEnd);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup",   onMouseUp);
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend",  onTouchEnd);
   }, [updateTable, queryClient, tablesQK]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent, target: DragTarget, ox: number, oy: number) => {
+    e.stopPropagation(); e.preventDefault();
+    startDrag(e.clientX, e.clientY, target, ox, oy);
+  }, [startDrag]);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent, target: DragTarget, ox: number, oy: number) => {
+    e.stopPropagation(); e.preventDefault();
+    startDrag(e.touches[0].clientX, e.touches[0].clientY, target, ox, oy);
+  }, [startDrag]);
 
   const handleRemove = useCallback(async () => {
     if (!selected) return;
@@ -350,6 +372,7 @@ export default function ManagerFloor() {
                 className="absolute cursor-grab active:cursor-grabbing"
                 style={{ left: x, top: y, width: w, height: shape === "crescent" ? w / 2 : h, userSelect: "none" }}
                 onMouseDown={e => handleMouseDown(e, { type: "table", id: table.id }, x, y)}
+                onTouchStart={e => handleTouchStart(e, { type: "table", id: table.id }, x, y)}
                 onDoubleClick={e => { e.stopPropagation(); setEditingId(table.id); setEditingLabel(table.label); }}
               >
                 {shape === "crescent"
@@ -392,6 +415,7 @@ export default function ManagerFloor() {
                 className="absolute cursor-grab active:cursor-grabbing"
                 style={{ left: Number(chair.x) - 9, top: Number(chair.y) - 6, userSelect: "none" }}
                 onMouseDown={e => handleMouseDown(e, { type: "chair", id: chair.id }, Number(chair.x), Number(chair.y))}
+                onTouchStart={e => handleTouchStart(e, { type: "chair", id: chair.id }, Number(chair.x), Number(chair.y))}
               >
                 <ChairShape selected={sel} />
               </div>
