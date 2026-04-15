@@ -50,22 +50,47 @@ function SquareTableShape({ w, h, selected }: { w: number; h: number; selected: 
   );
 }
 
-function CrescentTableShape({ w, h, selected }: { w: number; h: number; selected: boolean }) {
-  // Half-circle — flat edge at bottom, curved edge at top
-  const r = w / 2;
+function CrescentTableShape({ w, tableId, selected }: { w: number; tableId: string; selected: boolean }) {
+  const size   = w;
+  const cx     = size / 2;
+  const cy     = size / 2;
+  const outerR = size / 2 - 2;
+  const innerR = outerR * 0.74;
+  const offX   = outerR * 0.36;
+  const offY   = -(outerR * 0.12);
+  const maskId = `crescent-${tableId}`;
+
   return (
-    <div
+    <svg
+      width={size} height={size}
       style={{
-        width: w, height: r,          // height = radius → perfect half-circle
-        backgroundColor: "rgba(255,255,255,0.88)",
-        border: `${selected ? 3 : 2}px solid ${selected ? "#fff" : "#1f2937"}`,
-        borderRadius: `${r}px ${r}px 0 0`,
-        borderBottom: "none",
-        boxShadow: selected
-          ? "0 0 0 3px #3b82f6, 0 4px 14px rgba(0,0,0,0.5)"
-          : "0 3px 10px rgba(0,0,0,0.45)",
+        filter: selected
+          ? "drop-shadow(0 0 4px #3b82f6) drop-shadow(0 4px 8px rgba(0,0,0,0.5))"
+          : "drop-shadow(0 3px 6px rgba(0,0,0,0.45))",
+        overflow: "visible",
       }}
-    />
+    >
+      <defs>
+        <mask id={maskId}>
+          <circle cx={cx} cy={cy} r={outerR} fill="white" />
+          <circle cx={cx + offX} cy={cy + offY} r={innerR} fill="black" />
+        </mask>
+      </defs>
+      {/* filled crescent */}
+      <circle
+        cx={cx} cy={cy} r={outerR}
+        fill="rgba(255,255,255,0.88)"
+        mask={`url(#${maskId})`}
+      />
+      {/* outer border arc */}
+      <circle
+        cx={cx} cy={cy} r={outerR}
+        fill="none"
+        stroke={selected ? "#3b82f6" : "#1f2937"}
+        strokeWidth={selected ? 3 : 2}
+        mask={`url(#${maskId})`}
+      />
+    </svg>
   );
 }
 
@@ -370,13 +395,13 @@ export default function ManagerFloor() {
               <div
                 key={table.id}
                 className="absolute cursor-grab active:cursor-grabbing"
-                style={{ left: x, top: y, width: w, height: shape === "crescent" ? w / 2 : h, userSelect: "none" }}
+                style={{ left: x, top: y, width: w, height: shape === "crescent" ? w : h, userSelect: "none" }}
                 onMouseDown={e => handleMouseDown(e, { type: "table", id: table.id }, x, y)}
                 onTouchStart={e => handleTouchStart(e, { type: "table", id: table.id }, x, y)}
                 onDoubleClick={e => { e.stopPropagation(); setEditingId(table.id); setEditingLabel(table.label); }}
               >
                 {shape === "crescent"
-                  ? <CrescentTableShape w={w} h={h} selected={sel} />
+                  ? <CrescentTableShape w={w} tableId={table.id} selected={sel} />
                   : <SquareTableShape   w={w} h={h} selected={sel} />}
 
                 {/* Label overlay */}
