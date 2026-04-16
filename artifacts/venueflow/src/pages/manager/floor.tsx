@@ -241,27 +241,11 @@ export default function ManagerFloor() {
       }
     };
 
-    const finishDrag = async () => {
-      cleanup();
-      if (!dragRef.current) return;
-      const { target: t } = dragRef.current;
-      dragRef.current = null;
-      if (t.type === "chair") {
-        const ch = chairsRef.current.find(c => c.id === t.id);
-        if (ch) await apiFetch(`/chairs/${t.id}`, { method: "PUT", body: JSON.stringify({ x: ch.x, y: ch.y }) });
-      } else {
-        const ov = tableOvRef.current[t.id];
-        if (ov) {
-          await updateTable.mutateAsync({ id: t.id, data: { x: ov.x, y: ov.y } });
-          queryClient.invalidateQueries({ queryKey: tablesQK });
-        }
-      }
-    };
-
-    const onMouseMove = (ev: MouseEvent) => applyMove(ev.clientX, ev.clientY);
-    const onMouseUp   = () => finishDrag();
-    const onTouchMove = (ev: TouchEvent) => { ev.preventDefault(); applyMove(ev.touches[0].clientX, ev.touches[0].clientY); };
-    const onTouchEnd  = () => finishDrag();
+    // Declare cleanup first so finishDrag can reference it without TDZ issues
+    let onMouseMove: (ev: MouseEvent) => void;
+    let onMouseUp:   () => void;
+    let onTouchMove: (ev: TouchEvent) => void;
+    let onTouchEnd:  () => void;
 
     const cleanup = () => {
       window.removeEventListener("mousemove", onMouseMove);
@@ -269,6 +253,36 @@ export default function ManagerFloor() {
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("touchend",  onTouchEnd);
     };
+
+    const finishDrag = async () => {
+      cleanup();
+      if (!dragRef.current) return;
+      const { target: t } = dragRef.current;
+      dragRef.current = null;
+      try {
+        if (t.type === "chair") {
+          const ch = chairsRef.current.find(c => c.id === t.id);
+          if (ch) await apiFetch(`/chairs/${t.id}`, { method: "PUT", body: JSON.stringify({ x: ch.x, y: ch.y }) });
+        } else {
+          const ov = tableOvRef.current[t.id];
+          if (ov) {
+            await updateTable.mutateAsync({ id: t.id, data: { x: ov.x, y: ov.y } });
+            queryClient.invalidateQueries({ queryKey: tablesQK });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to persist drag:", err);
+      }
+    };
+
+    onMouseMove = (ev: MouseEvent) => applyMove(ev.clientX, ev.clientY);
+    onMouseUp   = () => { void finishDrag(); };
+    onTouchMove = (ev: TouchEvent) => {
+      if (ev.cancelable) ev.preventDefault();
+      const t = ev.touches[0];
+      if (t) applyMove(t.clientX, t.clientY);
+    };
+    onTouchEnd  = () => { void finishDrag(); };
 
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup",   onMouseUp);
@@ -405,7 +419,7 @@ export default function ManagerFloor() {
               <div
                 key={table.id}
                 className="absolute cursor-grab active:cursor-grabbing"
-                style={{ left: x, top: y, width: w, height: shape === "crescent" ? w : h, userSelect: "none" }}
+                style={{ left: x, top: y, width: w, height: shape === "crescent" ? w : h, userSelect: "none", touchAction: "none" }}
                 onMouseDown={e => handleMouseDown(e, { type: "table", id: table.id }, x, y)}
                 onTouchStart={e => handleTouchStart(e, { type: "table", id: table.id }, x, y)}
                 onDoubleClick={e => { e.stopPropagation(); setEditingId(table.id); setEditingLabel(table.label); }}
@@ -448,7 +462,7 @@ export default function ManagerFloor() {
               <div
                 key={chair.id}
                 className="absolute cursor-grab active:cursor-grabbing"
-                style={{ left: Number(chair.x) - 9, top: Number(chair.y) - 6, userSelect: "none" }}
+                style={{ left: Number(chair.x) - 9, top: Number(chair.y) - 6, userSelect: "none", touchAction: "none" }}
                 onMouseDown={e => handleMouseDown(e, { type: "chair", id: chair.id }, Number(chair.x), Number(chair.y))}
                 onTouchStart={e => handleTouchStart(e, { type: "chair", id: chair.id }, Number(chair.x), Number(chair.y))}
               >
