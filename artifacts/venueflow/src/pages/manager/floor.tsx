@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAppContext } from "@/hooks/use-app-context";
+import { useAuth } from "@/contexts/auth-context";
 import {
   useListFloorSections,
   getListFloorSectionsQueryKey,
@@ -111,7 +112,9 @@ function ChairShape({ selected }: { selected: boolean }) {
 
 export default function ManagerFloor() {
   const { activeVenue } = useAppContext();
-  const queryClient    = useQueryClient();
+  const { user }        = useAuth();
+  const isAdmin         = user?.isAdmin ?? false;
+  const queryClient     = useQueryClient();
 
   const [chairs, setChairs]             = useState<ChairRecord[]>([]);
   const [selected, setSelected]         = useState<DragTarget | null>(null);
@@ -184,7 +187,7 @@ export default function ManagerFloor() {
   };
 
   const handleCanvasClick = useCallback(async (e: React.MouseEvent) => {
-    if (!addMode || !activeVenue?.id) return;
+    if (!isAdmin || !addMode || !activeVenue?.id) return;
     const el = e.target as HTMLElement;
     if (el !== canvasRef.current && !el.classList.contains("floor-bg")) return;
     const { x, y } = canvasPos(e);
@@ -274,14 +277,16 @@ export default function ManagerFloor() {
   }, [updateTable, queryClient, tablesQK]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent, target: DragTarget, ox: number, oy: number) => {
+    if (!isAdmin) return;
     e.stopPropagation(); e.preventDefault();
     startDrag(e.clientX, e.clientY, target, ox, oy);
-  }, [startDrag]);
+  }, [isAdmin, startDrag]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent, target: DragTarget, ox: number, oy: number) => {
+    if (!isAdmin) return;
     e.stopPropagation(); e.preventDefault();
     startDrag(e.touches[0].clientX, e.touches[0].clientY, target, ox, oy);
-  }, [startDrag]);
+  }, [isAdmin, startDrag]);
 
   const handleRemove = useCallback(async () => {
     if (!selected) return;
@@ -308,30 +313,35 @@ export default function ManagerFloor() {
       {/* ── Toolbar ── */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Floor Plan</h1>
-        <div className="flex gap-2 flex-wrap">
-          <Button
-            variant={addMode === "square" ? "default" : "outline"}
-            onClick={() => setAddMode(addMode === "square" ? null : "square")}
-          >
-            <Square className="w-4 h-4 mr-2" /> Add Square Table
-          </Button>
-          <Button
-            variant={addMode === "crescent" ? "default" : "outline"}
-            onClick={() => setAddMode(addMode === "crescent" ? null : "crescent")}
-          >
-            {/* crescent icon using a styled char */}
-            <span className="mr-2 text-base leading-none">☽</span> Add Crescent Table
-          </Button>
-          <Button
-            variant={addMode === "chair" ? "default" : "outline"}
-            onClick={() => setAddMode(addMode === "chair" ? null : "chair")}
-          >
-            <Armchair className="w-4 h-4 mr-2" /> Add Chair
-          </Button>
-          <Button variant="destructive" disabled={!selected} onClick={handleRemove}>
-            <Trash2 className="w-4 h-4 mr-2" /> Remove
-          </Button>
-        </div>
+        {isAdmin ? (
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant={addMode === "square" ? "default" : "outline"}
+              onClick={() => setAddMode(addMode === "square" ? null : "square")}
+            >
+              <Square className="w-4 h-4 mr-2" /> Add Square Table
+            </Button>
+            <Button
+              variant={addMode === "crescent" ? "default" : "outline"}
+              onClick={() => setAddMode(addMode === "crescent" ? null : "crescent")}
+            >
+              <span className="mr-2 text-base leading-none">☽</span> Add Crescent Table
+            </Button>
+            <Button
+              variant={addMode === "chair" ? "default" : "outline"}
+              onClick={() => setAddMode(addMode === "chair" ? null : "chair")}
+            >
+              <Armchair className="w-4 h-4 mr-2" /> Add Chair
+            </Button>
+            <Button variant="destructive" disabled={!selected} onClick={handleRemove}>
+              <Trash2 className="w-4 h-4 mr-2" /> Remove
+            </Button>
+          </div>
+        ) : (
+          <span className="text-sm text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
+            View only — admin access required to edit
+          </span>
+        )}
       </div>
 
       {/* ── Status bar ── */}
