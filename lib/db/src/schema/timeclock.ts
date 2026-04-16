@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, integer, numeric, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -12,6 +12,15 @@ export const timeClockEntries = pgTable("time_clock_entries", {
   breakMinutes: integer("break_minutes"),
   status: text("status").notNull().default("active"),
   notes: text("notes"),
+  // Source of this clock event: mobile_gps | phone_biometric | terminal_biometric | manager_manual | adp_import
+  source: text("source").notNull().default("mobile_gps"),
+  biometricVerified: boolean("biometric_verified").notNull().default(false),
+  deviceId: text("device_id"),
+  // ADP two-way sync bookkeeping
+  adpExternalId: text("adp_external_id"),
+  adpSyncStatus: text("adp_sync_status").notNull().default("pending"), // pending | synced | failed | not_required
+  adpSyncedAt: timestamp("adp_synced_at"),
+  adpSyncError: text("adp_sync_error"),
 });
 
 export const insertTimeClockEntrySchema = createInsertSchema(timeClockEntries).omit({ id: true });

@@ -7,7 +7,7 @@ import {
 import { format, intervalToDuration } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { MapPin, CalendarCheck, AlertTriangle, Loader2, Clock4 } from "lucide-react";
+import { MapPin, CalendarCheck, AlertTriangle, Loader2, Clock4, Fingerprint, Smartphone } from "lucide-react";
 
 // ── Fine dining palette ───────────────────────────────────────────────────────
 const G = {
@@ -131,6 +131,53 @@ export default function EmployeeTimeClock() {
   const [shiftLabel, setShiftLabel] = useState("Checking…");
   const [acting, setActing]         = useState(false);
   const [elapsedMs, setElapsedMs]   = useState(0);
+  const [biometricAvail, setBiometricAvail] = useState(false);
+  const [useBiometric, setUseBiometric]     = useState(false);
+
+  // Detect platform biometric availability (Touch ID / Face ID / Android fingerprint)
+  useEffect(() => {
+    const w = window as Window & { PublicKeyCredential?: { isUserVerifyingPlatformAuthenticatorAvailable?: () => Promise<boolean> } };
+    const fn = w.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable;
+    if (typeof fn !== "function") return;
+    fn().then((ok: boolean) => setBiometricAvail(!!ok)).catch(() => setBiometricAvail(false));
+  }, []);
+
+  /**
+   * UX-only biometric gate: triggers the device's Touch ID / Face ID / fingerprint
+   * prompt so the user's clock-in can be tagged as phone_biometric. This is a
+   * UX signal (the user consented to biometric verification on their device),
+   * NOT a cryptographic auth factor — the server does not verify an assertion.
+   *
+   * We derive the WebAuthn user handle deterministically from activeUser.id so
+   * the same credential record is reused across clock-ins instead of creating
+   * a new passkey every time (avoids credential sprawl on the device).
+   */
+  async function verifyBiometric(): Promise<boolean> {
+    try {
+      const challenge = new Uint8Array(32);
+      crypto.getRandomValues(challenge);
+
+      // Deterministic 32-byte user handle derived from activeUser.id
+      const idBytes = new TextEncoder().encode(`venueflow:${activeUser?.id ?? "anon"}`);
+      const hash = await crypto.subtle.digest("SHA-256", idBytes);
+      const userHandle = new Uint8Array(hash);
+
+      const cred = await navigator.credentials.create({
+        publicKey: {
+          challenge,
+          rp: { name: "VenueFlow" },
+          user: { id: userHandle, name: activeUser?.email ?? "employee", displayName: activeUser?.fullName ?? "Employee" },
+          pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+          authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required", residentKey: "discouraged" },
+          timeout: 30000,
+          attestation: "none",
+        },
+      });
+      return !!cred;
+    } catch {
+      return false;
+    }
+  }
 
   const venueId = activeVenue?.id || "";
   const userId  = activeUser?.id  || "";
@@ -212,6 +259,13 @@ export default function EmployeeTimeClock() {
     }
     setActing(true);
     try {
+      let bioVerified = false;
+      if (useBiometric && biometricAvail) {
+        bioVerified = await verifyBiometric();
+        if (!bioVerified) {
+          toast({ title: "Fingerprint not verified", description: "Falling back to mobile GPS clock-in.", variant: "destructive" });
+        }
+      }
       const res = await fetch("/api/time-clock/in", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -221,6 +275,8 @@ export default function EmployeeTimeClock() {
           lng: geoPos!.coords.longitude,
           accuracy: geoPos!.coords.accuracy,
           clientTimestamp: Date.now(),
+          source: bioVerified ? "phone_biometric" : "mobile_gps",
+          biometricVerified: bioVerified,
         }),
       });
       if (!res.ok) {
@@ -314,6 +370,44 @@ export default function EmployeeTimeClock() {
           {/* Decorative hairline */}
           <div style={{ width: 40, height: 1, background: `linear-gradient(90deg, transparent, ${G.goldSoft}, transparent)`, margin: "20px auto 0" }} />
         </div>
+
+        {/* ── Clock-in method toggle ─────────────────────────────────── */}
+        {!isClockedIn && biometricAvail && (
+          <div style={{
+            display: "flex", gap: 8, marginBottom: 16,
+            padding: 4, background: G.surface, border: `1px solid ${G.border}`, borderRadius: 14,
+            animation: "tc-fadein 0.5s ease 0.03s both",
+          }}>
+            <button
+              onClick={() => setUseBiometric(false)}
+              style={{
+                flex: 1, padding: "10px 12px", borderRadius: 10,
+                background: !useBiometric ? `${G.gold}18` : "transparent",
+                border: `1px solid ${!useBiometric ? G.goldSoft : "transparent"}`,
+                color: !useBiometric ? G.champ : G.sub,
+                fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer",
+                transition: "all 0.25s",
+              }}
+            >
+              <Smartphone size={12} /> Mobile GPS
+            </button>
+            <button
+              onClick={() => setUseBiometric(true)}
+              style={{
+                flex: 1, padding: "10px 12px", borderRadius: 10,
+                background: useBiometric ? `${G.sage}18` : "transparent",
+                border: `1px solid ${useBiometric ? `${G.sage}80` : "transparent"}`,
+                color: useBiometric ? G.sage : G.sub,
+                fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer",
+                transition: "all 0.25s",
+              }}
+            >
+              <Fingerprint size={12} /> Fingerprint
+            </button>
+          </div>
+        )}
 
         {/* ── Status pills ───────────────────────────────────────────── */}
         <div style={{ display: "flex", gap: 10, marginBottom: 32, animation: "tc-fadein 0.5s ease 0.06s both" }}>
