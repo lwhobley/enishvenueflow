@@ -155,7 +155,13 @@ router.post("/floor-layout/seed", async (req, res) => {
 });
 
 function formatChair(c: typeof chairs.$inferSelect) {
-  return { ...c, x: parseFloat(c.x), y: parseFloat(c.y) };
+  return {
+    ...c,
+    x: parseFloat(c.x),
+    y: parseFloat(c.y),
+    width:  parseFloat(c.width),
+    height: parseFloat(c.height),
+  };
 }
 
 router.get("/chairs", async (req, res) => {
@@ -185,10 +191,12 @@ router.post("/chairs", async (req, res) => {
 router.put("/chairs/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { x, y } = req.body;
+    const { x, y, width, height } = req.body;
     const updates: Record<string, unknown> = {};
     if (x !== undefined) updates.x = String(x);
     if (y !== undefined) updates.y = String(y);
+    if (width  !== undefined) updates.width  = String(width);
+    if (height !== undefined) updates.height = String(height);
     const [updated] = await db.update(chairs).set(updates).where(eq(chairs.id, id)).returning();
     if (!updated) return res.status(404).json({ message: "Chair not found" });
     res.json(formatChair(updated));

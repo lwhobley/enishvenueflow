@@ -16,9 +16,15 @@ import { Input } from "@/components/ui/input";
 import { Plus, Trash2, Square, Armchair } from "lucide-react";
 import floorPlanBg from "@assets/IMG_2248_1776293611211.png";
 
-type ChairRecord = { id: string; venueId: string; x: number; y: number };
+type ChairRecord = { id: string; venueId: string; x: number; y: number; width: number; height: number };
 type DragTarget  = { type: "table" | "chair"; id: string };
 type TableShape  = "square" | "crescent";
+type ResizeMode  = "se" | "e" | "s";
+
+const MIN_TABLE = 30;
+const MAX_TABLE = 400;
+const MIN_CHAIR = 10;
+const MAX_CHAIR = 80;
 
 async function apiFetch(path: string, init?: RequestInit) {
   const res = await fetch(`/api${path}`, {
@@ -96,16 +102,45 @@ function CrescentTableShape({ w, tableId, selected }: { w: number; tableId: stri
 }
 
 // ── U-shaped chair (small crescent) ─────────────────────────────────────────
-function ChairShape({ selected }: { selected: boolean }) {
+function ChairShape({ w, h, selected }: { w: number; h: number; selected: boolean }) {
+  const radius = Math.min(w, h * 1.6) / 2;
   return (
     <div
       style={{
-        width: 18, height: 11,
+        width: w, height: h,
         backgroundColor: "#1f2937",
-        borderRadius: "9px 9px 0 0",
+        borderRadius: `${radius}px ${radius}px 0 0`,
         border: selected ? "2px solid #3b82f6" : "1.5px solid #374151",
         boxShadow: "0 2px 5px rgba(0,0,0,0.55)",
       }}
+    />
+  );
+}
+
+// ── Square handle drawn at a corner / edge of a selected item ──────────────
+function ResizeHandle({
+  pos, onMouseDown, onTouchStart,
+}: {
+  pos: ResizeMode;
+  onMouseDown: (e: React.MouseEvent) => void;
+  onTouchStart: (e: React.TouchEvent) => void;
+}) {
+  const base: React.CSSProperties = {
+    position: "absolute", width: 12, height: 12,
+    background: "#3b82f6", border: "2px solid #fff",
+    borderRadius: 3, boxShadow: "0 1px 3px rgba(0,0,0,0.5)",
+    touchAction: "none", zIndex: 10,
+  };
+  const placement: Record<ResizeMode, React.CSSProperties> = {
+    se: { right: -6, bottom: -6, cursor: "nwse-resize" },
+    e:  { right: -6, top: "50%", marginTop: -6, cursor: "ew-resize" },
+    s:  { bottom: -6, left: "50%", marginLeft: -6, cursor: "ns-resize" },
+  };
+  return (
+    <div
+      style={{ ...base, ...placement[pos] }}
+      onMouseDown={onMouseDown}
+      onTouchStart={onTouchStart}
     />
   );
 }
@@ -121,7 +156,7 @@ export default function ManagerFloor() {
   const [addMode, setAddMode]           = useState<"square" | "crescent" | "chair" | null>(null);
   const [editingId, setEditingId]       = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
-  const [tableOv, setTableOv]           = useState<Record<string, { x: number; y: number }>>({});
+  const [tableOv, setTableOv]           = useState<Record<string, { x: number; y: number; w?: number; h?: number }>>({});
   const [scale, setScale]               = useState(1);
 
   const scaleRef     = useRef(1);
@@ -302,6 +337,98 @@ export default function ManagerFloor() {
     startDrag(e.touches[0].clientX, e.touches[0].clientY, target, ox, oy);
   }, [isAdmin, startDrag]);
 
+  // ── Resize: live in tableOv (for tables) or chairs state (for chairs),
+  // persists on pointer-up via the same PUT endpoints used for moves.
+  const startResize = useCallback((
+    clientX: number, clientY: number, target: DragTarget, mode: ResizeMode,
+    startW: number, startH: number,
+  ) => {
+    setSelected(target);
+    const sx = clientX, sy = clientY;
+    const isChair = target.type === "chair";
+    const minSz   = isChair ? MIN_CHAIR : MIN_TABLE;
+    const maxSz   = isChair ? MAX_CHAIR : MAX_TABLE;
+
+    let lastW = startW, lastH = startH;
+
+    const apply = (cx: number, cy: number) => {
+      const s = scaleRef.current;
+      const dx = (cx - sx) / s;
+      const dy = (cy - sy) / s;
+      let w = startW, h = startH;
+      if (mode === "se" || mode === "e") w = Math.max(minSz, Math.min(maxSz, startW + dx));
+      if (mode === "se" || mode === "s") h = Math.max(minSz, Math.min(maxSz, startH + dy));
+      lastW = w; lastH = h;
+      if (target.type === "table") {
+        setTableOv(prev => {
+          const cur = prev[target.id] ?? { x: 0, y: 0 };
+          return { ...prev, [target.id]: { ...cur, w, h } };
+        });
+      } else {
+        setChairs(prev => prev.map(c => c.id === target.id ? { ...c, width: w, height: h } : c));
+      }
+    };
+
+    let onMove: (ev: MouseEvent) => void;
+    let onUp: () => void;
+    let onTMove: (ev: TouchEvent) => void;
+    let onTEnd: () => void;
+
+    const cleanup = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup",   onUp);
+      window.removeEventListener("touchmove", onTMove);
+      window.removeEventListener("touchend",  onTEnd);
+    };
+
+    const finish = async () => {
+      cleanup();
+      try {
+        if (target.type === "table") {
+          await updateTable.mutateAsync({ id: target.id, data: { width: lastW, height: lastH } });
+          queryClient.invalidateQueries({ queryKey: tablesQK });
+        } else {
+          await apiFetch(`/chairs/${target.id}`, {
+            method: "PUT",
+            body: JSON.stringify({ width: lastW, height: lastH }),
+          });
+        }
+      } catch (err) {
+        console.error("Failed to persist resize:", err);
+      }
+    };
+
+    onMove  = (ev) => apply(ev.clientX, ev.clientY);
+    onUp    = () => { void finish(); };
+    onTMove = (ev) => {
+      if (ev.cancelable) ev.preventDefault();
+      const t = ev.touches[0];
+      if (t) apply(t.clientX, t.clientY);
+    };
+    onTEnd  = () => { void finish(); };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup",   onUp);
+    window.addEventListener("touchmove", onTMove, { passive: false });
+    window.addEventListener("touchend",  onTEnd);
+  }, [updateTable, queryClient, tablesQK]);
+
+  const handleResizeMouseDown = useCallback((
+    e: React.MouseEvent, target: DragTarget, mode: ResizeMode, w: number, h: number,
+  ) => {
+    if (!isAdmin) return;
+    e.stopPropagation(); e.preventDefault();
+    startResize(e.clientX, e.clientY, target, mode, w, h);
+  }, [isAdmin, startResize]);
+
+  const handleResizeTouchStart = useCallback((
+    e: React.TouchEvent, target: DragTarget, mode: ResizeMode, w: number, h: number,
+  ) => {
+    if (!isAdmin) return;
+    e.stopPropagation(); e.preventDefault();
+    startResize(e.touches[0].clientX, e.touches[0].clientY, target, mode, w, h);
+  }, [isAdmin, startResize]);
+
   const handleRemove = useCallback(async () => {
     if (!selected) return;
     if (selected.type === "table") {
@@ -410,23 +537,45 @@ export default function ManagerFloor() {
             const ov   = tableOv[table.id];
             const x    = ov?.x ?? Number(table.x);
             const y    = ov?.y ?? Number(table.y);
-            const w    = Number(table.width);
-            const h    = Number(table.height);
+            const w    = ov?.w ?? Number(table.width);
+            const h    = ov?.h ?? Number(table.height);
             const sel  = selected?.type === "table" && selected.id === table.id;
             const shape = (table as any).shape as TableShape ?? "square";
+            const renderH = shape === "crescent" ? w : h;
+            const tgt: DragTarget = { type: "table", id: table.id };
 
             return (
               <div
                 key={table.id}
                 className="absolute cursor-grab active:cursor-grabbing"
-                style={{ left: x, top: y, width: w, height: shape === "crescent" ? w : h, userSelect: "none", touchAction: "none" }}
-                onMouseDown={e => handleMouseDown(e, { type: "table", id: table.id }, x, y)}
-                onTouchStart={e => handleTouchStart(e, { type: "table", id: table.id }, x, y)}
+                style={{ left: x, top: y, width: w, height: renderH, userSelect: "none", touchAction: "none" }}
+                onMouseDown={e => handleMouseDown(e, tgt, x, y)}
+                onTouchStart={e => handleTouchStart(e, tgt, x, y)}
                 onDoubleClick={e => { e.stopPropagation(); setEditingId(table.id); setEditingLabel(table.label); }}
               >
                 {shape === "crescent"
                   ? <CrescentTableShape w={w} tableId={table.id} selected={sel} />
                   : <SquareTableShape   w={w} h={h} selected={sel} />}
+
+                {/* Resize handles — square tables resize freely, crescent stays circular */}
+                {sel && isAdmin && shape === "square" && (
+                  <>
+                    <ResizeHandle pos="se"
+                      onMouseDown={e => handleResizeMouseDown(e, tgt, "se", w, h)}
+                      onTouchStart={e => handleResizeTouchStart(e, tgt, "se", w, h)} />
+                    <ResizeHandle pos="e"
+                      onMouseDown={e => handleResizeMouseDown(e, tgt, "e", w, h)}
+                      onTouchStart={e => handleResizeTouchStart(e, tgt, "e", w, h)} />
+                    <ResizeHandle pos="s"
+                      onMouseDown={e => handleResizeMouseDown(e, tgt, "s", w, h)}
+                      onTouchStart={e => handleResizeTouchStart(e, tgt, "s", w, h)} />
+                  </>
+                )}
+                {sel && isAdmin && shape === "crescent" && (
+                  <ResizeHandle pos="se"
+                    onMouseDown={e => handleResizeMouseDown(e, tgt, "se", w, w)}
+                    onTouchStart={e => handleResizeTouchStart(e, tgt, "se", w, w)} />
+                )}
 
                 {/* Label overlay */}
                 {editingId === table.id ? (
@@ -458,15 +607,23 @@ export default function ManagerFloor() {
           {/* ── Chairs ── */}
           {chairs.map(chair => {
             const sel = selected?.type === "chair" && selected.id === chair.id;
+            const cw  = Number(chair.width)  || 18;
+            const ch  = Number(chair.height) || 11;
+            const tgt: DragTarget = { type: "chair", id: chair.id };
             return (
               <div
                 key={chair.id}
                 className="absolute cursor-grab active:cursor-grabbing"
-                style={{ left: Number(chair.x) - 9, top: Number(chair.y) - 6, userSelect: "none", touchAction: "none" }}
-                onMouseDown={e => handleMouseDown(e, { type: "chair", id: chair.id }, Number(chair.x), Number(chair.y))}
-                onTouchStart={e => handleTouchStart(e, { type: "chair", id: chair.id }, Number(chair.x), Number(chair.y))}
+                style={{ left: Number(chair.x) - cw / 2, top: Number(chair.y) - ch / 2, userSelect: "none", touchAction: "none" }}
+                onMouseDown={e => handleMouseDown(e, tgt, Number(chair.x), Number(chair.y))}
+                onTouchStart={e => handleTouchStart(e, tgt, Number(chair.x), Number(chair.y))}
               >
-                <ChairShape selected={sel} />
+                <ChairShape w={cw} h={ch} selected={sel} />
+                {sel && isAdmin && (
+                  <ResizeHandle pos="se"
+                    onMouseDown={e => handleResizeMouseDown(e, tgt, "se", cw, ch)}
+                    onTouchStart={e => handleResizeTouchStart(e, tgt, "se", cw, ch)} />
+                )}
               </div>
             );
           })}

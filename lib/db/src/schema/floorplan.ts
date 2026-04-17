@@ -37,6 +37,8 @@ export const chairs = pgTable("chairs", {
   venueId: text("venue_id").notNull(),
   x: numeric("x", { precision: 8, scale: 2 }).notNull().default("0"),
   y: numeric("y", { precision: 8, scale: 2 }).notNull().default("0"),
+  width: numeric("width", { precision: 8, scale: 2 }).notNull().default("18"),
+  height: numeric("height", { precision: 8, scale: 2 }).notNull().default("11"),
 });
 
 export const insertChairSchema = createInsertSchema(chairs).omit({ id: true });
