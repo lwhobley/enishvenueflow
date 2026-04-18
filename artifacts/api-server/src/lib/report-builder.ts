@@ -9,6 +9,7 @@ import {
   venues,
 } from "@workspace/db";
 import { and, eq, inArray, lte } from "drizzle-orm";
+import { fetchPosSales, PROVIDER_LABELS } from "./pos";
 
 export type ReportKind = "end_of_shift" | "end_of_night";
 
@@ -144,6 +145,24 @@ export type TipsSection = {
   undistributedPools: number;
 };
 
+export type SalesSection = {
+  /** True when live POS data was fetched for the window. */
+  available: boolean;
+  /** Provider label (e.g. "Toast") when known, else null. */
+  provider: string | null;
+  netSales: number | null;
+  comps: number | null;
+  voids: number | null;
+  orderCount: number | null;
+  currency: string | null;
+  /**
+   * Human-readable note. When `available` is false this explains why
+   * (not connected, fetch failed, etc.) so the email can still render
+   * meaningful copy in the Sales card.
+   */
+  note: string;
+};
+
 export type ReportPayload = {
   venueId: string;
   venueName: string;
@@ -154,6 +173,11 @@ export type ReportPayload = {
   reservations: ReservationsSection;
   labor: LaborSection;
   tips: TipsSection;
+  sales: SalesSection;
+  /**
+   * Back-compat alias for `sales.note` used by older consumers. New code
+   * should read from `sales` directly.
+   */
   pendingPosNote: string;
 };
 
@@ -341,6 +365,9 @@ export async function buildReport(opts: {
     undistributedPools: poolSummaries.filter((p) => p.status !== "distributed").length,
   };
 
+  // ── Sales section (POS) ──────────────────────────────────────────────────
+  const salesSection = await buildSalesSection(opts.venueId, win);
+
   return {
     venueId: opts.venueId,
     venueName,
@@ -351,6 +378,48 @@ export async function buildReport(opts: {
     reservations: reservationsSection,
     labor: laborSection,
     tips: tipsSection,
-    pendingPosNote: "Sales, comps, and voids will appear here once the POS integration is connected.",
+    sales: salesSection,
+    pendingPosNote: salesSection.note,
+  };
+}
+
+async function buildSalesSection(
+  venueId: string,
+  win: BusinessDayWindow,
+): Promise<SalesSection> {
+  const result = await fetchPosSales(venueId, { startUtc: win.startUtc, endUtc: win.endUtc });
+  if (result.ok) {
+    const providerLabel = PROVIDER_LABELS[result.sales.provider] ?? result.sales.provider;
+    return {
+      available: true,
+      provider: providerLabel,
+      netSales: result.sales.netSales,
+      comps: result.sales.comps,
+      voids: result.sales.voids,
+      orderCount: result.sales.orderCount,
+      currency: result.sales.currency,
+      note: `Live ${providerLabel} totals for the business day.`,
+    };
+  }
+  const providerLabel = result.provider ? PROVIDER_LABELS[result.provider] ?? result.provider : null;
+  let note: string;
+  if (result.reason === "not_connected") {
+    note = "Sales, comps, and voids will appear here once the POS integration is connected.";
+  } else if (result.reason === "unsupported_provider") {
+    note = `Sales totals from ${providerLabel ?? "this POS"} are not yet supported.`;
+  } else if (result.reason === "unauthorized") {
+    note = `${providerLabel ?? "POS"} authentication failed — please reconnect the integration.`;
+  } else {
+    note = `Could not load ${providerLabel ?? "POS"} sales for this period.`;
+  }
+  return {
+    available: false,
+    provider: providerLabel,
+    netSales: null,
+    comps: null,
+    voids: null,
+    orderCount: null,
+    currency: null,
+    note,
   };
 }

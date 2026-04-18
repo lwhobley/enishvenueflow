@@ -129,12 +129,7 @@ export function renderHtml(p: ReportPayload): string {
 </table>`
     : "";
 
-  const pos = `<p style="margin:0;color:#6b7280;font-size:13px;">${escapeHtml(p.pendingPosNote)}</p>
-<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;">
-  <tr><td style="padding:4px 0;color:#6b7280;">Net sales</td><td style="padding:4px 0;text-align:right;">—</td></tr>
-  <tr><td style="padding:4px 0;color:#6b7280;">Comps</td><td style="padding:4px 0;text-align:right;">—</td></tr>
-  <tr><td style="padding:4px 0;color:#6b7280;">Voids</td><td style="padding:4px 0;text-align:right;">—</td></tr>
-</table>`;
+  const pos = renderSalesCardBody(p);
 
   const header = `
 <div style="margin-bottom:16px;">
@@ -156,6 +151,27 @@ ${card("Tips", tipsSummary + tipsTable)}
 ${card("Sales · Comps · Voids", pos)}
 ${footer}
 `);
+}
+
+function renderSalesCardBody(p: ReportPayload): string {
+  const s = p.sales;
+  if (s.available && s.netSales !== null && s.comps !== null && s.voids !== null) {
+    const intro = s.provider
+      ? `<p style="margin:0 0 8px 0;color:#374151;font-size:13px;">Live totals from <strong>${escapeHtml(s.provider)}</strong>${s.orderCount !== null ? ` · ${s.orderCount} order${s.orderCount === 1 ? "" : "s"}` : ""}.</p>`
+      : "";
+    const rows = kvTable([
+      ["Net sales", fmtMoney(s.netSales)],
+      ["Comps", fmtMoney(s.comps)],
+      ["Voids", fmtMoney(s.voids)],
+    ]);
+    return `${intro}${rows}`;
+  }
+  return `<p style="margin:0;color:#6b7280;font-size:13px;">${escapeHtml(s.note)}</p>
+<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;">
+  <tr><td style="padding:4px 0;color:#6b7280;">Net sales</td><td style="padding:4px 0;text-align:right;">—</td></tr>
+  <tr><td style="padding:4px 0;color:#6b7280;">Comps</td><td style="padding:4px 0;text-align:right;">—</td></tr>
+  <tr><td style="padding:4px 0;color:#6b7280;">Voids</td><td style="padding:4px 0;text-align:right;">—</td></tr>
+</table>`;
 }
 
 export function renderText(p: ReportPayload): string {
@@ -185,7 +201,18 @@ export function renderText(p: ReportPayload): string {
   lines.push(`  Pools awaiting distribution: ${p.tips.undistributedPools}`);
   lines.push("");
   lines.push("SALES / COMPS / VOIDS");
-  lines.push(`  ${p.pendingPosNote}`);
+  if (p.sales.available && p.sales.netSales !== null) {
+    if (p.sales.provider) {
+      lines.push(
+        `  Source: ${p.sales.provider}${p.sales.orderCount !== null ? ` (${p.sales.orderCount} orders)` : ""}`,
+      );
+    }
+    lines.push(`  Net sales: ${fmtMoney(p.sales.netSales)}`);
+    lines.push(`  Comps:     ${fmtMoney(p.sales.comps ?? 0)}`);
+    lines.push(`  Voids:     ${fmtMoney(p.sales.voids ?? 0)}`);
+  } else {
+    lines.push(`  ${p.sales.note}`);
+  }
   return lines.join("\n");
 }
 

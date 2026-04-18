@@ -40,6 +40,7 @@ Full-stack venue management platform for restaurants and hospitality businesses.
 - `timeClockEntries` + `timeOffRequests` — time tracking
 - `floorSections` + `tables` — floor plan with drag positioning
 - `tipPools` + `tipPoolEntries` — tip distribution
+- `posIntegrations` — per-venue POS connection (provider, credentials, status) used by end-of-shift / end-of-night reports to pull live net sales, comps, and voids
 - `payrollRecords` — payroll computation
 - `messages` + `notifications` + `documents` — messaging and file management
 

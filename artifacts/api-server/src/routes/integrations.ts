@@ -1,9 +1,82 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { users, roles, reservations } from "@workspace/db";
+import { users, roles, reservations, posIntegrations } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { PROVIDER_LABELS } from "../lib/pos";
 
 const router = Router();
+
+async function upsertPosIntegration(opts: {
+  venueId: string;
+  provider: string;
+  externalId: string | null;
+  credentials: Record<string, unknown>;
+}) {
+  const [existing] = await db
+    .select()
+    .from(posIntegrations)
+    .where(eq(posIntegrations.venueId, opts.venueId));
+  if (existing) {
+    await db
+      .update(posIntegrations)
+      .set({
+        provider: opts.provider,
+        externalId: opts.externalId,
+        credentials: opts.credentials,
+        status: "connected",
+        lastError: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(posIntegrations.venueId, opts.venueId));
+  } else {
+    await db.insert(posIntegrations).values({
+      venueId: opts.venueId,
+      provider: opts.provider,
+      externalId: opts.externalId,
+      credentials: opts.credentials,
+      status: "connected",
+    });
+  }
+}
+
+router.get("/integrations/pos/status", async (req, res) => {
+  try {
+    const { venueId } = req.query as { venueId?: string };
+    if (!venueId) return res.status(400).json({ message: "venueId required" });
+    const [row] = await db
+      .select()
+      .from(posIntegrations)
+      .where(eq(posIntegrations.venueId, venueId));
+    if (!row) {
+      return res.json({ venueId, connected: false });
+    }
+    return res.json({
+      venueId,
+      connected: row.status === "connected",
+      provider: row.provider,
+      providerLabel: PROVIDER_LABELS[row.provider] ?? row.provider,
+      externalId: row.externalId,
+      status: row.status,
+      lastSyncedAt: row.lastSyncedAt?.toISOString() ?? null,
+      lastError: row.lastError,
+    });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to load POS integration status" });
+  }
+});
+
+router.delete("/integrations/pos", async (req, res) => {
+  try {
+    const { venueId } = req.query as { venueId?: string };
+    if (!venueId) return res.status(400).json({ message: "venueId required" });
+    await db.delete(posIntegrations).where(eq(posIntegrations.venueId, venueId));
+    res.json({ venueId, connected: false });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to disconnect POS integration" });
+  }
+});
 
 router.post("/integrations/toast/sync", async (req, res) => {
   try {
@@ -77,6 +150,15 @@ router.post("/integrations/toast/sync", async (req, res) => {
         created++;
       }
     }
+
+    // Persist the connection so the end-of-shift / end-of-night reports can
+    // pull live sales, comps, and voids without prompting for credentials.
+    await upsertPosIntegration({
+      venueId,
+      provider: "toast",
+      externalId: restaurantGuid,
+      credentials: { clientId, clientSecret },
+    });
 
     res.json({ message: "Toast sync complete", created, updated, total: toastEmployees.length });
   } catch (err) {

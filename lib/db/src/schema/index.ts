@@ -12,3 +12,4 @@ export * from "./messaging";
 export * from "./availability";
 export * from "./push";
 export * from "./reports";
+export * from "./pos";
