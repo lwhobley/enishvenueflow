@@ -375,12 +375,15 @@ export default function ManagerEmployees() {
             {/* Primary Position */}
             <div>
               <Label>Primary Position</Label>
-              <Select value={form.roleId} onValueChange={v => setField("roleId", v)}>
+              <Select
+                value={form.roleId === "" ? "__none" : form.roleId}
+                onValueChange={v => setField("roleId", v === "__none" ? "" : v)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select primary position" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">— None —</SelectItem>
+                  <SelectItem value="__none">— None —</SelectItem>
                   {roles?.map(r => (
                     <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
                   ))}
