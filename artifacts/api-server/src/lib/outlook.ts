@@ -49,7 +49,49 @@ export type SendMailInput = {
   to: string[];
   subject: string;
   htmlBody: string;
+  textBody: string;
 };
+
+/**
+ * Build an RFC 5322 multipart/alternative message so receiving clients can
+ * pick text/plain or text/html. Microsoft Graph's `/me/sendMail` accepts a
+ * raw MIME message when the request body is base64-encoded with
+ * Content-Type: text/plain.
+ */
+function buildMimeMessage(input: SendMailInput): string {
+  const boundary = `vfboundary_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+  const to = input.to.join(", ");
+  const headers = [
+    `MIME-Version: 1.0`,
+    `To: ${to}`,
+    `Subject: ${encodeMimeHeader(input.subject)}`,
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+  ].join("\r\n");
+
+  const textPart = [
+    `--${boundary}`,
+    `Content-Type: text/plain; charset=UTF-8`,
+    `Content-Transfer-Encoding: 8bit`,
+    ``,
+    input.textBody,
+  ].join("\r\n");
+
+  const htmlPart = [
+    `--${boundary}`,
+    `Content-Type: text/html; charset=UTF-8`,
+    `Content-Transfer-Encoding: 8bit`,
+    ``,
+    input.htmlBody,
+  ].join("\r\n");
+
+  return `${headers}\r\n\r\n${textPart}\r\n${htmlPart}\r\n--${boundary}--\r\n`;
+}
+
+function encodeMimeHeader(value: string): string {
+  // Encode non-ASCII subject lines per RFC 2047.
+  if (/^[\x20-\x7e]*$/.test(value)) return value;
+  return `=?UTF-8?B?${Buffer.from(value, "utf8").toString("base64")}?=`;
+}
 
 export type SendMailResult =
   | { ok: true; messageId?: string }
@@ -67,28 +109,20 @@ export async function sendOutlookMail(input: SendMailInput): Promise<SendMailRes
     };
   }
 
-  const payload = {
-    message: {
-      subject: input.subject,
-      body: {
-        contentType: "HTML",
-        content: input.htmlBody,
-      },
-      toRecipients: input.to.map((address) => ({
-        emailAddress: { address },
-      })),
-    },
-    saveToSentItems: true,
-  };
+  const mime = buildMimeMessage(input);
+  const base64Mime = Buffer.from(mime, "utf8").toString("base64");
 
   try {
+    // Send as raw MIME so we get a true multipart/alternative (text + HTML).
+    // Per Microsoft Graph docs, POST /me/sendMail with Content-Type: text/plain
+    // accepts a base64-encoded MIME message body.
     const res = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
+        "Content-Type": "text/plain",
       },
-      body: JSON.stringify(payload),
+      body: base64Mime,
     });
     if (res.status === 202 || res.status === 200) {
       return { ok: true };

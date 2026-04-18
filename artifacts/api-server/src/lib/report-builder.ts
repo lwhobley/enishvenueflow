@@ -8,7 +8,7 @@ import {
   tipPoolEntries,
   venues,
 } from "@workspace/db";
-import { and, eq, lte } from "drizzle-orm";
+import { and, eq, inArray, lte } from "drizzle-orm";
 
 export type ReportKind = "end_of_shift" | "end_of_night";
 
@@ -176,21 +176,39 @@ export async function buildReport(opts: {
   const venueName = venueRow?.name ?? "Venue";
 
   // ── Reservations section ──────────────────────────────────────────────────
-  const allDayReservations = await db
+  // The CT business day spans 4am→4am local, which crosses calendar midnight.
+  // Reservations are stored with `date` (YYYY-MM-DD) + `time` (HH:MM); a
+  // 1:00am post-midnight booking is stored under the *next* calendar date but
+  // still belongs to the same business day. Pull both calendar dates and
+  // filter by true timestamp overlap with the window.
+  const nextDate = (() => {
+    const [y, m, d] = win.businessDate.split("-").map(Number);
+    const nx = new Date(Date.UTC(y, m - 1, d + 1));
+    return `${nx.getUTCFullYear()}-${String(nx.getUTCMonth() + 1).padStart(2, "0")}-${String(nx.getUTCDate()).padStart(2, "0")}`;
+  })();
+  const candidateReservations = await db
     .select()
     .from(reservations)
-    .where(and(eq(reservations.venueId, opts.venueId), eq(reservations.date, win.businessDate)));
+    .where(
+      and(
+        eq(reservations.venueId, opts.venueId),
+        inArray(reservations.date, [win.businessDate, nextDate]),
+      ),
+    );
 
-  // For end-of-shift, only include reservations whose seating time has occurred so far
-  // (or that are already in a non-pending state like seated/completed/cancelled/no_show).
-  const dayReservations =
-    opts.kind === "end_of_shift"
-      ? allDayReservations.filter((r) => {
-          if (["seated", "completed", "cancelled", "no_show"].includes(r.status)) return true;
-          const resAt = combineDateTimeInZone(win.businessDate, r.time, win.timeZone);
-          return resAt.getTime() <= win.endUtc.getTime();
-        })
-      : allDayReservations;
+  const dayReservations = candidateReservations.filter((r) => {
+    const resAt = combineDateTimeInZone(r.date, r.time, win.timeZone);
+    if (resAt.getTime() < win.startUtc.getTime()) return false;
+    if (resAt.getTime() > win.endUtc.getTime()) {
+      // For end-of-shift only, allow already-resolved (seated/cancelled/etc)
+      // entries whose recorded time is later in the day to still be counted.
+      if (opts.kind === "end_of_shift" && ["seated", "completed", "cancelled", "no_show"].includes(r.status)) {
+        return resAt.getTime() <= (win.endUtc.getTime() + 24 * 60 * 60 * 1000);
+      }
+      return false;
+    }
+    return true;
+  });
 
   const seated = dayReservations.filter((r) => r.status === "seated" || r.status === "completed").length;
   const noShows = dayReservations.filter((r) => r.status === "no_show").length;
