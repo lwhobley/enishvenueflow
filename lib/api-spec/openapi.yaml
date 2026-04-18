@@ -2987,8 +2987,6 @@ components:
           type: array
           items:
             type: string
-        triggeredByUserId:
-          type: string
       required: [venueId]
 
     SendReportResult:

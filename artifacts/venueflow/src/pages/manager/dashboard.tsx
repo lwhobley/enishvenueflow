@@ -17,6 +17,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Users,
   Clock,
   CalendarCheck,
@@ -69,6 +79,7 @@ export default function ManagerDashboard() {
 
   const [editing, setEditing] = useState(false);
   const [recipientDraft, setRecipientDraft] = useState("");
+  const [confirmKind, setConfirmKind] = useState<"shift" | "night" | null>(null);
 
   const updateRecipients = useUpdateReportRecipients();
   const sendEos = useSendEndOfShiftReport();
@@ -87,7 +98,7 @@ export default function ManagerDashboard() {
       const result = await mutation.mutateAsync({ data: { venueId } });
       toast({
         title: `${label} report sent`,
-        description: `Delivered to ${result.recipients.length} recipient${result.recipients.length === 1 ? "" : "s"}.`,
+        description: `Delivered to: ${result.recipients.join(", ")}`,
       });
       refreshLastSends();
     } catch (err: unknown) {
@@ -101,6 +112,16 @@ export default function ManagerDashboard() {
       });
     }
   };
+
+  const requestSend = (kind: "shift" | "night") => setConfirmKind(kind);
+
+  const confirmSend = async () => {
+    const k = confirmKind;
+    setConfirmKind(null);
+    if (k) await handleSend(k);
+  };
+
+  const confirmLabel = confirmKind === "shift" ? "End-of-Shift" : "End-of-Night";
 
   const startEditingRecipients = () => {
     setRecipientDraft(recipients.join(", "));
@@ -215,7 +236,7 @@ export default function ManagerDashboard() {
                 {formatRelative(eosSentAt)}
               </div>
               <Button
-                onClick={() => handleSend("shift")}
+                onClick={() => requestSend("shift")}
                 disabled={sendEos.isPending || !venueId}
                 className="w-full"
               >
@@ -242,7 +263,7 @@ export default function ManagerDashboard() {
                 {formatRelative(eonSentAt)}
               </div>
               <Button
-                onClick={() => handleSend("night")}
+                onClick={() => requestSend("night")}
                 disabled={sendEon.isPending || !venueId}
                 className="w-full"
               >
@@ -315,6 +336,26 @@ export default function ManagerDashboard() {
           </p>
         </CardContent>
       </Card>
+
+      <AlertDialog open={confirmKind !== null} onOpenChange={(open) => !open && setConfirmKind(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send {confirmLabel} report?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will email today's report via Outlook to:
+              <span className="block mt-2 font-mono text-xs text-foreground">
+                {recipients.join(", ") || "(no recipients configured)"}
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmSend} disabled={recipients.length === 0}>
+              Send report
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { reportSends, reportSettings } from "@workspace/db";
 import { and, desc, eq } from "drizzle-orm";
 import { buildReport, type ReportKind } from "../lib/report-builder";
-import { buildSubject, renderHtml, renderText } from "../lib/report-email";
+import { buildSubject, renderHtml } from "../lib/report-email";
 import { sendOutlookMail } from "../lib/outlook";
 
 const router = Router();
@@ -96,18 +96,20 @@ router.get("/reports/last-sent", async (req, res) => {
   }
 });
 
-async function handleSend(kind: ReportKind, venueId: string, override: string[] | null, triggeredByUserId: string | null) {
+async function handleSend(kind: ReportKind, venueId: string, override: string[] | null) {
   const recipients = override ?? (await getRecipients(venueId));
   const report = await buildReport({ venueId, kind });
   const subject = buildSubject(report);
   const html = renderHtml(report);
-  const text = renderText(report);
-  const sendResult = await sendOutlookMail({ to: recipients, subject, htmlBody: html, textBody: text });
+  const sendResult = await sendOutlookMail({ to: recipients, subject, htmlBody: html });
 
   if (sendResult.ok) {
+    // We do not record `triggeredByUserId` from the request body to avoid
+    // spoofed attribution. When a real session middleware is added we'll
+    // populate this from req.user server-side.
     const [row] = await db
       .insert(reportSends)
-      .values({ venueId, reportKind: kind, recipients, triggeredByUserId, status: "sent" })
+      .values({ venueId, reportKind: kind, recipients, triggeredByUserId: null, status: "sent" })
       .returning();
     return { ok: true as const, sendId: row.id, recipients, sentAt: row.createdAt.toISOString(), report };
   }
@@ -118,7 +120,7 @@ async function handleSend(kind: ReportKind, venueId: string, override: string[] 
       venueId,
       reportKind: kind,
       recipients,
-      triggeredByUserId,
+      triggeredByUserId: null,
       status: sendResult.reason === "unauthorized" ? "unauthorized" : "failed",
       errorMessage: sendResult.message,
     });
@@ -137,10 +139,9 @@ function logSendFailure(
 function makeSendHandler(kind: ReportKind) {
   return async (req: import("express").Request, res: import("express").Response) => {
     try {
-      const { venueId, recipients, triggeredByUserId } = req.body as {
+      const { venueId, recipients } = req.body as {
         venueId?: string;
         recipients?: unknown;
-        triggeredByUserId?: string;
       };
       if (!venueId) return res.status(400).json({ message: "venueId required" });
       let override: string[] | null = null;
@@ -151,7 +152,7 @@ function makeSendHandler(kind: ReportKind) {
         }
         if (override.length === 0) override = null;
       }
-      const result = await handleSend(kind, venueId, override, triggeredByUserId ?? null);
+      const result = await handleSend(kind, venueId, override);
       if (result.ok) {
         return res.status(200).json({
           ok: true,

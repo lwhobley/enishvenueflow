@@ -49,7 +49,6 @@ export type SendMailInput = {
   to: string[];
   subject: string;
   htmlBody: string;
-  textBody?: string;
 };
 
 export type SendMailResult =

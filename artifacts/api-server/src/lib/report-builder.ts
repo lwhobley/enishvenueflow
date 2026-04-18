@@ -247,7 +247,12 @@ export async function buildReport(opts: {
   let totalCost = 0;
   const byRoleMap = new Map<string, { hours: number; cost: number }>();
   for (const e of allEntries) {
-    const hrs = e.totalHours ? parseFloat(e.totalHours) : 0;
+    // Clip the entry's interval to the report window so shifts that span the
+    // boundary contribute only their in-window minutes.
+    const intervalEnd = (e.clockOut ?? win.endUtc).getTime();
+    const clippedStart = Math.max(e.clockIn.getTime(), win.startUtc.getTime());
+    const clippedEnd = Math.min(intervalEnd, win.endUtc.getTime());
+    const hrs = Math.max(0, (clippedEnd - clippedStart) / (1000 * 60 * 60));
     if (!hrs) continue;
     const u = userMap.get(e.userId);
     const rate = u?.hourlyRate ? parseFloat(u.hourlyRate) : 15;
@@ -294,7 +299,7 @@ export async function buildReport(opts: {
   // ── Tips section ──────────────────────────────────────────────────────────
   const allPools = await db.select().from(tipPools).where(eq(tipPools.venueId, opts.venueId));
   const dayPools = allPools.filter((p) => {
-    const created = (p as unknown as { createdAt?: Date }).createdAt ?? new Date(0);
+    const created = p.createdAt;
     return created.getTime() >= win.startUtc.getTime() && created.getTime() <= win.endUtc.getTime();
   });
 
