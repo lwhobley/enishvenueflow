@@ -1502,7 +1502,6 @@ export const GetLastReportSendsResponse = zod.object({
  */
 export const SendEndOfShiftReportBody = zod.object({
   venueId: zod.string(),
-  recipients: zod.array(zod.string()).optional(),
 });
 
 export const SendEndOfShiftReportResponse = zod.object({
@@ -1517,7 +1516,6 @@ export const SendEndOfShiftReportResponse = zod.object({
  */
 export const SendEndOfNightReportBody = zod.object({
   venueId: zod.string(),
-  recipients: zod.array(zod.string()).optional(),
 });
 
 export const SendEndOfNightReportResponse = zod.object({

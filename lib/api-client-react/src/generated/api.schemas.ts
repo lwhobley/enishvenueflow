@@ -847,7 +847,6 @@ export interface LastReportSends {
 
 export interface SendReportBody {
   venueId: string;
-  recipients?: string[];
 }
 
 export interface SendReportResult {

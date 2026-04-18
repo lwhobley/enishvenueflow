@@ -245,7 +245,7 @@ export default function ManagerDashboard() {
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Sending…
                   </>
                 ) : (
-                  <>Send End-of-Shift</>
+                  <>Send End-of-Shift Report</>
                 )}
               </Button>
             </div>
@@ -272,7 +272,7 @@ export default function ManagerDashboard() {
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Sending…
                   </>
                 ) : (
-                  <>Send End-of-Night</>
+                  <>Send End-of-Night Report</>
                 )}
               </Button>
             </div>

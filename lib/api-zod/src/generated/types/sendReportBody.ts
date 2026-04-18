@@ -8,5 +8,4 @@
 
 export interface SendReportBody {
   venueId: string;
-  recipients?: string[];
 }
