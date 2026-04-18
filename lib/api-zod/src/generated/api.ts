@@ -1502,6 +1502,12 @@ export const GetLastReportSendsResponse = zod.object({
  */
 export const SendEndOfShiftReportBody = zod.object({
   venueId: zod.string(),
+  recipients: zod
+    .array(zod.string())
+    .optional()
+    .describe(
+      "Optional override of saved recipients for this single send. Each entry must be a valid email address.",
+    ),
 });
 
 export const SendEndOfShiftReportResponse = zod.object({
@@ -1516,6 +1522,12 @@ export const SendEndOfShiftReportResponse = zod.object({
  */
 export const SendEndOfNightReportBody = zod.object({
   venueId: zod.string(),
+  recipients: zod
+    .array(zod.string())
+    .optional()
+    .describe(
+      "Optional override of saved recipients for this single send. Each entry must be a valid email address.",
+    ),
 });
 
 export const SendEndOfNightReportResponse = zod.object({

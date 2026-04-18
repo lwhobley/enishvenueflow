@@ -2983,6 +2983,11 @@ components:
       properties:
         venueId:
           type: string
+        recipients:
+          type: array
+          description: Optional override of saved recipients for this single send. Each entry must be a valid email address.
+          items:
+            type: string
       required: [venueId]
 
     SendReportResult:

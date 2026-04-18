@@ -101,12 +101,8 @@ async function venueExists(venueId: string): Promise<boolean> {
   return !!row;
 }
 
-async function handleSend(kind: ReportKind, venueId: string) {
-  // Recipient override is intentionally NOT accepted from the request body —
-  // managers must edit the saved recipient list (PUT /reports/recipients)
-  // before triggering a send. This prevents arbitrary outbound email through
-  // this endpoint.
-  const recipients = await getRecipients(venueId);
+async function handleSend(kind: ReportKind, venueId: string, override: string[] | null) {
+  const recipients = override ?? (await getRecipients(venueId));
   const report = await buildReport({ venueId, kind });
   const subject = buildSubject(report);
   const html = renderHtml(report);
@@ -149,12 +145,20 @@ function logSendFailure(
 function makeSendHandler(kind: ReportKind) {
   return async (req: import("express").Request, res: import("express").Response) => {
     try {
-      const { venueId } = req.body as { venueId?: string };
+      const { venueId, recipients } = req.body as { venueId?: string; recipients?: unknown };
       if (!venueId) return res.status(400).json({ message: "venueId required" });
       if (!(await venueExists(venueId))) {
         return res.status(404).json({ message: "Unknown venueId" });
       }
-      const result = await handleSend(kind, venueId);
+      let override: string[] | null = null;
+      if (recipients !== undefined) {
+        override = dedupeEmails(recipients);
+        if (override === null) {
+          return res.status(400).json({ message: "recipients must be an array of valid email addresses" });
+        }
+        if (override.length === 0) override = null;
+      }
+      const result = await handleSend(kind, venueId, override);
       if (result.ok) {
         return res.status(200).json({
           ok: true,

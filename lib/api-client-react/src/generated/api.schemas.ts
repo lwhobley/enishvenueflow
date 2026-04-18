@@ -847,6 +847,8 @@ export interface LastReportSends {
 
 export interface SendReportBody {
   venueId: string;
+  /** Optional override of saved recipients for this single send. Each entry must be a valid email address. */
+  recipients?: string[];
 }
 
 export interface SendReportResult {
