@@ -11,3 +11,4 @@ export * from "./tippayroll";
 export * from "./messaging";
 export * from "./availability";
 export * from "./push";
+export * from "./reports";

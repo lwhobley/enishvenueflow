@@ -1624,6 +1624,100 @@ paths:
                 items:
                   $ref: "#/components/schemas/EmployeeAnalyticsEntry"
 
+  # ── Reports ────────────────────────────────────────────────────────────────
+  /reports/recipients:
+    get:
+      operationId: getReportRecipients
+      tags: [reports]
+      summary: Get default report email recipients for a venue
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Recipients
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRecipients"
+    put:
+      operationId: updateReportRecipients
+      tags: [reports]
+      summary: Update default report email recipients for a venue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReportRecipientsBody"
+      responses:
+        "200":
+          description: Updated recipients
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportRecipients"
+
+  /reports/last-sent:
+    get:
+      operationId: getLastReportSends
+      tags: [reports]
+      summary: Get most recent send timestamps per report kind for a venue
+      parameters:
+        - name: venueId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Last sends
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LastReportSends"
+
+  /reports/end-of-shift/send:
+    post:
+      operationId: sendEndOfShiftReport
+      tags: [reports]
+      summary: Build and email the end-of-shift report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendReportBody"
+      responses:
+        "200":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendReportResult"
+
+  /reports/end-of-night/send:
+    post:
+      operationId: sendEndOfNightReport
+      tags: [reports]
+      summary: Build and email the end-of-night report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendReportBody"
+      responses:
+        "200":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendReportResult"
+
 components:
   schemas:
     HealthStatus:
@@ -2839,3 +2933,77 @@ components:
         shiftsWorked:
           type: integer
       required: [userId, userName, totalHours, regularHours, overtimeHours, totalPay, shiftsWorked]
+
+    ReportRecipients:
+      type: object
+      properties:
+        venueId:
+          type: string
+        recipients:
+          type: array
+          items:
+            type: string
+      required: [venueId, recipients]
+
+    UpdateReportRecipientsBody:
+      type: object
+      properties:
+        venueId:
+          type: string
+        recipients:
+          type: array
+          items:
+            type: string
+      required: [venueId, recipients]
+
+    ReportSendInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        sentAt:
+          type: string
+          format: date-time
+        recipients:
+          type: array
+          items:
+            type: string
+      required: [id, sentAt, recipients]
+
+    LastReportSends:
+      type: object
+      properties:
+        end_of_shift:
+          $ref: "#/components/schemas/ReportSendInfo"
+        end_of_night:
+          $ref: "#/components/schemas/ReportSendInfo"
+
+    SendReportBody:
+      type: object
+      properties:
+        venueId:
+          type: string
+        recipients:
+          type: array
+          items:
+            type: string
+        triggeredByUserId:
+          type: string
+      required: [venueId]
+
+    SendReportResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        sendId:
+          type: string
+        recipients:
+          type: array
+          items:
+            type: string
+        sentAt:
+          type: string
+          format: date-time
+      required: [ok, sendId, recipients, sentAt]
+

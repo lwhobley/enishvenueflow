@@ -48,9 +48,12 @@ import type {
   GetDashboardAnalyticsParams,
   GetEmployeeAnalyticsParams,
   GetLaborAnalyticsParams,
+  GetLastReportSendsParams,
+  GetReportRecipientsParams,
   Guest,
   HealthStatus,
   LaborAnalyticsEntry,
+  LastReportSends,
   ListActiveClockInsParams,
   ListDocumentsParams,
   ListExpiringDocumentsParams,
@@ -77,10 +80,13 @@ import type {
   Notification,
   PayrollRecord,
   PickupShiftBody,
+  ReportRecipients,
   Reservation,
   Role,
   Schedule,
   SendMessageBody,
+  SendReportBody,
+  SendReportResult,
   Shift,
   ShiftRequest,
   Table,
@@ -89,6 +95,7 @@ import type {
   TipPool,
   TipPoolEntry,
   UpdateGuestBody,
+  UpdateReportRecipientsBody,
   UpdateReservationBody,
   UpdateRoleBody,
   UpdateTableBody,
@@ -6674,3 +6681,459 @@ export function useGetEmployeeAnalytics<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get default report email recipients for a venue
+ */
+export const getGetReportRecipientsUrl = (
+  params: GetReportRecipientsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/reports/recipients?${stringifiedParams}`
+    : `/api/reports/recipients`;
+};
+
+export const getReportRecipients = async (
+  params: GetReportRecipientsParams,
+  options?: RequestInit,
+): Promise<ReportRecipients> => {
+  return customFetch<ReportRecipients>(getGetReportRecipientsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetReportRecipientsQueryKey = (
+  params?: GetReportRecipientsParams,
+) => {
+  return [`/api/reports/recipients`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetReportRecipientsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getReportRecipients>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetReportRecipientsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getReportRecipients>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetReportRecipientsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getReportRecipients>>
+  > = ({ signal }) =>
+    getReportRecipients(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getReportRecipients>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetReportRecipientsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getReportRecipients>>
+>;
+export type GetReportRecipientsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get default report email recipients for a venue
+ */
+
+export function useGetReportRecipients<
+  TData = Awaited<ReturnType<typeof getReportRecipients>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetReportRecipientsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getReportRecipients>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetReportRecipientsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update default report email recipients for a venue
+ */
+export const getUpdateReportRecipientsUrl = () => {
+  return `/api/reports/recipients`;
+};
+
+export const updateReportRecipients = async (
+  updateReportRecipientsBody: UpdateReportRecipientsBody,
+  options?: RequestInit,
+): Promise<ReportRecipients> => {
+  return customFetch<ReportRecipients>(getUpdateReportRecipientsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateReportRecipientsBody),
+  });
+};
+
+export const getUpdateReportRecipientsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateReportRecipients>>,
+    TError,
+    { data: BodyType<UpdateReportRecipientsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateReportRecipients>>,
+  TError,
+  { data: BodyType<UpdateReportRecipientsBody> },
+  TContext
+> => {
+  const mutationKey = ["updateReportRecipients"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateReportRecipients>>,
+    { data: BodyType<UpdateReportRecipientsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateReportRecipients(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateReportRecipientsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateReportRecipients>>
+>;
+export type UpdateReportRecipientsMutationBody =
+  BodyType<UpdateReportRecipientsBody>;
+export type UpdateReportRecipientsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update default report email recipients for a venue
+ */
+export const useUpdateReportRecipients = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateReportRecipients>>,
+    TError,
+    { data: BodyType<UpdateReportRecipientsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateReportRecipients>>,
+  TError,
+  { data: BodyType<UpdateReportRecipientsBody> },
+  TContext
+> => {
+  return useMutation(getUpdateReportRecipientsMutationOptions(options));
+};
+
+/**
+ * @summary Get most recent send timestamps per report kind for a venue
+ */
+export const getGetLastReportSendsUrl = (params: GetLastReportSendsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/reports/last-sent?${stringifiedParams}`
+    : `/api/reports/last-sent`;
+};
+
+export const getLastReportSends = async (
+  params: GetLastReportSendsParams,
+  options?: RequestInit,
+): Promise<LastReportSends> => {
+  return customFetch<LastReportSends>(getGetLastReportSendsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetLastReportSendsQueryKey = (
+  params?: GetLastReportSendsParams,
+) => {
+  return [`/api/reports/last-sent`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetLastReportSendsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getLastReportSends>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetLastReportSendsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLastReportSends>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetLastReportSendsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getLastReportSends>>
+  > = ({ signal }) => getLastReportSends(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getLastReportSends>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetLastReportSendsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getLastReportSends>>
+>;
+export type GetLastReportSendsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get most recent send timestamps per report kind for a venue
+ */
+
+export function useGetLastReportSends<
+  TData = Awaited<ReturnType<typeof getLastReportSends>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetLastReportSendsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLastReportSends>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetLastReportSendsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Build and email the end-of-shift report
+ */
+export const getSendEndOfShiftReportUrl = () => {
+  return `/api/reports/end-of-shift/send`;
+};
+
+export const sendEndOfShiftReport = async (
+  sendReportBody: SendReportBody,
+  options?: RequestInit,
+): Promise<SendReportResult> => {
+  return customFetch<SendReportResult>(getSendEndOfShiftReportUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(sendReportBody),
+  });
+};
+
+export const getSendEndOfShiftReportMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEndOfShiftReport>>,
+    TError,
+    { data: BodyType<SendReportBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendEndOfShiftReport>>,
+  TError,
+  { data: BodyType<SendReportBody> },
+  TContext
+> => {
+  const mutationKey = ["sendEndOfShiftReport"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendEndOfShiftReport>>,
+    { data: BodyType<SendReportBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return sendEndOfShiftReport(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendEndOfShiftReportMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendEndOfShiftReport>>
+>;
+export type SendEndOfShiftReportMutationBody = BodyType<SendReportBody>;
+export type SendEndOfShiftReportMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Build and email the end-of-shift report
+ */
+export const useSendEndOfShiftReport = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEndOfShiftReport>>,
+    TError,
+    { data: BodyType<SendReportBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendEndOfShiftReport>>,
+  TError,
+  { data: BodyType<SendReportBody> },
+  TContext
+> => {
+  return useMutation(getSendEndOfShiftReportMutationOptions(options));
+};
+
+/**
+ * @summary Build and email the end-of-night report
+ */
+export const getSendEndOfNightReportUrl = () => {
+  return `/api/reports/end-of-night/send`;
+};
+
+export const sendEndOfNightReport = async (
+  sendReportBody: SendReportBody,
+  options?: RequestInit,
+): Promise<SendReportResult> => {
+  return customFetch<SendReportResult>(getSendEndOfNightReportUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(sendReportBody),
+  });
+};
+
+export const getSendEndOfNightReportMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEndOfNightReport>>,
+    TError,
+    { data: BodyType<SendReportBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendEndOfNightReport>>,
+  TError,
+  { data: BodyType<SendReportBody> },
+  TContext
+> => {
+  const mutationKey = ["sendEndOfNightReport"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendEndOfNightReport>>,
+    { data: BodyType<SendReportBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return sendEndOfNightReport(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendEndOfNightReportMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendEndOfNightReport>>
+>;
+export type SendEndOfNightReportMutationBody = BodyType<SendReportBody>;
+export type SendEndOfNightReportMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Build and email the end-of-night report
+ */
+export const useSendEndOfNightReport = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEndOfNightReport>>,
+    TError,
+    { data: BodyType<SendReportBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendEndOfNightReport>>,
+  TError,
+  { data: BodyType<SendReportBody> },
+  TContext
+> => {
+  return useMutation(getSendEndOfNightReportMutationOptions(options));
+};

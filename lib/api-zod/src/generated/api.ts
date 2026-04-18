@@ -1447,3 +1447,84 @@ export const GetEmployeeAnalyticsResponseItem = zod.object({
 export const GetEmployeeAnalyticsResponse = zod.array(
   GetEmployeeAnalyticsResponseItem,
 );
+
+/**
+ * @summary Get default report email recipients for a venue
+ */
+export const GetReportRecipientsQueryParams = zod.object({
+  venueId: zod.coerce.string(),
+});
+
+export const GetReportRecipientsResponse = zod.object({
+  venueId: zod.string(),
+  recipients: zod.array(zod.string()),
+});
+
+/**
+ * @summary Update default report email recipients for a venue
+ */
+export const UpdateReportRecipientsBody = zod.object({
+  venueId: zod.string(),
+  recipients: zod.array(zod.string()),
+});
+
+export const UpdateReportRecipientsResponse = zod.object({
+  venueId: zod.string(),
+  recipients: zod.array(zod.string()),
+});
+
+/**
+ * @summary Get most recent send timestamps per report kind for a venue
+ */
+export const GetLastReportSendsQueryParams = zod.object({
+  venueId: zod.coerce.string(),
+});
+
+export const GetLastReportSendsResponse = zod.object({
+  end_of_shift: zod
+    .object({
+      id: zod.string(),
+      sentAt: zod.coerce.date(),
+      recipients: zod.array(zod.string()),
+    })
+    .optional(),
+  end_of_night: zod
+    .object({
+      id: zod.string(),
+      sentAt: zod.coerce.date(),
+      recipients: zod.array(zod.string()),
+    })
+    .optional(),
+});
+
+/**
+ * @summary Build and email the end-of-shift report
+ */
+export const SendEndOfShiftReportBody = zod.object({
+  venueId: zod.string(),
+  recipients: zod.array(zod.string()).optional(),
+  triggeredByUserId: zod.string().optional(),
+});
+
+export const SendEndOfShiftReportResponse = zod.object({
+  ok: zod.boolean(),
+  sendId: zod.string(),
+  recipients: zod.array(zod.string()),
+  sentAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Build and email the end-of-night report
+ */
+export const SendEndOfNightReportBody = zod.object({
+  venueId: zod.string(),
+  recipients: zod.array(zod.string()).optional(),
+  triggeredByUserId: zod.string().optional(),
+});
+
+export const SendEndOfNightReportResponse = zod.object({
+  ok: zod.boolean(),
+  sendId: zod.string(),
+  recipients: zod.array(zod.string()),
+  sentAt: zod.coerce.date(),
+});

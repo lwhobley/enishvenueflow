@@ -824,6 +824,40 @@ export interface EmployeeAnalyticsEntry {
   shiftsWorked: number;
 }
 
+export interface ReportRecipients {
+  venueId: string;
+  recipients: string[];
+}
+
+export interface UpdateReportRecipientsBody {
+  venueId: string;
+  recipients: string[];
+}
+
+export interface ReportSendInfo {
+  id: string;
+  sentAt: string;
+  recipients: string[];
+}
+
+export interface LastReportSends {
+  end_of_shift?: ReportSendInfo;
+  end_of_night?: ReportSendInfo;
+}
+
+export interface SendReportBody {
+  venueId: string;
+  recipients?: string[];
+  triggeredByUserId?: string;
+}
+
+export interface SendReportResult {
+  ok: boolean;
+  sendId: string;
+  recipients: string[];
+  sentAt: string;
+}
+
 export type ListUsersParams = {
   venueId: string;
 };
@@ -948,4 +982,12 @@ export type GetEmployeeAnalyticsParams = {
   venueId: string;
   startDate: string;
   endDate: string;
+};
+
+export type GetReportRecipientsParams = {
+  venueId: string;
+};
+
+export type GetLastReportSendsParams = {
+  venueId: string;
 };
