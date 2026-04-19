@@ -72,7 +72,7 @@ export function decryptCredentials(env: EncryptedEnvelope): Record<string, unkno
   if (iv.length !== IV_LEN || tag.length !== TAG_LEN) {
     throw new Error("Invalid encrypted credential envelope");
   }
-  const decipher = createDecipheriv(ALGO, key, iv);
+  const decipher = createDecipheriv(ALGO, key, iv, { authTagLength: TAG_LEN });
   decipher.setAuthTag(tag);
   const pt = Buffer.concat([decipher.update(ct), decipher.final()]);
   return JSON.parse(pt.toString("utf8")) as Record<string, unknown>;
