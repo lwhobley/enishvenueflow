@@ -1,48 +1,14 @@
 /**
- * Microsoft Outlook (Microsoft Graph) email sender via the Replit Outlook
- * connector. The connector handles OAuth — we just look up the token at
- * request time and call the Graph `/me/sendMail` endpoint.
+ * Microsoft Outlook (Microsoft Graph) email sender.
  *
- * If the connector is not authorized at request time, the caller should
- * surface a 412 to the UI so the user can re-authorize.
+ * Reads an access token from the `OUTLOOK_ACCESS_TOKEN` env var and calls the
+ * Graph `/me/sendMail` endpoint. If the env var is unset the caller receives
+ * an `unauthorized` result so the UI can surface a 412 prompting the operator
+ * to configure credentials.
  */
 
-const OUTLOOK_CONNECTOR_NAME = "outlook";
-
-type ReplitConnectionItem = {
-  settings?: {
-    access_token?: string;
-    oauth?: { credentials?: { access_token?: string } };
-  };
-};
-
-async function fetchAccessToken(): Promise<string | null> {
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const replIdentity = process.env.REPL_IDENTITY;
-  const webRenewal = process.env.WEB_REPL_RENEWAL;
-  if (!hostname) return null;
-  const xToken = replIdentity
-    ? `repl ${replIdentity}`
-    : webRenewal
-      ? `depl ${webRenewal}`
-      : null;
-  if (!xToken) return null;
-  try {
-    const res = await fetch(
-      `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=${OUTLOOK_CONNECTOR_NAME}`,
-      { headers: { Accept: "application/json", X_REPLIT_TOKEN: xToken } },
-    );
-    if (!res.ok) return null;
-    const data = (await res.json()) as { items?: ReplitConnectionItem[] };
-    const conn = data.items?.[0];
-    return (
-      conn?.settings?.access_token ??
-      conn?.settings?.oauth?.credentials?.access_token ??
-      null
-    );
-  } catch {
-    return null;
-  }
+function fetchAccessToken(): string | null {
+  return process.env.OUTLOOK_ACCESS_TOKEN ?? null;
 }
 
 export type SendMailInput = {
@@ -99,13 +65,13 @@ export type SendMailResult =
   | { ok: false; reason: "send_failed"; message: string };
 
 export async function sendOutlookMail(input: SendMailInput): Promise<SendMailResult> {
-  const token = await fetchAccessToken();
+  const token = fetchAccessToken();
   if (!token) {
     return {
       ok: false,
       reason: "unauthorized",
       message:
-        "Outlook is not connected. Please connect a Microsoft Outlook account in Replit integrations and try again.",
+        "Outlook is not connected. Set OUTLOOK_ACCESS_TOKEN with a Microsoft Graph access token and try again.",
     };
   }
 

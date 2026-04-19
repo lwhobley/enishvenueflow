@@ -43,6 +43,7 @@ Full-stack venue management platform for restaurants and hospitality businesses.
 - `PORT` — HTTP port (defaults to 8080; Railway injects automatically)
 - `AI_INTEGRATIONS_GEMINI_BASE_URL` — Gemini API base URL (optional; AI schedule uses fallback without it)
 - `AI_INTEGRATIONS_GEMINI_API_KEY` — Gemini API key (optional)
+- `OUTLOOK_ACCESS_TOKEN` — Microsoft Graph access token for report emails (optional; reports return 412 without it)
 - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL` — Web Push credentials
 - `STATIC_DIR` — override for the static frontend directory (defaults to `artifacts/venueflow/dist/public`)
 
