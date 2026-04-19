@@ -25,6 +25,7 @@ import ManagerDocuments from "@/pages/manager/documents";
 import ManagerChat from "@/pages/manager/chat";
 import ManagerSettings from "@/pages/manager/settings";
 import ManagerVenues from "@/pages/manager/venues";
+import ManagerIntegrations from "@/pages/manager/integrations";
 
 // Employee Pages
 import EmployeeDashboard from "@/pages/employee/dashboard";
@@ -58,6 +59,7 @@ function Router() {
       <Route path="/manager/chat"><Layout><ManagerChat /></Layout></Route>
       <Route path="/manager/settings"><Layout><ManagerSettings /></Layout></Route>
       <Route path="/manager/venues"><Layout><ManagerVenues /></Layout></Route>
+      <Route path="/manager/integrations"><Layout><ManagerIntegrations /></Layout></Route>
       <Route path="/employee/dashboard"><Layout isEmployee><EmployeeDashboard /></Layout></Route>
       <Route path="/employee/schedule"><Layout isEmployee><EmployeeSchedule /></Layout></Route>
       <Route path="/employee/availability"><Layout isEmployee><EmployeeAvailability /></Layout></Route>

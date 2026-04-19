@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Calendar, Wand2, Users, Map, BookOpen,
   UserSquare, BarChart, Clock, CalendarOff, DollarSign, Coins,
-  FileText, MessageSquare, Settings, MapPin, Menu, X, CalendarCheck,
+  FileText, MessageSquare, Settings, MapPin, Menu, X, CalendarCheck, Plug,
 } from "lucide-react";
 
 // ── Fine dining palette ───────────────────────────────────────────────────────
@@ -35,6 +35,7 @@ const managerNavItems = [
   { href: "/manager/tip-pool",   icon: Coins,           label: "Tip Pool"     },
   { href: "/manager/documents",  icon: FileText,        label: "Documents"    },
   { href: "/manager/chat",       icon: MessageSquare,   label: "Chat"         },
+  { href: "/manager/integrations",icon: Plug,           label: "Integrations" },
   { href: "/manager/settings",   icon: Settings,        label: "Settings"     },
   { href: "/manager/venues",     icon: MapPin,          label: "Venues"       },
 ];
