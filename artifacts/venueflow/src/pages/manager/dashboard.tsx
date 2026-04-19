@@ -216,7 +216,7 @@ export default function ManagerDashboard() {
                 Manager Reports
               </CardTitle>
               <CardDescription>
-                Email today's reservations, labor, and tips summary via Outlook. Reports use the Central Time business day (4am to 4am).
+                Email today's reservations, labor, and tips summary via Outlook. Reports use the Central Time business day (4am to 4am). End-of-Shift sends automatically at 5:00 PM and 10:00 PM CT; End-of-Night is sent manually by managers.
               </CardDescription>
             </div>
           </div>
@@ -230,6 +230,9 @@ export default function ManagerDashboard() {
               </div>
               <p className="text-sm text-muted-foreground">
                 Snapshot of the business day so far — reservations, labor, tips.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Auto-sends at 5:00 PM and 10:00 PM CT. Use the button below to send now.
               </p>
               <div className="text-xs text-muted-foreground flex items-center gap-1">
                 {eosSentAt ? <CheckCircle2 className="h-3 w-3 text-green-500" /> : null}
@@ -257,6 +260,9 @@ export default function ManagerDashboard() {
               </div>
               <p className="text-sm text-muted-foreground">
                 Full close-of-business summary for tonight's service.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Sent manually by a manager at end of night.
               </p>
               <div className="text-xs text-muted-foreground flex items-center gap-1">
                 {eonSentAt ? <CheckCircle2 className="h-3 w-3 text-green-500" /> : null}
