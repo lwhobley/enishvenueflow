@@ -22,6 +22,9 @@
 
 const BASE = process.env.API_BASE ?? "http://localhost:8080/api";
 const VENUE = process.env.VENUE_ID ?? "venue-enosh";
+// A manager (isAdmin) user that belongs to VENUE. The /reports/* endpoints
+// require an `x-user-id` header identifying a manager of the requested venue.
+const MANAGER_USER_ID = process.env.MANAGER_USER_ID ?? "user-liffort";
 
 let failures = 0;
 function check(label, cond, detail = "") {
@@ -30,10 +33,13 @@ function check(label, cond, detail = "") {
   if (!ok) failures += 1;
 }
 
-async function call(method, path, body) {
+async function call(method, path, body, { userId = MANAGER_USER_ID } = {}) {
+  const headers = {};
+  if (body) headers["content-type"] = "application/json";
+  if (userId) headers["x-user-id"] = userId;
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: body ? { "content-type": "application/json" } : {},
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
@@ -89,11 +95,23 @@ async function main() {
     check("EON last-sent timestamp advanced after successful send", eonAfter && eonAfter.sentAt !== eonBefore?.sentAt);
   }
 
+  // Authorization runs before venue-existence check, so an unknown venueId
+  // (which the caller can't manage) is rejected with 403 rather than 404.
   const r6 = await call("POST", `/reports/end-of-shift/send`, { venueId: "does-not-exist" });
-  check("POST with unknown venueId returns 404", r6.status === 404);
+  check("POST with unknown venueId is denied", r6.status === 403 || r6.status === 404, `got ${r6.status}`);
 
   const r7 = await call("POST", `/reports/end-of-shift/send`, { venueId: VENUE, recipients: ["bogus"] });
   check("POST with malformed override returns 400", r7.status === 400);
+
+  // Authorization checks for the new per-venue manager gate.
+  const rNoUser = await call("GET", `/reports/recipients?venueId=${VENUE}`, undefined, { userId: null });
+  check("GET recipients without x-user-id returns 401", rNoUser.status === 401);
+
+  const rUnknownUser = await call("GET", `/reports/recipients?venueId=${VENUE}`, undefined, { userId: "user-does-not-exist" });
+  check("GET recipients with unknown user returns 401", rUnknownUser.status === 401);
+
+  const rConflict = await call("POST", `/reports/end-of-shift/send?venueId=other-venue`, { venueId: VENUE });
+  check("POST with conflicting body/query venueId returns 400", rConflict.status === 400);
 
   const eosBefore2 = await lastSent("end_of_shift");
   const r8 = await call("POST", `/reports/end-of-shift/send`, {

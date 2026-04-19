@@ -5,8 +5,13 @@ import { desc, eq } from "drizzle-orm";
 import { buildReport, type ReportKind } from "../lib/report-builder";
 import { buildSubject, renderHtml, renderText } from "../lib/report-email";
 import { sendOutlookMail } from "../lib/outlook";
+import { requireManagerForVenue } from "../middlewares/manager-auth";
 
 const router = Router();
+
+// All report endpoints expose operational data (sales, labor, tips, recipients)
+// and must be gated to managers of the requested venue.
+router.use("/reports", requireManagerForVenue);
 
 const DEFAULT_RECIPIENTS = ["faith@enishusa.com", "liffort@enishusa.com"];
 

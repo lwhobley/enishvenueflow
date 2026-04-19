@@ -7,6 +7,7 @@ export type ErrorType<T = unknown> = ApiError<T>;
 export type BodyType<T> = T;
 
 export type AuthTokenGetter = () => Promise<string | null> | string | null;
+export type UserIdGetter = () => string | null;
 
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
@@ -17,6 +18,7 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _userIdGetter: UserIdGetter | null = null;
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -42,6 +44,19 @@ export function setBaseUrl(url: string | null): void {
  */
 export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
+}
+
+/**
+ * Register a getter that supplies the currently authenticated user's id.
+ * When set, every request will include an `x-user-id` header (unless one
+ * has already been set explicitly on the request). This is used by the
+ * server to authorize endpoints that require a known caller, such as the
+ * manager-only `/api/reports/*` endpoints.
+ *
+ * Pass `null` to clear the getter.
+ */
+export function setUserIdGetter(getter: UserIdGetter | null): void {
+  _userIdGetter = getter;
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
@@ -355,6 +370,16 @@ export async function customFetch<T = unknown>(
     const token = await _authTokenGetter();
     if (token) {
       headers.set("authorization", `Bearer ${token}`);
+    }
+  }
+
+  // Attach the calling user's id when a getter is configured and the
+  // request didn't already supply one explicitly. The server uses this
+  // to authorize venue-scoped endpoints.
+  if (_userIdGetter && !headers.has("x-user-id")) {
+    const userId = _userIdGetter();
+    if (userId) {
+      headers.set("x-user-id", userId);
     }
   }
 
