@@ -6,13 +6,16 @@
  * integration is configured for the venue, callers fall back to the
  * pre-existing "POS not connected" placeholder.
  *
- * Credentials stored in `pos_integrations.credentials` (jsonb), per provider:
+ * Credentials are stored in `pos_integrations.credentials` (jsonb) wrapped in
+ * an AES-256-GCM envelope keyed by `POS_CREDENTIAL_KEY` (see `lib/crypto`).
+ * Decrypted shapes per provider:
  *   - toast:  { clientId, clientSecret }              externalId = restaurantGuid
  *   - square: { accessToken }                          externalId = locationId
  *   - aloha:  { clientId, clientSecret, siteId? }     externalId = siteId / storeId
  */
 import { db, posIntegrations, type PosIntegration } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { readStoredCredentials } from "./crypto";
 
 export type PosProvider = "toast" | "square" | "aloha";
 
@@ -92,7 +95,17 @@ async function fetchToastSales(
   conn: PosIntegration,
   win: { startUtc: Date; endUtc: Date },
 ): Promise<PosFetchResult> {
-  const creds = conn.credentials as { clientId?: string; clientSecret?: string };
+  let creds: { clientId?: string; clientSecret?: string };
+  try {
+    creds = readStoredCredentials(conn.credentials) as { clientId?: string; clientSecret?: string };
+  } catch {
+    return {
+      ok: false,
+      reason: "unauthorized",
+      message: "Toast credentials could not be decrypted. Please reconnect Toast.",
+      provider: "toast",
+    };
+  }
   const restaurantGuid = conn.externalId;
   if (!creds?.clientId || !creds?.clientSecret || !restaurantGuid) {
     return {
@@ -268,7 +281,17 @@ async function fetchSquareSales(
   conn: PosIntegration,
   win: { startUtc: Date; endUtc: Date },
 ): Promise<PosFetchResult> {
-  const creds = conn.credentials as { accessToken?: string };
+  let creds: { accessToken?: string };
+  try {
+    creds = readStoredCredentials(conn.credentials) as { accessToken?: string };
+  } catch {
+    return {
+      ok: false,
+      reason: "unauthorized",
+      message: "Square credentials could not be decrypted. Please reconnect Square.",
+      provider: "square",
+    };
+  }
   const locationId = conn.externalId;
   if (!creds?.accessToken || !locationId) {
     return {
@@ -413,11 +436,21 @@ async function fetchAlohaSales(
   conn: PosIntegration,
   win: { startUtc: Date; endUtc: Date },
 ): Promise<PosFetchResult> {
-  const creds = conn.credentials as {
-    clientId?: string;
-    clientSecret?: string;
-    siteId?: string;
-  };
+  let creds: { clientId?: string; clientSecret?: string; siteId?: string };
+  try {
+    creds = readStoredCredentials(conn.credentials) as {
+      clientId?: string;
+      clientSecret?: string;
+      siteId?: string;
+    };
+  } catch {
+    return {
+      ok: false,
+      reason: "unauthorized",
+      message: "Aloha credentials could not be decrypted. Please reconnect Aloha.",
+      provider: "aloha",
+    };
+  }
   const siteId = conn.externalId ?? creds?.siteId;
   if (!creds?.clientId || !creds?.clientSecret || !siteId) {
     return {

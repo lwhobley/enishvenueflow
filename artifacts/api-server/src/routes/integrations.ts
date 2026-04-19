@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { users, roles, reservations, posIntegrations } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { PROVIDER_LABELS } from "../lib/pos";
+import { encryptCredentials } from "../lib/crypto";
 
 const router = Router();
 
@@ -12,6 +13,7 @@ async function upsertPosIntegration(opts: {
   externalId: string | null;
   credentials: Record<string, unknown>;
 }) {
+  const encrypted = encryptCredentials(opts.credentials);
   const [existing] = await db
     .select()
     .from(posIntegrations)
@@ -22,7 +24,7 @@ async function upsertPosIntegration(opts: {
       .set({
         provider: opts.provider,
         externalId: opts.externalId,
-        credentials: opts.credentials,
+        credentials: encrypted,
         status: "connected",
         lastError: null,
         updatedAt: new Date(),
@@ -33,7 +35,7 @@ async function upsertPosIntegration(opts: {
       venueId: opts.venueId,
       provider: opts.provider,
       externalId: opts.externalId,
-      credentials: opts.credentials,
+      credentials: encrypted,
       status: "connected",
     });
   }
