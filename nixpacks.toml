@@ -1,0 +1,22 @@
+# Railway / Nixpacks build configuration for the VenueFlow monorepo.
+# Installs pnpm via corepack and builds all workspace packages.
+
+providers = ["node"]
+
+[phases.setup]
+nixPkgs = ["nodejs_24", "pnpm"]
+
+[phases.install]
+cmds = [
+  "corepack enable",
+  "pnpm install --frozen-lockfile",
+]
+
+[phases.build]
+cmds = ["pnpm run build"]
+
+[start]
+cmd = "node --enable-source-maps artifacts/api-server/dist/index.mjs"
+
+[variables]
+NODE_ENV = "production"
