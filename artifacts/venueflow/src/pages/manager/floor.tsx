@@ -13,13 +13,20 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, Square, Armchair } from "lucide-react";
+import { Plus, Trash2, Square, Armchair, RotateCw } from "lucide-react";
 import floorPlanBg from "@assets/IMG_2248_1776293611211.png";
 
-type ChairRecord = { id: string; venueId: string; x: number; y: number; width: number; height: number };
+type ChairRecord = { id: string; venueId: string; x: number; y: number; width: number; height: number; rotation?: number };
 type DragTarget  = { type: "table" | "chair"; id: string };
 type TableShape  = "square" | "crescent";
 type ResizeMode  = "se" | "e" | "s";
+
+// Normalize any incoming rotation to 0/90/180/270.
+function normalizeRot(deg: number | null | undefined): number {
+  if (typeof deg !== "number" || !Number.isFinite(deg)) return 0;
+  const n = ((Math.round(deg / 90) * 90) % 360 + 360) % 360;
+  return n;
+}
 
 const MIN_TABLE = 30;
 const MAX_TABLE = 400;
@@ -57,19 +64,29 @@ function SquareTableShape({ w, h, selected }: { w: number; h: number; selected: 
   );
 }
 
-function CrescentTableShape({ w, tableId, selected }: { w: number; tableId: string; selected: boolean }) {
-  const size   = w;
-  const cx     = size / 2;
-  const cy     = size / 2;
-  const outerR = size / 2 - 2;
-  const innerR = outerR * 0.74;
-  const offX   = outerR * 0.36;
-  const offY   = -(outerR * 0.12);
-  const maskId = `crescent-${tableId}`;
+// U-shape (banquette) — opens toward the bottom at rotation 0.
+function UShapeTableShape({ w, h, selected }: { w: number; h: number; selected: boolean }) {
+  const rOut = w / 2;
+  const t    = Math.max(6, Math.min(w, h) * 0.22); // band thickness
+  const rIn  = Math.max(0, rOut - t);
+  const H    = Math.max(h, rOut + 2);
+
+  // Build the hollow U path: outer rounded-top rect minus inner rounded-top rect.
+  const d = [
+    `M 0,${H}`,
+    `L 0,${rOut}`,
+    `A ${rOut},${rOut} 0 0 1 ${w},${rOut}`,
+    `L ${w},${H}`,
+    `L ${w - t},${H}`,
+    `L ${w - t},${rOut}`,
+    `A ${rIn},${rIn} 0 0 0 ${t},${rOut}`,
+    `L ${t},${H}`,
+    `Z`,
+  ].join(" ");
 
   return (
     <svg
-      width={size} height={size}
+      width={w} height={H}
       style={{
         filter: selected
           ? "drop-shadow(0 0 4px #3b82f6) drop-shadow(0 4px 8px rgba(0,0,0,0.5))"
@@ -77,25 +94,12 @@ function CrescentTableShape({ w, tableId, selected }: { w: number; tableId: stri
         overflow: "visible",
       }}
     >
-      <defs>
-        <mask id={maskId}>
-          <circle cx={cx} cy={cy} r={outerR} fill="white" />
-          <circle cx={cx + offX} cy={cy + offY} r={innerR} fill="black" />
-        </mask>
-      </defs>
-      {/* filled crescent */}
-      <circle
-        cx={cx} cy={cy} r={outerR}
+      <path
+        d={d}
         fill="rgba(255,255,255,0.88)"
-        mask={`url(#${maskId})`}
-      />
-      {/* outer border arc */}
-      <circle
-        cx={cx} cy={cy} r={outerR}
-        fill="none"
         stroke={selected ? "#3b82f6" : "#1f2937"}
         strokeWidth={selected ? 3 : 2}
-        mask={`url(#${maskId})`}
+        strokeLinejoin="round"
       />
     </svg>
   );
@@ -114,6 +118,36 @@ function ChairShape({ w, h, selected }: { w: number; h: number; selected: boolea
         boxShadow: "0 2px 5px rgba(0,0,0,0.55)",
       }}
     />
+  );
+}
+
+// ── Rotate handle — small floating button above the selected shape ─────────
+function RotateHandle({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onMouseDown={e => e.stopPropagation()}
+      onTouchStart={e => e.stopPropagation()}
+      onClick={e => { e.stopPropagation(); onClick(); }}
+      aria-label="Rotate 90°"
+      style={{
+        position: "absolute",
+        top: -26, left: "50%", marginLeft: -11,
+        width: 22, height: 22,
+        background: "#fff",
+        color: "#1f2937",
+        border: "2px solid #3b82f6",
+        borderRadius: "50%",
+        cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        boxShadow: "0 2px 6px rgba(0,0,0,0.35)",
+        padding: 0,
+        touchAction: "none",
+        zIndex: 11,
+      }}
+    >
+      <RotateCw size={12} strokeWidth={2.5} />
+    </button>
   );
 }
 
@@ -156,7 +190,7 @@ export default function ManagerFloor() {
   const [addMode, setAddMode]           = useState<"square" | "crescent" | "chair" | null>(null);
   const [editingId, setEditingId]       = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
-  const [tableOv, setTableOv]           = useState<Record<string, { x: number; y: number; w?: number; h?: number }>>({});
+  const [tableOv, setTableOv]           = useState<Record<string, { x: number; y: number; w?: number; h?: number; r?: number }>>({});
   const [scale, setScale]               = useState(1);
 
   const scaleRef     = useRef(1);
@@ -429,6 +463,36 @@ export default function ManagerFloor() {
     startResize(e.touches[0].clientX, e.touches[0].clientY, target, mode, w, h);
   }, [isAdmin, startResize]);
 
+  const rotateSelected = useCallback(async (target: DragTarget, currentRot: number) => {
+    if (!isAdmin) return;
+    const next = normalizeRot(currentRot + 90);
+    if (target.type === "table") {
+      setTableOv(prev => {
+        const cur = prev[target.id] ?? { x: 0, y: 0 };
+        return { ...prev, [target.id]: { ...cur, r: next } };
+      });
+      try {
+        await apiFetch(`/tables/${target.id}`, {
+          method: "PUT",
+          body: JSON.stringify({ rotation: next }),
+        });
+        queryClient.invalidateQueries({ queryKey: tablesQK });
+      } catch (err) {
+        console.error("Failed to persist rotation:", err);
+      }
+    } else {
+      setChairs(prev => prev.map(c => c.id === target.id ? { ...c, rotation: next } : c));
+      try {
+        await apiFetch(`/chairs/${target.id}`, {
+          method: "PUT",
+          body: JSON.stringify({ rotation: next }),
+        });
+      } catch (err) {
+        console.error("Failed to persist rotation:", err);
+      }
+    }
+  }, [isAdmin, queryClient, tablesQK]);
+
   const handleRemove = useCallback(async () => {
     if (!selected) return;
     if (selected.type === "table") {
@@ -466,7 +530,7 @@ export default function ManagerFloor() {
               variant={addMode === "crescent" ? "default" : "outline"}
               onClick={() => setAddMode(addMode === "crescent" ? null : "crescent")}
             >
-              <span className="mr-2 text-base leading-none">☽</span> Add Crescent Table
+              <span className="mr-2 text-base leading-none">⊔</span> Add U-Shape Table
             </Button>
             <Button
               variant={addMode === "chair" ? "default" : "outline"}
@@ -491,19 +555,19 @@ export default function ManagerFloor() {
           <span className="inline-block w-5 h-4 rounded border border-gray-700 bg-white/80" /> Square table
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block w-5 h-2.5 bg-white/80 border border-gray-700" style={{ borderRadius: "10px 10px 0 0", borderBottom: "none" }} /> Crescent table
+          <span className="inline-block w-5 h-3 bg-white/80 border border-gray-700" style={{ borderRadius: "10px 10px 0 0", borderBottom: "none" }} /> U-Shape table
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-4 h-2.5 bg-gray-800" style={{ borderRadius: "8px 8px 0 0" }} /> Chair
         </span>
         {addMode && (
           <span className="ml-auto bg-muted px-2 py-0.5 rounded-full">
-            Click floor to place {addMode === "square" ? "square table" : addMode === "crescent" ? "crescent table" : "chair"} · Esc to cancel
+            Click floor to place {addMode === "square" ? "square table" : addMode === "crescent" ? "U-shape table" : "chair"} · Esc to cancel
           </span>
         )}
         {selected && !addMode && (
           <span className="ml-auto">
-            {selected.type === "table" ? "Double-click to rename" : "Chair selected"} · Remove to delete
+            {selected.type === "table" ? "Double-click to rename" : "Chair selected"} · Click ↻ to rotate · Remove to delete
           </span>
         )}
       </div>
@@ -541,24 +605,29 @@ export default function ManagerFloor() {
             const h    = ov?.h ?? Number(table.height);
             const sel  = selected?.type === "table" && selected.id === table.id;
             const shape = (table as any).shape as TableShape ?? "square";
-            const renderH = shape === "crescent" ? w : h;
+            const rot   = normalizeRot(ov?.r ?? (table as any).rotation ?? 0);
             const tgt: DragTarget = { type: "table", id: table.id };
 
             return (
               <div
                 key={table.id}
                 className="absolute cursor-grab active:cursor-grabbing"
-                style={{ left: x, top: y, width: w, height: renderH, userSelect: "none", touchAction: "none" }}
+                style={{
+                  left: x, top: y, width: w, height: h,
+                  userSelect: "none", touchAction: "none",
+                  transform: `rotate(${rot}deg)`,
+                  transformOrigin: "center center",
+                }}
                 onMouseDown={e => handleMouseDown(e, tgt, x, y)}
                 onTouchStart={e => handleTouchStart(e, tgt, x, y)}
                 onDoubleClick={e => { e.stopPropagation(); setEditingId(table.id); setEditingLabel(table.label); }}
               >
                 {shape === "crescent"
-                  ? <CrescentTableShape w={w} tableId={table.id} selected={sel} />
-                  : <SquareTableShape   w={w} h={h} selected={sel} />}
+                  ? <UShapeTableShape w={w} h={h} selected={sel} />
+                  : <SquareTableShape w={w} h={h} selected={sel} />}
 
-                {/* Resize handles — square tables resize freely, crescent stays circular */}
-                {sel && isAdmin && shape === "square" && (
+                {/* Resize handles */}
+                {sel && isAdmin && (
                   <>
                     <ResizeHandle pos="se"
                       onMouseDown={e => handleResizeMouseDown(e, tgt, "se", w, h)}
@@ -571,15 +640,20 @@ export default function ManagerFloor() {
                       onTouchStart={e => handleResizeTouchStart(e, tgt, "s", w, h)} />
                   </>
                 )}
-                {sel && isAdmin && shape === "crescent" && (
-                  <ResizeHandle pos="se"
-                    onMouseDown={e => handleResizeMouseDown(e, tgt, "se", w, w)}
-                    onTouchStart={e => handleResizeTouchStart(e, tgt, "se", w, w)} />
+
+                {/* Rotate handle */}
+                {sel && isAdmin && (
+                  <RotateHandle
+                    onClick={() => void rotateSelected(tgt, rot)}
+                  />
                 )}
 
-                {/* Label overlay */}
+                {/* Label overlay — kept upright regardless of rotation */}
                 {editingId === table.id ? (
-                  <div className="absolute inset-0 flex items-center justify-center">
+                  <div
+                    className="absolute inset-0 flex items-center justify-center"
+                    style={{ transform: `rotate(${-rot}deg)` }}
+                  >
                     <Input
                       autoFocus
                       className="w-[80%] text-center text-xs font-bold bg-white/80 border-gray-400 h-6 px-1"
@@ -595,7 +669,10 @@ export default function ManagerFloor() {
                     />
                   </div>
                 ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <div
+                    className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
+                    style={{ transform: `rotate(${-rot}deg)` }}
+                  >
                     <span className="text-gray-900 font-bold text-[11px] leading-tight drop-shadow-sm">{table.label}</span>
                     <span className="text-gray-600 text-[9px]">{table.capacity}p</span>
                   </div>
@@ -609,20 +686,30 @@ export default function ManagerFloor() {
             const sel = selected?.type === "chair" && selected.id === chair.id;
             const cw  = Number(chair.width)  || 18;
             const ch  = Number(chair.height) || 11;
+            const rot = normalizeRot(chair.rotation ?? 0);
             const tgt: DragTarget = { type: "chair", id: chair.id };
             return (
               <div
                 key={chair.id}
                 className="absolute cursor-grab active:cursor-grabbing"
-                style={{ left: Number(chair.x) - cw / 2, top: Number(chair.y) - ch / 2, userSelect: "none", touchAction: "none" }}
+                style={{
+                  left: Number(chair.x) - cw / 2, top: Number(chair.y) - ch / 2,
+                  width: cw, height: ch,
+                  userSelect: "none", touchAction: "none",
+                  transform: `rotate(${rot}deg)`,
+                  transformOrigin: "center center",
+                }}
                 onMouseDown={e => handleMouseDown(e, tgt, Number(chair.x), Number(chair.y))}
                 onTouchStart={e => handleTouchStart(e, tgt, Number(chair.x), Number(chair.y))}
               >
                 <ChairShape w={cw} h={ch} selected={sel} />
                 {sel && isAdmin && (
-                  <ResizeHandle pos="se"
-                    onMouseDown={e => handleResizeMouseDown(e, tgt, "se", cw, ch)}
-                    onTouchStart={e => handleResizeTouchStart(e, tgt, "se", cw, ch)} />
+                  <>
+                    <ResizeHandle pos="se"
+                      onMouseDown={e => handleResizeMouseDown(e, tgt, "se", cw, ch)}
+                      onTouchStart={e => handleResizeTouchStart(e, tgt, "se", cw, ch)} />
+                    <RotateHandle onClick={() => void rotateSelected(tgt, rot)} />
+                  </>
                 )}
               </div>
             );

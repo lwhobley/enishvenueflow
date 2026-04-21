@@ -26,6 +26,7 @@ export const tables = pgTable("tables", {
   width: numeric("width", { precision: 8, scale: 2 }).notNull().default("80"),
   height: numeric("height", { precision: 8, scale: 2 }).notNull().default("80"),
   shape: text("shape").notNull().default("square"),
+  rotation: integer("rotation").notNull().default(0),
 });
 
 export const insertTableSchema = createInsertSchema(tables).omit({ id: true });
@@ -39,6 +40,7 @@ export const chairs = pgTable("chairs", {
   y: numeric("y", { precision: 8, scale: 2 }).notNull().default("0"),
   width: numeric("width", { precision: 8, scale: 2 }).notNull().default("18"),
   height: numeric("height", { precision: 8, scale: 2 }).notNull().default("11"),
+  rotation: integer("rotation").notNull().default(0),
 });
 
 export const insertChairSchema = createInsertSchema(chairs).omit({ id: true });
