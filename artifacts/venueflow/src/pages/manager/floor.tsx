@@ -64,22 +64,30 @@ function SquareTableShape({ w, h, selected }: { w: number; h: number; selected: 
   );
 }
 
-// U-shape (banquette) — opens toward the bottom at rotation 0.
+// U-shape (banquette) — opens toward the bottom at rotation 0. Uses a shallow
+// elliptical arc at the top so the legs dominate and the curve is gentle.
 function UShapeTableShape({ w, h, selected }: { w: number; h: number; selected: boolean }) {
-  const rOut = w / 2;
-  const t    = Math.max(6, Math.min(w, h) * 0.22); // band thickness
-  const rIn  = Math.max(0, rOut - t);
-  const H    = Math.max(h, rOut + 2);
+  const t         = Math.max(6, Math.min(w, h) * 0.22); // band thickness
+  const bowDepth  = Math.max(10, Math.min(w * 0.22, h * 0.30));
+  const bowStartY = bowDepth; // legs start at y = bowStartY; arc apex sits at y = 0
+  const H         = Math.max(h, bowStartY + 4);
 
-  // Build the hollow U path: outer rounded-top rect minus inner rounded-top rect.
+  const outerRx = w / 2;
+  const outerRy = bowDepth;
+  const innerRx = Math.max(1, w / 2 - t);
+  const innerRy = Math.max(1, bowDepth - t);
+
+  // Outer: left leg → shallow arc across the top → right leg → bottom edge.
+  // Inner: same path inset by thickness `t`, traversed the other way so the
+  // fill rule carves out the middle.
   const d = [
     `M 0,${H}`,
-    `L 0,${rOut}`,
-    `A ${rOut},${rOut} 0 0 1 ${w},${rOut}`,
+    `L 0,${bowStartY}`,
+    `A ${outerRx},${outerRy} 0 0 1 ${w},${bowStartY}`,
     `L ${w},${H}`,
     `L ${w - t},${H}`,
-    `L ${w - t},${rOut}`,
-    `A ${rIn},${rIn} 0 0 0 ${t},${rOut}`,
+    `L ${w - t},${bowStartY}`,
+    `A ${innerRx},${innerRy} 0 0 0 ${t},${bowStartY}`,
     `L ${t},${H}`,
     `Z`,
   ].join(" ");
