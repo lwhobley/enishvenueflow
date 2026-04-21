@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Calendar, Wand2, Users, Map, BookOpen,
   UserSquare, BarChart, Clock, CalendarOff, DollarSign, Coins,
-  FileText, MessageSquare, Settings, MapPin, Menu, X, CalendarCheck, Plug,
+  FileText, Library, MessageSquare, Settings, MapPin, Menu, X, CalendarCheck, Plug,
   LogOut,
 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
@@ -36,6 +36,7 @@ const managerNavItems = [
   { href: "/manager/payroll",    icon: DollarSign,      label: "Payroll"      },
   { href: "/manager/tip-pool",   icon: Coins,           label: "Tip Pool"     },
   { href: "/manager/documents",  icon: FileText,        label: "Documents"    },
+  { href: "/manager/literature", icon: Library,         label: "Literature"   },
   { href: "/manager/chat",       icon: MessageSquare,   label: "Chat"         },
   { href: "/manager/integrations",icon: Plug,           label: "Integrations" },
   { href: "/manager/settings",   icon: Settings,        label: "Settings"     },
@@ -48,6 +49,7 @@ const employeeNavItems = [
   { href: "/employee/availability",icon: CalendarCheck,   label: "My Availability"},
   { href: "/employee/floor",       icon: Map,             label: "Floor Plan"     },
   { href: "/employee/chat",        icon: MessageSquare,   label: "Chat"           },
+  { href: "/employee/literature",  icon: Library,         label: "Literature"     },
   { href: "/employee/time-clock",  icon: Clock,           label: "Time Clock"     },
 ];
 

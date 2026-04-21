@@ -22,6 +22,7 @@ import ManagerPayroll from "@/pages/manager/payroll";
 import ManagerAISchedule from "@/pages/manager/ai-schedule";
 import ManagerTipPool from "@/pages/manager/tip-pool";
 import ManagerDocuments from "@/pages/manager/documents";
+import ManagerLiterature from "@/pages/manager/literature";
 import ManagerChat from "@/pages/manager/chat";
 import ManagerSettings from "@/pages/manager/settings";
 import ManagerVenues from "@/pages/manager/venues";
@@ -33,6 +34,7 @@ import EmployeeSchedule from "@/pages/employee/schedule";
 import EmployeeAvailability from "@/pages/employee/availability";
 import EmployeeFloor from "@/pages/employee/floor";
 import EmployeeChat from "@/pages/employee/chat";
+import EmployeeLiterature from "@/pages/employee/literature";
 import EmployeeTimeClock from "@/pages/employee/time-clock";
 
 const queryClient = new QueryClient();
@@ -56,6 +58,7 @@ function Router() {
       <Route path="/manager/payroll"><Layout><ManagerPayroll /></Layout></Route>
       <Route path="/manager/tip-pool"><Layout><ManagerTipPool /></Layout></Route>
       <Route path="/manager/documents"><Layout><ManagerDocuments /></Layout></Route>
+      <Route path="/manager/literature"><Layout><ManagerLiterature /></Layout></Route>
       <Route path="/manager/chat"><Layout><ManagerChat /></Layout></Route>
       <Route path="/manager/settings"><Layout><ManagerSettings /></Layout></Route>
       <Route path="/manager/venues"><Layout><ManagerVenues /></Layout></Route>
@@ -65,6 +68,7 @@ function Router() {
       <Route path="/employee/availability"><Layout isEmployee><EmployeeAvailability /></Layout></Route>
       <Route path="/employee/floor"><Layout isEmployee><EmployeeFloor /></Layout></Route>
       <Route path="/employee/chat"><Layout isEmployee><EmployeeChat /></Layout></Route>
+      <Route path="/employee/literature"><Layout isEmployee><EmployeeLiterature /></Layout></Route>
       <Route path="/employee/time-clock"><Layout isEmployee><EmployeeTimeClock /></Layout></Route>
       <Route component={NotFound} />
     </Switch>

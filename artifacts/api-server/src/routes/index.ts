@@ -17,6 +17,7 @@ import availabilityRouter from "./availability";
 import pushRouter from "./push";
 import integrationsRouter from "./integrations";
 import reportsRouter from "./reports";
+import literatureRouter from "./literature";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(availabilityRouter);
 router.use(pushRouter);
 router.use(integrationsRouter);
 router.use(reportsRouter);
+router.use(literatureRouter);
 
 export default router;
