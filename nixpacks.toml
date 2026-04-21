@@ -4,7 +4,7 @@
 providers = ["node"]
 
 [phases.setup]
-nixPkgs = ["nodejs_24", "pnpm"]
+nixPkgs = ["nodejs_20", "pnpm"]
 
 [phases.install]
 cmds = [
