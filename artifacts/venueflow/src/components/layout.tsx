@@ -4,7 +4,9 @@ import {
   LayoutDashboard, Calendar, Wand2, Users, Map, BookOpen,
   UserSquare, BarChart, Clock, CalendarOff, DollarSign, Coins,
   FileText, MessageSquare, Settings, MapPin, Menu, X, CalendarCheck, Plug,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/contexts/auth-context";
 
 // ── Fine dining light luxury palette ─────────────────────────────────────────
 const G = {
@@ -53,7 +55,13 @@ export function Layout({ children, isEmployee = false }: { children: React.React
   const [location] = useLocation();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { logout } = useAuth();
   const navItems = isEmployee ? employeeNavItems : managerNavItems;
+
+  const handleLogout = () => {
+    setOpen(false);
+    logout();
+  };
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -170,28 +178,67 @@ export function Layout({ children, isEmployee = false }: { children: React.React
                 })}
               </nav>
 
-              {/* Footer link */}
+              {/* Footer — view toggle + logout */}
               <div style={{
                 borderTop: `1px solid ${G.border}`,
-                padding: "10px 18px",
+                padding: "10px 10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
                 fontSize: 11,
                 letterSpacing: 1,
               }}>
                 {isEmployee ? (
-                  <Link href="/manager/dashboard" style={{ color: G.muted, textDecoration: "none" }}
+                  <Link href="/manager/dashboard" style={{ color: G.muted, textDecoration: "none", padding: "4px 8px" }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = G.gold; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = G.muted; }}
                   >
                     ← Manager View
                   </Link>
                 ) : (
-                  <Link href="/employee/dashboard" style={{ color: G.muted, textDecoration: "none" }}
+                  <Link href="/employee/dashboard" style={{ color: G.muted, textDecoration: "none", padding: "4px 8px" }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = G.gold; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = G.muted; }}
                   >
                     → Employee View
                   </Link>
                 )}
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  aria-label="Log out"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 10px",
+                    borderRadius: 10,
+                    border: `1px solid ${G.border}`,
+                    background: "transparent",
+                    color: G.champDim,
+                    fontSize: 11,
+                    letterSpacing: 1.2,
+                    textTransform: "uppercase",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "background 0.15s ease, color 0.15s ease, border-color 0.15s ease",
+                    fontFamily: "inherit",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.background = "rgba(176,58,46,0.08)";
+                    (e.currentTarget as HTMLElement).style.color = "#8A3D3D";
+                    (e.currentTarget as HTMLElement).style.borderColor = "rgba(176,58,46,0.28)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.background = "transparent";
+                    (e.currentTarget as HTMLElement).style.color = G.champDim;
+                    (e.currentTarget as HTMLElement).style.borderColor = G.border;
+                  }}
+                >
+                  <LogOut size={12} />
+                  Log out
+                </button>
               </div>
             </div>
           )}
