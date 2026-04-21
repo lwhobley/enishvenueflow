@@ -48,55 +48,55 @@
   --radius-xl: calc(var(--radius) + 8px);
 }
 
-/* ── Fine Dining Luxury Palette ───────────────────── */
+/* ── Fine Dining Light Luxury Palette ───────────────── */
 :root {
-  /* Warm espresso dark foundation */
-  --background: 22 18% 7%;       /* #120C08 deep espresso */
-  --foreground: 40 55% 91%;      /* #F0E6C8 champagne ivory */
+  /* Warm ivory foundation */
+  --background: 40 50% 96%;       /* #F8F3E7 soft ivory */
+  --foreground: 26 28% 14%;       /* #2A1F17 deep espresso text */
 
   /* Card surfaces */
-  --card: 22 20% 10%;            /* #1A1009 warm card */
-  --card-foreground: 40 55% 91%;
-  --card-border: 36 40% 20%;     /* subtle gold border */
+  --card: 42 60% 99%;             /* #FFFDF7 near-white cream */
+  --card-foreground: 26 28% 14%;
+  --card-border: 38 40% 84%;      /* warm parchment */
 
   /* Popover/dropdown */
-  --popover: 22 22% 9%;
-  --popover-foreground: 40 55% 91%;
-  --popover-border: 36 35% 18%;
+  --popover: 42 60% 99%;
+  --popover-foreground: 26 28% 14%;
+  --popover-border: 38 35% 82%;
 
-  /* Gold primary */
-  --primary: 38 52% 52%;         /* #C9A84B gold */
-  --primary-foreground: 22 18% 7%;
-  --primary-border: hsl(38 52% 38%);
+  /* Warm antique gold primary */
+  --primary: 36 58% 44%;          /* #B2882F warm gold (readable on cream) */
+  --primary-foreground: 42 60% 98%;
+  --primary-border: hsl(36 58% 34%);
 
-  /* Warm secondary */
-  --secondary: 25 18% 14%;
-  --secondary-foreground: 40 45% 80%;
-  --secondary-border: hsl(30 20% 22%);
+  /* Soft champagne secondary */
+  --secondary: 40 35% 92%;        /* #EFE6D0 */
+  --secondary-foreground: 26 28% 18%;
+  --secondary-border: hsl(38 30% 80%);
 
   /* Muted */
-  --muted: 24 15% 14%;
-  --muted-foreground: 34 22% 52%; /* warm brown-grey */
+  --muted: 40 30% 90%;             /* #EDE4CE */
+  --muted-foreground: 28 14% 42%;  /* warm taupe */
 
-  /* Accent */
-  --accent: 36 30% 16%;
-  --accent-foreground: 38 52% 70%;
+  /* Accent — soft blush/champagne */
+  --accent: 22 40% 90%;            /* #F0D9C6 whisper blush */
+  --accent-foreground: 26 28% 20%;
 
   /* Destructive — deep rose */
-  --destructive: 0 58% 48%;
-  --destructive-foreground: 40 55% 95%;
+  --destructive: 2 60% 50%;
+  --destructive-foreground: 42 60% 98%;
 
-  --border: 32 25% 18%;          /* warm dark gold border */
-  --input:  24 18% 15%;
-  --ring:   38 52% 52%;
-  --radius: 0.75rem;             /* rounder everywhere */
+  --border: 38 32% 84%;            /* #E4D9BF parchment */
+  --input:  38 30% 90%;
+  --ring:   36 58% 44%;
+  --radius: 0.875rem;              /* slightly rounder */
 
-  /* Sidebar — deepest espresso */
-  --sidebar: 20 24% 6%;          /* #0F0A06 */
-  --sidebar-foreground: 40 40% 78%;
-  --sidebar-border: 30 20% 14%;
-  --sidebar-accent: 32 25% 12%;
-  --sidebar-accent-foreground: 38 50% 80%;
+  /* Sidebar — subtle warm cream, darker than page */
+  --sidebar: 38 38% 93%;           /* #F0E8D3 */
+  --sidebar-foreground: 26 28% 20%;
+  --sidebar-border: 38 28% 82%;
+  --sidebar-accent: 30 35% 88%;
+  --sidebar-accent-foreground: 26 28% 18%;
 }
 
 * { box-sizing: border-box; }
@@ -170,8 +170,8 @@ html, body {
 /* Scrollbar luxury */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(201,168,75,0.18); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(201,168,75,0.30); }
+::-webkit-scrollbar-thumb { background: rgba(178,136,47,0.28); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(178,136,47,0.45); }
 
 /* ── Logo flame animation ─────────────────────────── */
 .logo-flame-dance {

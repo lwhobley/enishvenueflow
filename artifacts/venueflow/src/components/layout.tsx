@@ -6,18 +6,18 @@ import {
   FileText, MessageSquare, Settings, MapPin, Menu, X, CalendarCheck, Plug,
 } from "lucide-react";
 
-// ── Fine dining palette ───────────────────────────────────────────────────────
+// ── Fine dining light luxury palette ─────────────────────────────────────────
 const G = {
-  bg:       "#0C0806",
-  surface:  "#18100A",
-  surfaceHi:"#1E1510",
-  gold:     "#C9A84B",
-  goldDim:  "rgba(201,168,75,0.18)",
-  goldHair: "rgba(201,168,75,0.10)",
-  champ:    "#EAD9A4",
-  champDim: "rgba(234,217,164,0.48)",
-  muted:    "rgba(234,217,164,0.38)",
-  border:   "rgba(201,168,75,0.11)",
+  bg:       "#F8F3E7",  // soft ivory page
+  surface:  "#FFFDF7",  // near-white cream (top bar, panels)
+  surfaceHi:"#F0E8D3",  // darker cream for contrast wells
+  gold:     "#B2882F",  // warm antique gold
+  goldDim:  "rgba(178,136,47,0.14)",
+  goldHair: "rgba(178,136,47,0.07)",
+  champ:    "#2A1F17",  // deep espresso — now used for primary text
+  champDim: "rgba(42,31,23,0.62)",
+  muted:    "rgba(42,31,23,0.48)",
+  border:   "rgba(178,136,47,0.22)",
 };
 
 const managerNavItems = [
@@ -118,7 +118,7 @@ export function Layout({ children, isEmployee = false }: { children: React.React
               background: G.surface,
               border: `1px solid ${G.border}`,
               borderRadius: 20,
-              boxShadow: `0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px ${G.goldHair}, inset 0 1px 0 rgba(201,168,75,0.06)`,
+              boxShadow: `0 20px 48px rgba(42,31,23,0.12), 0 2px 8px rgba(42,31,23,0.06), 0 0 0 1px ${G.goldHair}, inset 0 1px 0 rgba(255,253,247,0.9)`,
               backdropFilter: "blur(20px)",
               overflow: "hidden",
               animation: "lux-slidein 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
@@ -160,7 +160,7 @@ export function Layout({ children, isEmployee = false }: { children: React.React
                         transition: "all 0.15s ease",
                         borderLeft: isActive ? `2px solid ${G.gold}` : "2px solid transparent",
                       }}
-                      onMouseEnter={(e) => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = "rgba(201,168,75,0.07)"; (e.currentTarget as HTMLElement).style.color = G.champ; } }}
+                      onMouseEnter={(e) => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = "rgba(178,136,47,0.08)"; (e.currentTarget as HTMLElement).style.color = G.champ; } }}
                       onMouseLeave={(e) => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = G.muted; } }}
                     >
                       <item.icon size={14} style={{ flexShrink: 0, opacity: isActive ? 1 : 0.7 }} />
