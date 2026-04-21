@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useAuth } from "@/contexts/auth-context";
+import { useAuth, type AuthUser } from "@/contexts/auth-context";
 import enoshLogo from "@assets/IMG_2588_1776205200027.png";
+import igniteVideo from "@assets/Enish_Logo_Igniting_Video_Creation.mp4";
 
 function AuroraBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -130,108 +131,72 @@ function AuroraBackground() {
   );
 }
 
-function FireBurn({ active }: { active: boolean }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const startedRef = useRef(false);
+function LoginVideoTransition({ active, onFinish }: { active: boolean; onFinish: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const finishedRef = useRef(false);
+
+  const finish = useCallback(() => {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    onFinish();
+  }, [onFinish]);
 
   useEffect(() => {
-    if (!active || startedRef.current) return;
-    startedRef.current = true;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!active) return;
+    const video = videoRef.current;
+    if (!video) return;
 
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    // Try to play with audio (PIN confirm was a user gesture, so most browsers
+    // allow it). If the browser still blocks unmuted autoplay, fall back to muted.
+    video.muted = false;
+    video.volume = 1;
+    let cancelled = false;
 
-    const W = canvas.width;
-    const H = canvas.height;
-
-    type FireP = {
-      x: number; y: number;
-      vx: number; vy: number;
-      size: number; life: number; maxLife: number;
+    const tryPlay = async () => {
+      try {
+        await video.play();
+      } catch {
+        if (cancelled) return;
+        video.muted = true;
+        try {
+          await video.play();
+        } catch {
+          // Can't play at all — don't trap the user on the transition.
+          if (!cancelled) finish();
+        }
+      }
     };
+    void tryPlay();
 
-    const fireParticles: FireP[] = [];
-    let progress = 0;
-    let animId: number;
+    // Hard safety net: if the video never fires "ended" (codec issue, stalled
+    // network, etc.), advance anyway after its nominal duration + a small buffer.
+    const safetyTimer = window.setTimeout(finish, 10000);
 
-    function spawnFire(count: number) {
-      for (let i = 0; i < count; i++) {
-        const x = Math.random() * W;
-        const startY = H - (progress * H * 1.2);
-        fireParticles.push({
-          x,
-          y: startY + Math.random() * 60,
-          vx: (Math.random() - 0.5) * 4,
-          vy: -(Math.random() * 5 + 3),
-          size: Math.random() * 28 + 8,
-          life: 0,
-          maxLife: 30 + Math.random() * 40,
-        });
-      }
-    }
-
-    function draw() {
-      progress = Math.min(1, progress + 0.018);
-      ctx.clearRect(0, 0, W, H);
-
-      const burnY = H - progress * H * 1.3;
-
-      if (burnY < H) {
-        const grad = ctx.createLinearGradient(0, H, 0, burnY - 100);
-        grad.addColorStop(0, "rgba(20,4,0,0.98)");
-        grad.addColorStop(0.4, "rgba(120,20,0,0.95)");
-        grad.addColorStop(0.7, "rgba(220,60,0,0.8)");
-        grad.addColorStop(0.85, "rgba(255,160,0,0.6)");
-        grad.addColorStop(1, "rgba(255,220,80,0)");
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, burnY - 100, W, H - burnY + 100);
-      }
-
-      spawnFire(Math.floor(progress * 25) + 5);
-
-      for (let i = fireParticles.length - 1; i >= 0; i--) {
-        const p = fireParticles[i];
-        p.x += p.vx + Math.sin(p.life * 0.3) * 1.5;
-        p.y += p.vy;
-        p.vy += 0.08;
-        p.size *= 0.965;
-        p.life++;
-        if (p.life > p.maxLife || p.size < 1) { fireParticles.splice(i, 1); continue; }
-
-        const t = p.life / p.maxLife;
-        const alpha = t < 0.15 ? t / 0.15 : 1 - t;
-        const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
-        gradient.addColorStop(0, `rgba(255,240,100,${alpha * 0.9})`);
-        gradient.addColorStop(0.3, `rgba(255,100,0,${alpha * 0.8})`);
-        gradient.addColorStop(0.6, `rgba(200,20,0,${alpha * 0.5})`);
-        gradient.addColorStop(1, "transparent");
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = gradient;
-        ctx.fill();
-      }
-
-      if (progress < 1) {
-        animId = requestAnimationFrame(draw);
-      } else {
-        ctx.fillStyle = "rgba(10,2,0,0.95)";
-        ctx.fillRect(0, 0, W, H);
-      }
-    }
-
-    draw();
-    return () => cancelAnimationFrame(animId);
-  }, [active]);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(safetyTimer);
+    };
+  }, [active, finish]);
 
   if (!active) return null;
   return (
-    <canvas
-      ref={canvasRef}
-      style={{ position: "fixed", inset: 0, width: "100%", height: "100%", zIndex: 20, pointerEvents: "none" }}
+    <video
+      ref={videoRef}
+      src={igniteVideo}
+      playsInline
+      preload="auto"
+      onEnded={finish}
+      onError={finish}
+      style={{
+        position: "fixed",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        background: "#000",
+        zIndex: 100,
+        pointerEvents: "none",
+      }}
     />
   );
 }
@@ -301,9 +266,11 @@ function Keypad({ onPress, disabled }: { onPress: (k: string) => void; disabled:
 export default function AuthPage() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
-  const [burning, setBurning] = useState(false);
+  const [pendingUser, setPendingUser] = useState<AuthUser | null>(null);
   const [shake, setShake] = useState(false);
   const { login } = useAuth();
+
+  const transitioning = pendingUser !== null;
 
   const verify = useCallback(async (pinToCheck: string) => {
     try {
@@ -313,9 +280,10 @@ export default function AuthPage() {
         body: JSON.stringify({ pin: pinToCheck }),
       });
       if (res.ok) {
-        const user = await res.json();
-        setBurning(true);
-        setTimeout(() => login(user), 1600);
+        const user: AuthUser = await res.json();
+        // Hand the user to the transition component; login() fires when the
+        // ignite video finishes (or errors / times out).
+        setPendingUser(user);
       } else {
         setError("Incorrect PIN — try again");
         setShake(true);
@@ -326,10 +294,10 @@ export default function AuthPage() {
       setError("Connection error");
       setPin("");
     }
-  }, [login]);
+  }, []);
 
   const handleKey = useCallback(async (k: string) => {
-    if (burning) return;
+    if (transitioning) return;
     if (k === "←") { setPin((p) => p.slice(0, -1)); setError(""); return; }
     if (k === "✓") {
       if (pin.length !== 4) { setError("Enter all 4 digits"); return; }
@@ -342,7 +310,7 @@ export default function AuthPage() {
       setError("");
       if (next.length === 4) setTimeout(() => verify(next), 180);
     }
-  }, [pin, burning, verify]);
+  }, [pin, transitioning, verify]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -357,7 +325,12 @@ export default function AuthPage() {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50, overflow: "hidden" }}>
       <AuroraBackground />
-      <FireBurn active={burning} />
+      <LoginVideoTransition
+        active={transitioning}
+        onFinish={() => {
+          if (pendingUser) login(pendingUser);
+        }}
+      />
 
       <div
         style={{
@@ -369,8 +342,8 @@ export default function AuthPage() {
           justifyContent: "center",
           height: "100%",
           gap: 0,
-          opacity: burning ? 0 : 1,
-          transition: burning ? "opacity 0.6s ease 0.6s" : "none",
+          opacity: transitioning ? 0 : 1,
+          transition: transitioning ? "opacity 0.4s ease" : "none",
         }}
       >
         {/* ENISH logo — base static + flame-clipped animated layer */}
@@ -467,7 +440,7 @@ export default function AuthPage() {
             <div style={{ height: 18, marginBottom: 14 }} />
           )}
 
-          <Keypad onPress={handleKey} disabled={burning} />
+          <Keypad onPress={handleKey} disabled={transitioning} />
         </div>
       </div>
     </div>
