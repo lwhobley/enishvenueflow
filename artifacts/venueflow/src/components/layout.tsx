@@ -242,6 +242,24 @@ export function Layout({ children, isEmployee = false }: { children: React.React
                   Log out
                 </button>
               </div>
+
+              {/* Build stamp — lets you confirm at a glance whether two
+                  devices are running the same deploy. */}
+              <div
+                title={`Built ${__BUILD_TIME__}`}
+                style={{
+                  borderTop: `1px solid ${G.border}`,
+                  padding: "8px 18px",
+                  fontSize: 9,
+                  letterSpacing: 2,
+                  textTransform: "uppercase",
+                  color: G.muted,
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                  textAlign: "center",
+                }}
+              >
+                Build {__BUILD_HASH__}
+              </div>
             </div>
           )}
         </div>

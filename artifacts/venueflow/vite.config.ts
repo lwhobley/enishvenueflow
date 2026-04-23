@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import { execSync } from "node:child_process";
 import { VitePWA } from "vite-plugin-pwa";
 
 const rawPort = process.env.PORT ?? "5173";
@@ -9,6 +10,28 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) throw new Error(`Invalid PORT value: "${rawPort}"`);
 
 const basePath = process.env.BASE_PATH ?? "/";
+
+// Stamp the bundle with a short git SHA (or "dev" if git isn't reachable)
+// so a visible badge in the UI confirms which build each client is running.
+// Prefer platform-provided commit SHAs (Railway, Vercel) before shelling out
+// to git — the Railway build image may not have the repo's .git available.
+function resolveBuildHash(): string {
+  const fromEnv =
+    process.env.RAILWAY_GIT_COMMIT_SHA ||
+    process.env.VERCEL_GIT_COMMIT_SHA ||
+    process.env.GIT_COMMIT ||
+    process.env.COMMIT_SHA;
+  if (fromEnv) return fromEnv.slice(0, 7);
+  try {
+    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim() || "dev";
+  } catch {
+    return "dev";
+  }
+}
+const buildHash = resolveBuildHash();
+const buildTime = new Date().toISOString();
 
 const isReplit = process.env.REPL_ID !== undefined;
 const replitDevPlugins =
@@ -24,6 +47,10 @@ const replitDevPlugins =
 
 export default defineConfig({
   base: basePath,
+  define: {
+    __BUILD_HASH__: JSON.stringify(buildHash),
+    __BUILD_TIME__: JSON.stringify(buildTime),
+  },
   plugins: [
     react(),
     tailwindcss(),
