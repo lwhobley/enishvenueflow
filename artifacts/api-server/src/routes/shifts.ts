@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { shifts, shiftRequests, users, roles } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { shifts, shiftRequests, users, roles, schedules } from "@workspace/db";
+import { eq, and, inArray, gte, lte } from "drizzle-orm";
 
 const router = Router();
 
@@ -21,17 +21,72 @@ async function enrichShifts(rawShifts: typeof shifts.$inferSelect[]) {
 
 router.get("/shifts", async (req, res) => {
   try {
-    const { scheduleId, userId, venueId } = req.query as { scheduleId?: string; userId?: string; venueId?: string };
+    const { scheduleId, userId, venueId, from, to } = req.query as {
+      scheduleId?: string; userId?: string; venueId?: string;
+      from?: string; to?: string;
+    };
     let query = db.select().from(shifts).$dynamic();
     const conditions = [];
     if (scheduleId) conditions.push(eq(shifts.scheduleId, scheduleId));
     if (userId) conditions.push(eq(shifts.userId, userId));
+    // Cross-schedule listing: when the caller passes venueId (and no
+    // scheduleId), resolve all schedule ids for the venue and filter by
+    // inArray. Pairs well with from/to for a monthly calendar view.
+    if (venueId && !scheduleId) {
+      const venueSchedules = await db.select({ id: schedules.id })
+        .from(schedules).where(eq(schedules.venueId, venueId));
+      if (venueSchedules.length === 0) {
+        res.json([]);
+        return;
+      }
+      conditions.push(inArray(shifts.scheduleId, venueSchedules.map((s) => s.id)));
+    }
+    if (from) conditions.push(gte(shifts.startTime, new Date(from)));
+    if (to) conditions.push(lte(shifts.startTime, new Date(to)));
     if (conditions.length) query = query.where(and(...conditions));
     const all = await query;
     res.json(await enrichShifts(all));
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to list shifts" });
+  }
+});
+
+router.put("/shifts/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, roleId, sectionId, startTime, endTime, notes, status } = req.body;
+    const updates: Record<string, unknown> = {};
+    if (userId !== undefined) {
+      updates.userId = userId;
+      // Re-derive status from assignment unless the caller explicitly set one.
+      if (status === undefined) updates.status = userId ? "scheduled" : "open";
+    }
+    if (roleId !== undefined) updates.roleId = roleId;
+    if (sectionId !== undefined) updates.sectionId = sectionId;
+    if (startTime !== undefined) updates.startTime = new Date(startTime);
+    if (endTime !== undefined) updates.endTime = new Date(endTime);
+    if (notes !== undefined) updates.notes = notes;
+    if (status !== undefined) updates.status = status;
+    const [updated] = await db.update(shifts).set(updates).where(eq(shifts.id, id)).returning();
+    if (!updated) return res.status(404).json({ message: "Shift not found" });
+    const [enriched] = await enrichShifts([updated]);
+    res.json(enriched);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to update shift" });
+  }
+});
+
+router.delete("/shifts/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await db.delete(shifts).where(eq(shifts.id, id)).returning({ id: shifts.id });
+    if (deleted.length === 0) return res.status(404).json({ message: "Shift not found" });
+    res.json({ message: "Shift deleted" });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to delete shift" });
   }
 });
 
