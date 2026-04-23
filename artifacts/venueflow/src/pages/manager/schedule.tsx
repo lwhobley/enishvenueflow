@@ -103,7 +103,7 @@ export default function ManagerSchedule() {
             onChange={(e) => setWeekStart(mondayOf(new Date(e.target.value)))}
             className="w-[170px]"
           />
-          <Button onClick={() => setAddOpen(true)} disabled={!venueId}>
+          <Button onClick={() => setAddOpen(true)}>
             <Plus className="w-4 h-4 mr-2" /> Add Shift
           </Button>
         </div>
@@ -155,13 +155,16 @@ export default function ManagerSchedule() {
         roles={roles ?? []}
         users={users ?? []}
         onSubmit={async (input) => {
-          if (!venueId) return;
-          const scheduleId = await ensureSchedule();
-          if (!scheduleId) {
-            toast({ title: "Couldn't create the week's schedule", variant: "destructive" });
+          if (!venueId) {
+            toast({ title: "No active venue", variant: "destructive" });
             return;
           }
           try {
+            const scheduleId = await ensureSchedule();
+            if (!scheduleId) {
+              toast({ title: "Couldn't create the week's schedule", variant: "destructive" });
+              return;
+            }
             await createShift.mutateAsync({
               data: {
                 scheduleId,
@@ -177,9 +180,11 @@ export default function ManagerSchedule() {
             setAddOpen(false);
           } catch (err) {
             const e = err as { data?: { message?: string }; message?: string };
+            const msg = e?.data?.message ?? e?.message ?? String(err);
+            console.error("Add shift failed:", err);
             toast({
               title: "Failed to add shift",
-              description: e?.data?.message ?? e?.message ?? "Unknown error",
+              description: msg,
               variant: "destructive",
             });
           }
@@ -267,16 +272,18 @@ function AddShiftDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="sh-role">Role</Label>
-            <Select value={form.roleId} onValueChange={(v) => update("roleId", v)}>
-              <SelectTrigger id="sh-role"><SelectValue placeholder="Choose a role" /></SelectTrigger>
-              <SelectContent>
-                {roles.length === 0 ? (
-                  <SelectItem value="" disabled>No roles configured yet</SelectItem>
-                ) : (
-                  roles.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)
-                )}
-              </SelectContent>
-            </Select>
+            {roles.length === 0 ? (
+              <div className="text-sm text-muted-foreground border rounded-md px-3 py-2 bg-muted">
+                No roles configured yet. Add roles on the Employees page first.
+              </div>
+            ) : (
+              <Select value={form.roleId} onValueChange={(v) => update("roleId", v)}>
+                <SelectTrigger id="sh-role"><SelectValue placeholder="Choose a role" /></SelectTrigger>
+                <SelectContent>
+                  {roles.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="sh-user">Employee (optional)</Label>
