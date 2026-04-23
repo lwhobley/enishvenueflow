@@ -36,6 +36,12 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
 
+// Explicit 404 for any unmatched /api/* route so JSON callers don't receive
+// the SPA's index.html from the static fallback below.
+app.use("/api", (_req, res) => {
+  res.status(404).json({ message: "Not found" });
+});
+
 // Serve the built frontend (Railway single-service deployment).
 // STATIC_DIR can override; otherwise fall back to the monorepo build output.
 const staticDir =

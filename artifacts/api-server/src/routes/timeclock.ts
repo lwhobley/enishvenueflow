@@ -339,8 +339,10 @@ router.get("/time-clock/active", async (req, res) => {
     if (!venueId) return res.status(400).json({ message: "venueId required" });
     const active = await db.select().from(timeClockEntries)
       .where(and(eq(timeClockEntries.venueId, venueId), eq(timeClockEntries.status, "active")));
-    const allUsers = await db.select().from(users);
-    const userMap = Object.fromEntries(allUsers.map((u) => [u.id, u]));
+    // Only look up the users we actually need — was scanning the whole users
+    // table on every poll, which is O(total users across all venues).
+    const venueUsers = await db.select().from(users).where(eq(users.venueId, venueId));
+    const userMap = Object.fromEntries(venueUsers.map((u) => [u.id, u]));
     res.json(active.map((e) => formatEntry(e, userMap[e.userId]?.fullName)));
   } catch (err) {
     req.log.error(err);

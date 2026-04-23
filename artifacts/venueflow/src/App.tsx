@@ -38,18 +38,17 @@ import EmployeeChat from "@/pages/employee/chat";
 import EmployeeLiterature from "@/pages/employee/literature";
 import EmployeeTimeClock from "@/pages/employee/time-clock";
 
-// Global sync: every react-query-managed fetch re-polls every 5s, refetches
-// on window/tab focus, and resumes when the network reconnects. This keeps
-// the whole app (dashboard, schedule, reservations, guests, floor plan,
-// literature, etc.) in sync across browsers and installed PWAs without
-// per-page wiring. React Query pauses polling on hidden tabs by default
-// (refetchIntervalInBackground: false). Pages that need different behavior
-// — e.g. the floor plan pausing polling during a drag — can override at
-// the call site.
+// Global sync cadence: 30 s polling with a 20 s staleTime keeps the whole
+// app roughly live across browsers and PWAs without hammering aggregation
+// endpoints like analytics/payroll. Pages that need sub-5-s sync (floor plan,
+// chat, active time clock) override at the call site. React Query pauses
+// polling on hidden tabs (refetchIntervalInBackground: false) and catches up
+// on window/reconnect.
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchInterval: 5000,
+      refetchInterval: 30_000,
+      staleTime: 20_000,
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
       refetchIntervalInBackground: false,

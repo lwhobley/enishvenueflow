@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { randomBytes, createHash, timingSafeEqual } from "node:crypto";
 import { db, venues, users, roles, ENROLLABLE_POSITIONS, isEnrollablePosition } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { requireManagerForVenue } from "../middlewares/manager-auth";
 
 const router: IRouter = Router();
@@ -114,6 +114,20 @@ router.post("/enroll/:venueId/:token", async (req, res) => {
       return res.status(409).json({ message: "That PIN is already taken — please pick another" });
     }
 
+    // Email uniqueness per venue: a manager-loaded hire (hires-loader) or an
+    // earlier enrollment may already have created this user. Reject instead
+    // of silently creating a duplicate row.
+    const emailNormalized = String(email).trim().toLowerCase();
+    const [emailCollision] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.venueId, venue.id), eq(users.email, emailNormalized)));
+    if (emailCollision) {
+      return res.status(409).json({
+        message: "An account with that email already exists for this venue. Ask your manager to reset your PIN.",
+      });
+    }
+
     // Best-effort match to an existing role with the same name so the user
     // shows up correctly in the roster. If no role matches we leave roleId
     // null — they'll still appear with their position set.
@@ -124,7 +138,7 @@ router.post("/enroll/:venueId/:token", async (req, res) => {
     const [created] = await db.insert(users).values({
       venueId: venue.id,
       fullName: String(fullName).trim(),
-      email: String(email).trim(),
+      email: emailNormalized,
       phone: phone ? String(phone).trim() : null,
       roleId: matchedRole?.id ?? null,
       positions: [positionLower],
