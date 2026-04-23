@@ -52,43 +52,9 @@ router.get("/shifts", async (req, res) => {
   }
 });
 
-router.put("/shifts/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { userId, roleId, sectionId, startTime, endTime, notes, status } = req.body;
-    const updates: Record<string, unknown> = {};
-    if (userId !== undefined) {
-      updates.userId = userId;
-      // Re-derive status from assignment unless the caller explicitly set one.
-      if (status === undefined) updates.status = userId ? "scheduled" : "open";
-    }
-    if (roleId !== undefined) updates.roleId = roleId;
-    if (sectionId !== undefined) updates.sectionId = sectionId;
-    if (startTime !== undefined) updates.startTime = new Date(startTime);
-    if (endTime !== undefined) updates.endTime = new Date(endTime);
-    if (notes !== undefined) updates.notes = notes;
-    if (status !== undefined) updates.status = status;
-    const [updated] = await db.update(shifts).set(updates).where(eq(shifts.id, id)).returning();
-    if (!updated) return res.status(404).json({ message: "Shift not found" });
-    const [enriched] = await enrichShifts([updated]);
-    res.json(enriched);
-  } catch (err) {
-    req.log.error(err);
-    res.status(500).json({ message: "Failed to update shift" });
-  }
-});
-
-router.delete("/shifts/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const deleted = await db.delete(shifts).where(eq(shifts.id, id)).returning({ id: shifts.id });
-    if (deleted.length === 0) return res.status(404).json({ message: "Shift not found" });
-    res.json({ message: "Shift deleted" });
-  } catch (err) {
-    req.log.error(err);
-    res.status(500).json({ message: "Failed to delete shift" });
-  }
-});
+// NOTE: single-shift /shifts/:id handlers are registered BELOW the specific
+// /shifts/bulk, /shifts/open, /shifts/copy-day, /shifts/bulk-assign, and
+// /shifts/:id/* routes so Express doesn't match "bulk" as an :id.
 
 router.post("/shifts", async (req, res) => {
   try {
@@ -230,6 +196,45 @@ router.post("/shifts/:id/pickup", async (req, res) => {
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to pickup shift" });
+  }
+});
+
+// ── Single-shift /:id handlers registered LAST so they don't shadow
+// /shifts/bulk, /shifts/open, /shifts/copy-day, /shifts/bulk-assign, etc.
+router.put("/shifts/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, roleId, sectionId, startTime, endTime, notes, status } = req.body;
+    const updates: Record<string, unknown> = {};
+    if (userId !== undefined) {
+      updates.userId = userId;
+      if (status === undefined) updates.status = userId ? "scheduled" : "open";
+    }
+    if (roleId !== undefined) updates.roleId = roleId;
+    if (sectionId !== undefined) updates.sectionId = sectionId;
+    if (startTime !== undefined) updates.startTime = new Date(startTime);
+    if (endTime !== undefined) updates.endTime = new Date(endTime);
+    if (notes !== undefined) updates.notes = notes;
+    if (status !== undefined) updates.status = status;
+    const [updated] = await db.update(shifts).set(updates).where(eq(shifts.id, id)).returning();
+    if (!updated) return res.status(404).json({ message: "Shift not found" });
+    const [enriched] = await enrichShifts([updated]);
+    res.json(enriched);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to update shift" });
+  }
+});
+
+router.delete("/shifts/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await db.delete(shifts).where(eq(shifts.id, id)).returning({ id: shifts.id });
+    if (deleted.length === 0) return res.status(404).json({ message: "Shift not found" });
+    res.json({ message: "Shift deleted" });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to delete shift" });
   }
 });
 
