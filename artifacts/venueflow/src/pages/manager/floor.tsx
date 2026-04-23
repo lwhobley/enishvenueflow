@@ -200,6 +200,10 @@ export default function ManagerFloor() {
   const [editingLabel, setEditingLabel] = useState("");
   const [tableOv, setTableOv]           = useState<Record<string, { x: number; y: number; w?: number; h?: number; r?: number }>>({});
   const [scale, setScale]               = useState(1);
+  // `true` while the user is actively dragging/resizing — pauses polling so
+  // incoming server data can't snap an in-progress shape back.
+  const [isInteracting, setIsInteracting] = useState(false);
+  const interactionRef                    = useRef(false);
 
   const scaleRef     = useRef(1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -226,7 +230,18 @@ export default function ManagerFloor() {
   );
   const { data: tables } = useListTables(
     { venueId: activeVenue?.id || "" },
-    { query: { enabled: !!activeVenue?.id, queryKey: getListTablesQueryKey({ venueId: activeVenue?.id || "" }) } }
+    {
+      query: {
+        enabled: !!activeVenue?.id,
+        queryKey: getListTablesQueryKey({ venueId: activeVenue?.id || "" }),
+        // Poll every 5s for real-time sync across clients (browser + PWA).
+        // Pause while the current user is mid-drag so their move can't be
+        // clobbered by a remote snapshot. React Query already skips
+        // background tabs / hidden PWAs; we rely on that default.
+        refetchInterval: isInteracting ? false : 5000,
+        refetchOnWindowFocus: true,
+      },
+    }
   );
 
   const updateTable    = useUpdateTable();
@@ -235,11 +250,29 @@ export default function ManagerFloor() {
   const tablesQK       = getListTablesQueryKey({ venueId: activeVenue?.id || "" });
   const sectionsQK     = getListFloorSectionsQueryKey({ venueId: activeVenue?.id || "" });
 
+  // Poll chairs on the same cadence as tables, skipping polls during an
+  // active interaction so we don't stomp on the in-flight drag.
   useEffect(() => {
     if (!activeVenue?.id) return;
-    apiFetch(`/chairs?venueId=${activeVenue.id}`)
-      .then(d => setChairs(Array.isArray(d) ? d : []))
-      .catch(() => {});
+    let mounted = true;
+    const load = async () => {
+      if (interactionRef.current) return;
+      try {
+        const d = await apiFetch(`/chairs?venueId=${activeVenue.id}`);
+        if (mounted) setChairs(Array.isArray(d) ? d : []);
+      } catch {
+        /* ignore transient errors */
+      }
+    };
+    void load();
+    const interval = setInterval(load, 5000);
+    const onFocus = () => { void load(); };
+    window.addEventListener("focus", onFocus);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [activeVenue?.id]);
 
   // Ensure at least one section exists
@@ -303,6 +336,8 @@ export default function ManagerFloor() {
   const startDrag = useCallback((clientX: number, clientY: number, target: DragTarget, ox: number, oy: number) => {
     setSelected(target);
     dragRef.current = { target, sx: clientX, sy: clientY, ox, oy };
+    interactionRef.current = true;
+    setIsInteracting(true);
 
     const applyMove = (cx: number, cy: number) => {
       if (!dragRef.current) return;
@@ -333,7 +368,11 @@ export default function ManagerFloor() {
 
     const finishDrag = async () => {
       cleanup();
-      if (!dragRef.current) return;
+      if (!dragRef.current) {
+        interactionRef.current = false;
+        setIsInteracting(false);
+        return;
+      }
       const { target: t } = dragRef.current;
       dragRef.current = null;
       try {
@@ -349,6 +388,9 @@ export default function ManagerFloor() {
         }
       } catch (err) {
         console.error("Failed to persist drag:", err);
+      } finally {
+        interactionRef.current = false;
+        setIsInteracting(false);
       }
     };
 
@@ -386,6 +428,8 @@ export default function ManagerFloor() {
     startW: number, startH: number,
   ) => {
     setSelected(target);
+    interactionRef.current = true;
+    setIsInteracting(true);
     const sx = clientX, sy = clientY;
     const isChair = target.type === "chair";
     const minSz   = isChair ? MIN_CHAIR : MIN_TABLE;
@@ -437,6 +481,9 @@ export default function ManagerFloor() {
         }
       } catch (err) {
         console.error("Failed to persist resize:", err);
+      } finally {
+        interactionRef.current = false;
+        setIsInteracting(false);
       }
     };
 
