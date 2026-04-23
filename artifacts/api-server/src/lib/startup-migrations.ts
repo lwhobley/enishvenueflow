@@ -1,0 +1,77 @@
+/**
+ * Idempotent schema migrations applied on api-server startup.
+ *
+ * We don't use `drizzle-kit push` here because the deploy environment doesn't
+ * always have an interactive TTY for confirming destructive changes. Each
+ * statement is wrapped in `IF NOT EXISTS` (or equivalent) so re-running on
+ * every boot is a cheap no-op once a column / table is in place.
+ *
+ * Whenever a new column is added to lib/db, append the matching `ALTER TABLE …
+ * ADD COLUMN IF NOT EXISTS` here so the next deploy picks it up without a
+ * manual push.
+ */
+import { pool } from "@workspace/db";
+import { logger } from "./logger";
+
+const STATEMENTS: { name: string; sql: string }[] = [
+  // ── Floor plan: rotation on tables + chairs ─────────────────────────────
+  {
+    name: "tables.rotation",
+    sql: `ALTER TABLE "tables" ADD COLUMN IF NOT EXISTS "rotation" integer NOT NULL DEFAULT 0`,
+  },
+  {
+    name: "chairs.rotation",
+    sql: `ALTER TABLE "chairs" ADD COLUMN IF NOT EXISTS "rotation" integer NOT NULL DEFAULT 0`,
+  },
+
+  // ── Venue: enrollment token + GPS pin + clock-in radius ─────────────────
+  {
+    name: "venues.enrollment_token",
+    sql: `ALTER TABLE "venues" ADD COLUMN IF NOT EXISTS "enrollment_token" text`,
+  },
+  {
+    name: "venues.latitude",
+    sql: `ALTER TABLE "venues" ADD COLUMN IF NOT EXISTS "latitude" numeric(10, 7)`,
+  },
+  {
+    name: "venues.longitude",
+    sql: `ALTER TABLE "venues" ADD COLUMN IF NOT EXISTS "longitude" numeric(10, 7)`,
+  },
+  {
+    name: "venues.clock_in_radius_feet",
+    sql: `ALTER TABLE "venues" ADD COLUMN IF NOT EXISTS "clock_in_radius_feet" integer`,
+  },
+
+  // ── Literature library ──────────────────────────────────────────────────
+  {
+    name: "literature table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "literature" (
+        "id" text PRIMARY KEY,
+        "venue_id" text NOT NULL,
+        "title" text NOT NULL,
+        "description" text,
+        "category" text NOT NULL DEFAULT 'other',
+        "file_name" text NOT NULL,
+        "mime_type" text NOT NULL,
+        "size_bytes" integer NOT NULL,
+        "file_data" bytea NOT NULL,
+        "uploaded_by_user_id" text,
+        "created_at" timestamp NOT NULL DEFAULT now()
+      )
+    `,
+  },
+];
+
+export async function applyStartupMigrations(): Promise<void> {
+  for (const { name, sql } of STATEMENTS) {
+    try {
+      await pool.query(sql);
+      logger.info({ migration: name }, "Migration applied (or already in place)");
+    } catch (err) {
+      // Don't take the boot down because a migration tripped — log loudly so
+      // it shows up in Railway logs but let the server come up.
+      logger.error({ err, migration: name }, "Migration failed; continuing boot");
+    }
+  }
+}
