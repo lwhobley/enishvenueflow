@@ -124,6 +124,16 @@ const HIRES: Hire[] = [
     hireDate: "2026-04-23",
     hourlyRate: null,
   },
+  {
+    fullName: "Korrin A. McNabb",
+    email: "alexia.korrin@gmail.com",
+    phone: "281-222-4929",
+    dateOfBirth: "1995-03-16",
+    address: "22702 Steel Blue Jaybird Dr, Hockley, TX 77447",
+    positions: ["bartender"],
+    hireDate: "2026-04-23",
+    hourlyRate: null,
+  },
 ];
 
 function lastFourDigits(phone: string): string {
