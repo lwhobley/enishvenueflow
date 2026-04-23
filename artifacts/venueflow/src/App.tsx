@@ -6,6 +6,7 @@ import { AppProvider } from "@/hooks/use-app-context";
 import { AuthProvider, useAuth } from "@/contexts/auth-context";
 import { Layout } from "@/components/layout";
 import AuthPage from "@/pages/auth";
+import EnrollPage from "@/pages/enroll";
 import NotFound from "@/pages/not-found";
 
 // Manager Pages
@@ -77,10 +78,27 @@ function Router() {
 
 function AppContent() {
   const { user } = useAuth();
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+  // Enrollment links are public — they must not be blocked by the PIN auth
+  // wall, and they don't need the venue/user bootstrap.
+  const path = typeof window !== "undefined" ? window.location.pathname : "";
+  const enrollPrefix = `${base}/enroll/`;
+  if (path.startsWith(enrollPrefix) || path.startsWith("/enroll/")) {
+    return (
+      <WouterRouter base={base}>
+        <Switch>
+          <Route path="/enroll/:venueId/:token" component={EnrollPage} />
+          <Route component={NotFound} />
+        </Switch>
+      </WouterRouter>
+    );
+  }
+
   if (!user) return <AuthPage />;
   return (
     <AppProvider>
-      <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+      <WouterRouter base={base}>
         <Router />
       </WouterRouter>
     </AppProvider>

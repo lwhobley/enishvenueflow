@@ -18,6 +18,7 @@ import pushRouter from "./push";
 import integrationsRouter from "./integrations";
 import reportsRouter from "./reports";
 import literatureRouter from "./literature";
+import enrollmentRouter from "./enrollment";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(pushRouter);
 router.use(integrationsRouter);
 router.use(reportsRouter);
 router.use(literatureRouter);
+router.use(enrollmentRouter);
 
 export default router;

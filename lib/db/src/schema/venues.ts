@@ -9,6 +9,7 @@ export const venues = pgTable("venues", {
   timezone: text("timezone").notNull().default("America/New_York"),
   subscriptionTier: text("subscription_tier").notNull().default("free"),
   isActive: boolean("is_active").notNull().default(true),
+  enrollmentToken: text("enrollment_token"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

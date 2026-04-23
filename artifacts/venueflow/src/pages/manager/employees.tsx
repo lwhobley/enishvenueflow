@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAppContext } from "@/hooks/use-app-context";
 import {
   useListUsers, useCreateUser, useUpdateUser, useListRoles,
@@ -21,7 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { UserPlus, RefreshCw, Pencil, Phone, MapPin, Calendar, Plug } from "lucide-react";
+import { UserPlus, RefreshCw, Pencil, Phone, MapPin, Calendar, Plug, Link2, Copy, Check, RotateCw } from "lucide-react";
 
 type FormData = {
   fullName: string;
@@ -62,7 +62,7 @@ function userToForm(u: User): FormData {
 }
 
 export default function ManagerEmployees() {
-  const { activeVenue } = useAppContext();
+  const { activeVenue, activeUser } = useAppContext();
   const qc = useQueryClient();
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -70,6 +70,8 @@ export default function ManagerEmployees() {
   const [form, setForm] = useState<FormData>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const [toastOpen, setToastOpen] = useState(false);
   const [toastForm, setToastForm] = useState({ clientId: "", clientSecret: "", restaurantGuid: "" });
@@ -221,10 +223,20 @@ export default function ManagerEmployees() {
         <Button variant="outline" size="sm" onClick={() => setOtOpen(true)} className="gap-2">
           <Plug className="h-4 w-4" /> Sync OpenTable
         </Button>
+        <Button variant="outline" size="sm" onClick={() => setInviteOpen(true)} className="gap-2">
+          <Link2 className="h-4 w-4" /> Invite employees
+        </Button>
         <Button size="sm" onClick={openAdd} className="gap-2" style={{ background: "var(--gold)", color: "#0a0502" }}>
           <UserPlus className="h-4 w-4" /> Add Employee
         </Button>
       </div>
+
+      <InviteLinkModal
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
+        venueId={activeVenue?.id ?? null}
+        currentUserId={activeUser?.id ?? null}
+      />
 
       <Card>
         <CardHeader>
@@ -544,5 +556,119 @@ export default function ManagerEmployees() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function InviteLinkModal({
+  open, onOpenChange, venueId, currentUserId,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  venueId: string | null;
+  currentUserId: string | null;
+}) {
+  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [rotating, setRotating] = useState(false);
+
+  const fetchLink = async () => {
+    if (!venueId || !currentUserId) return;
+    setLoading(true); setErr(null);
+    try {
+      const res = await fetch(`/api/venues/${venueId}/enrollment-link`, {
+        headers: { "x-user-id": currentUserId },
+      });
+      const body = (await res.json()) as { token?: string; message?: string };
+      if (!res.ok) throw new Error(body.message ?? `Failed (${res.status})`);
+      setToken(body.token ?? null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to load link");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const rotate = async () => {
+    if (!venueId || !currentUserId) return;
+    setRotating(true); setErr(null);
+    try {
+      const res = await fetch(`/api/venues/${venueId}/enrollment-link/rotate`, {
+        method: "POST",
+        headers: { "x-user-id": currentUserId, "Content-Type": "application/json" },
+      });
+      const body = (await res.json()) as { token?: string; message?: string };
+      if (!res.ok) throw new Error(body.message ?? `Failed (${res.status})`);
+      setToken(body.token ?? null);
+      setCopied(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to rotate link");
+    } finally {
+      setRotating(false);
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      setToken(null);
+      setCopied(false);
+      void fetchLink();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, venueId, currentUserId]);
+
+  const url = token && venueId
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/enroll/${venueId}/${token}`
+    : "";
+
+  const handleCopy = async () => {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[540px]">
+        <DialogHeader>
+          <DialogTitle>Invite employees</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Share this link with new hires. They'll pick a position and PIN on a public page — no
+            admin access is granted.
+          </p>
+          <div className="space-y-1.5">
+            <Label>Enrollment link</Label>
+            <div className="flex gap-2">
+              <Input readOnly value={loading ? "Loading…" : url} onFocus={(e) => e.currentTarget.select()} />
+              <Button type="button" variant="outline" onClick={handleCopy} disabled={!url}>
+                {copied ? <><Check className="w-4 h-4 mr-1.5" /> Copied</> : <><Copy className="w-4 h-4 mr-1.5" /> Copy</>}
+              </Button>
+            </div>
+          </div>
+          <div className="rounded-md border p-3 text-xs text-muted-foreground space-y-1.5">
+            <div className="font-medium text-foreground">Available positions</div>
+            <div>Bartender, Server, Dishwasher, Busser, Cleaner, Host, Cook</div>
+            <div className="pt-1">Rotate the link to revoke access for anyone who hasn't enrolled yet.</div>
+          </div>
+          {err ? (
+            <p className="text-sm text-destructive">{err}</p>
+          ) : null}
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={rotate} disabled={rotating || !token}>
+            <RotateCw className={`w-4 h-4 mr-1.5 ${rotating ? "animate-spin" : ""}`} /> Rotate link
+          </Button>
+          <Button type="button" onClick={() => onOpenChange(false)}>Done</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
