@@ -1,15 +1,18 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { timeClockEntries, timeOffRequests, users, shifts } from "@workspace/db";
+import { timeClockEntries, timeOffRequests, users, shifts, venues } from "@workspace/db";
 import { eq, and, gte, lte, or } from "drizzle-orm";
 import { adpStatus, isAdpConfigured, pushTimeEntry, pullRecentEntries } from "../lib/adp";
 
 const router = Router();
 
-// ── Venue anchor coordinates ─────────────────────────────────────────────────
-const VENUE_LAT = 29.736002;
-const VENUE_LNG = -95.461831;
-const MAX_DISTANCE_M = 3.048; // 10 feet
+// ── Venue anchor fallbacks (used only if the venue record has no GPS pin) ───
+// To move the pin: manager → /manager/venues → "Set GPS pin" modal, or PUT
+// /api/venues/:id with { latitude, longitude, clockInRadiusFeet }.
+const FALLBACK_VENUE_LAT = 29.736002;
+const FALLBACK_VENUE_LNG = -95.461831;
+const DEFAULT_RADIUS_FEET = 1000;
+const FEET_PER_METER = 3.28084;
 const GPS_ACCURACY_BUFFER_M = 25;
 const SHIFT_WINDOW_BEFORE_MS = 30 * 60 * 1000;
 const SHIFT_WINDOW_AFTER_MS  = 15 * 60 * 1000;
@@ -110,12 +113,20 @@ router.post("/time-clock/in", async (req, res) => {
       if (ageSeconds > 30) return res.status(403).json({ message: "Location data is stale. Please try again." });
     }
 
-    const dist = haversineM(latN, lngN, VENUE_LAT, VENUE_LNG);
-    const allowedDist = MAX_DISTANCE_M + Math.min(accN, GPS_ACCURACY_BUFFER_M);
+    // Resolve the venue's GPS pin + radius. If unset, fall back to the
+    // historical constants for backward compatibility.
+    const [venueRow] = await db.select().from(venues).where(eq(venues.id, venueId));
+    const venueLat = venueRow?.latitude != null ? Number(venueRow.latitude) : FALLBACK_VENUE_LAT;
+    const venueLng = venueRow?.longitude != null ? Number(venueRow.longitude) : FALLBACK_VENUE_LNG;
+    const radiusFeet = venueRow?.clockInRadiusFeet ?? DEFAULT_RADIUS_FEET;
+    const radiusM = radiusFeet / FEET_PER_METER;
+
+    const dist = haversineM(latN, lngN, venueLat, venueLng);
+    const allowedDist = radiusM + Math.min(accN, GPS_ACCURACY_BUFFER_M);
     if (dist > allowedDist) {
-      const feet = (dist * 3.28084).toFixed(0);
+      const feet = (dist * FEET_PER_METER).toFixed(0);
       return res.status(403).json({
-        message: `You must be within 10 feet of 5851 Westheimer Rd. You are currently ${feet} ft away.`,
+        message: `You must be within ${radiusFeet} feet of ${venueRow?.address ?? "the venue"}. You are currently ${feet} ft away.`,
         distanceMeters: dist, distanceFeet: Number(feet),
       });
     }

@@ -25,11 +25,12 @@ const G = {
   sub:     "rgba(234,217,164,0.38)",
 };
 
-// ── Venue coords ──────────────────────────────────────────────────────────────
-const VENUE_LAT  = 29.736002;
-const VENUE_LNG  = -95.461831;
-const MAX_FEET   = 10;
-const MAX_M      = MAX_FEET * 0.3048;
+// ── Venue anchor fallbacks (used when the venue record has no GPS pin) ──────
+// Manager sets the real pin + radius on /manager/venues → "Set GPS pin".
+const FALLBACK_VENUE_LAT = 29.736002;
+const FALLBACK_VENUE_LNG = -95.461831;
+const DEFAULT_RADIUS_FEET = 1000;
+const FEET_PER_METER = 3.28084;
 const GPS_BUFFER = 25;
 
 function haversineM(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -115,6 +116,18 @@ export default function EmployeeTimeClock() {
   const { activeVenue, activeUser } = useAppContext();
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  // GPS pin + radius resolved from the active venue; fall back to historical
+  // defaults if the manager hasn't set a pin yet.
+  const venueGps = activeVenue as unknown as {
+    latitude?: number | null;
+    longitude?: number | null;
+    clockInRadiusFeet?: number | null;
+  } | null;
+  const venueLat = venueGps?.latitude != null ? Number(venueGps.latitude) : FALLBACK_VENUE_LAT;
+  const venueLng = venueGps?.longitude != null ? Number(venueGps.longitude) : FALLBACK_VENUE_LNG;
+  const radiusFeet = venueGps?.clockInRadiusFeet ?? DEFAULT_RADIUS_FEET;
+  const radiusM = radiusFeet / FEET_PER_METER;
 
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -234,15 +247,15 @@ export default function EmployeeTimeClock() {
     watchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         setGeoPos(pos);
-        const d = haversineM(pos.coords.latitude, pos.coords.longitude, VENUE_LAT, VENUE_LNG);
+        const d = haversineM(pos.coords.latitude, pos.coords.longitude, venueLat, venueLng);
         setDistM(d);
-        const allowed = MAX_M + Math.min(pos.coords.accuracy, GPS_BUFFER);
+        const allowed = radiusM + Math.min(pos.coords.accuracy, GPS_BUFFER);
         setGeoPhase(d <= allowed ? "inRange" : "outRange");
       },
       (err) => { setGeoPhase(err.code === 1 ? "denied" : "error"); },
       { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
-  }, []);
+  }, [venueLat, venueLng, radiusM]);
 
   useEffect(() => {
     return () => { if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current); };
@@ -252,7 +265,7 @@ export default function EmployeeTimeClock() {
     if (!venueId || !userId || acting) return;
     if (geoPhase === "idle") { startGeo(); return; }
     if (geoPhase !== "inRange") {
-      toast({ title: "Location required", description: "You must be within 10 feet of the venue.", variant: "destructive" }); return;
+      toast({ title: "Location required", description: `You must be within ${radiusFeet} feet of the venue.`, variant: "destructive" }); return;
     }
     if (shiftPhase !== "scheduled") {
       toast({ title: "Not scheduled", description: "You are not scheduled to work right now.", variant: "destructive" }); return;
@@ -527,8 +540,8 @@ export default function EmployeeTimeClock() {
             }
             <p style={{ margin: 0, fontSize: 12, color: G.sub, lineHeight: 1.7, letterSpacing: 0.3 }}>
               {geoPhase === "idle"
-                ? "Tap the clock above to begin location verification. You must be within 10 feet of 5851 Westheimer Rd."
-                : `You are ${distDisplay ?? "too far"} from the venue. Please move to 5851 Westheimer Rd, Houston TX and wait for GPS to refresh.`
+                ? `Tap the clock above to begin location verification. You must be within ${radiusFeet} feet of ${activeVenue?.address ?? "the venue"}.`
+                : `You are ${distDisplay ?? "too far"} from the venue. Please move closer to ${activeVenue?.address ?? "the venue"} and wait for GPS to refresh.`
               }
             </p>
           </div>
@@ -620,7 +633,7 @@ export default function EmployeeTimeClock() {
         {/* Footer */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 22, padding: "0 2px" }}>
           <GpsSignal phase={geoPhase} />
-          <span style={{ fontSize: 10, color: G.sub, letterSpacing: 1 }}>5851 Westheimer Rd · Houston, TX</span>
+          <span style={{ fontSize: 10, color: G.sub, letterSpacing: 1 }}>{activeVenue?.address ?? ""}</span>
         </div>
 
       </div>
