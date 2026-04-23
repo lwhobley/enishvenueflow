@@ -25,7 +25,7 @@ type Hire = {
   fullName: string;
   email: string;
   phone: string;
-  dateOfBirth: string;     // ISO (YYYY-MM-DD)
+  dateOfBirth: string | null;  // ISO (YYYY-MM-DD) or null if not provided
   address: string;
   positions: string[];     // first one becomes the role match
   hireDate: string;        // ISO
@@ -80,6 +80,47 @@ const HIRES: Hire[] = [
     dateOfBirth: "1977-05-14",
     address: "P.O. Box 88188, Houston, TX 77288",
     positions: ["host"],
+    hireDate: "2026-04-23",
+    hourlyRate: null,
+  },
+  // ── Second batch (4/13–4/23) ─────────────────────────────────────────────
+  {
+    fullName: "Iyanna L. Maiakasuka",
+    email: "iyannaglow@gmail.com",
+    phone: "214-937-1833",
+    dateOfBirth: "2007-02-26",
+    address: "2810 Riverby Rd #580, Houston, TX 77020",
+    positions: ["server"],
+    hireDate: "2026-04-13",
+    hourlyRate: null,
+  },
+  {
+    fullName: "Ne'Ajah J. Smith",
+    email: "smithajah657@gmail.com",
+    phone: "972-589-3075",
+    dateOfBirth: "2007-04-04",
+    address: "2810 Riverby Rd #580, Houston, TX 77020",
+    positions: ["server"],
+    hireDate: "2026-04-23",
+    hourlyRate: null,
+  },
+  {
+    fullName: "Bette M. Anderson",
+    email: "bettejeanmarie@gmail.com",
+    phone: "816-938-6205",
+    dateOfBirth: "1999-11-19",
+    address: "8850 Long Point Rd Apt 2213, Houston, TX 77055",
+    positions: ["server"],
+    hireDate: "2026-04-22",
+    hourlyRate: null,
+  },
+  {
+    fullName: "Joaquin Y. Hernandez",
+    email: "197019631z@gmail.com",
+    phone: "832-371-7291",
+    dateOfBirth: null,
+    address: "2757 Briargrove Dr #521, Houston, TX 77057",
+    positions: ["busser"],
     hireDate: "2026-04-23",
     hourlyRate: null,
   },
