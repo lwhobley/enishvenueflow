@@ -58,6 +58,7 @@ export function Layout({ children, isEmployee = false }: { children: React.React
   const [location] = useLocation();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const fabRef = useRef<HTMLButtonElement>(null);
   const { logout, user } = useAuth();
   const { subscribe, state: pushState } = usePushNotifications();
   const navItems = isEmployee ? employeeNavItems : managerNavItems;
@@ -91,7 +92,11 @@ export function Layout({ children, isEmployee = false }: { children: React.React
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (open && dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setOpen(false);
+      if (!open) return;
+      const target = e.target as Node;
+      if (dropdownRef.current?.contains(target)) return;
+      if (fabRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
@@ -121,6 +126,7 @@ export function Layout({ children, isEmployee = false }: { children: React.React
         {/* Hamburger + dropdown anchor */}
         <div ref={dropdownRef} style={{ position: "relative" }}>
           <button
+            className="nav-top-trigger"
             onClick={() => setOpen((v) => !v)}
             aria-label="Navigation"
             style={{
@@ -144,7 +150,9 @@ export function Layout({ children, isEmployee = false }: { children: React.React
 
           {/* ── Dropdown nav panel ── */}
           {open && (
-            <div style={{
+            <div
+              className="nav-dropdown"
+              style={{
               position: "absolute",
               top: "calc(100% + 8px)",
               left: 0,
@@ -370,6 +378,18 @@ export function Layout({ children, isEmployee = false }: { children: React.React
       <main className="layout-main">
         {children}
       </main>
+
+      {/* Mobile-only floating menu button — thumb-reachable. On desktop the
+          CSS (.nav-fab) hides it; the top hamburger handles navigation. */}
+      <button
+        ref={fabRef}
+        type="button"
+        className="nav-fab"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={open ? "Close navigation" : "Open navigation"}
+      >
+        {open ? <X size={22} /> : <Menu size={22} />}
+      </button>
     </div>
   );
 }

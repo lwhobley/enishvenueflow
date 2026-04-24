@@ -155,6 +155,74 @@ html, body {
   }
 }
 
+/* ── Mobile-friendly navigation ─────────────────────────
+   The top hamburger sits too high to reach one-handed on
+   a phone. Below 768px viewport width:
+   - hide the top hamburger (`.nav-top-trigger`)
+   - show a floating thumb-reachable menu button near the
+     bottom-right (`.nav-fab`)
+   - re-anchor the dropdown panel (`.nav-dropdown`) as a
+     bottom sheet that sits just above the fab, with safe-
+     area padding so it clears the iOS home indicator.
+*/
+.nav-fab {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .nav-top-trigger {
+    display: none !important;
+  }
+  .nav-fab {
+    display: inline-flex;
+    position: fixed;
+    right: 16px;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    width: 56px;
+    height: 56px;
+    border-radius: 28px;
+    align-items: center;
+    justify-content: center;
+    z-index: 60;
+    border: 1px solid rgba(178, 136, 47, 0.45);
+    background: #FFFDF7;
+    color: #B2882F;
+    box-shadow: 0 12px 32px rgba(42, 31, 23, 0.2), 0 4px 10px rgba(42, 31, 23, 0.12);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform 0.15s ease, background 0.2s ease;
+  }
+  .nav-fab:active {
+    transform: scale(0.94);
+  }
+  .nav-dropdown {
+    position: fixed !important;
+    left: 12px !important;
+    right: 12px !important;
+    top: auto !important;
+    bottom: calc(88px + env(safe-area-inset-bottom)) !important;
+    width: auto !important;
+    max-width: 480px;
+    margin: 0 auto;
+    max-height: min(520px, 75vh);
+    animation: lux-slideup 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+  /* Larger tap targets on mobile dropdown items */
+  .nav-dropdown nav a {
+    padding: 12px 14px !important;
+    font-size: 14px !important;
+  }
+  /* Leave room above the bottom-right fab so it doesn't cover content */
+  .layout-main {
+    padding-bottom: calc(100px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@keyframes lux-slideup {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 /* Ensure no element creates horizontal scroll */
 #root {
   overflow-x: hidden;
