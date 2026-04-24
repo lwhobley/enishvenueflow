@@ -40,6 +40,14 @@ const GPS_BUFFER = 25;
 // 50 m (~164 ft) is still permissive of typical phone-GPS jitter but
 // rejects Wi-Fi / cell-tower fallbacks cleanly.
 const MAX_ACCEPTABLE_ACCURACY_M = 50;
+// iOS Safari in particular will cheerfully replay a cached fix as if it
+// were fresh. Anything older than this is ignored so we never compute
+// distance from a 20-minute-old location the phone had lying around.
+const MAX_FIX_AGE_MS = 30_000;
+// Once we've latched onto a real GPS fix, don't let a subsequent coarse
+// fix (the watcher interleaves them) clobber it — keep the best-accuracy
+// fix seen within this window so the UI stops flickering.
+const BEST_FIX_MEMORY_MS = 60_000;
 
 function haversineM(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371000;
@@ -144,10 +152,16 @@ export default function EmployeeTimeClock() {
     return () => clearInterval(t);
   }, []);
 
-  const [geoPhase, setGeoPhase] = useState<GeoPhase>("idle");
+  // We auto-start the watch on mount so GPS has a head start by the time
+  // the user looks at the screen; "requesting" is the honest initial state.
+  const [geoPhase, setGeoPhase] = useState<GeoPhase>("requesting");
   const [distM, setDistM]       = useState<number | null>(null);
   const [geoPos, setGeoPos]     = useState<GeolocationPosition | null>(null);
   const watchRef                = useRef<number | null>(null);
+  // Best-accuracy fix seen recently. Once real GPS locks in, stick with
+  // it — don't let the watcher's occasional coarse WiFi fallbacks clobber
+  // the good fix on a subsequent event.
+  const bestFixRef              = useRef<GeolocationPosition | null>(null);
 
   const [shiftPhase, setShiftPhase] = useState<ShiftPhase>("loading");
   const [shiftLabel, setShiftLabel] = useState("Checking…");
@@ -253,8 +267,18 @@ export default function EmployeeTimeClock() {
   // GPS locks in. Using those for distance checks is how people end up
   // "thousands of feet off". We keep watching until we get a fix under
   // MAX_ACCEPTABLE_ACCURACY_M and only then classify in/out of range.
-  const startGeo = useCallback(() => {
+  //
+  // Two extra guardrails vs. the naive approach:
+  //   1. Stale fixes (pos.timestamp older than MAX_FIX_AGE_MS) are
+  //      dropped — iOS Safari will happily replay a cached 20-minute-old
+  //      location as if it were fresh, and that's how you end up
+  //      "6000 ft away" with a suspiciously tight accuracy value.
+  //   2. We latch onto the best-accuracy fix seen in the last
+  //      BEST_FIX_MEMORY_MS so a subsequent coarse fix from the same
+  //      watcher can't overwrite the good one.
+  const startGeo = useCallback((reset = false) => {
     if (!navigator.geolocation) { setGeoPhase("error"); return; }
+    if (reset) bestFixRef.current = null;
     setGeoPhase("requesting");
     if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
 
@@ -269,18 +293,31 @@ export default function EmployeeTimeClock() {
 
     watchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        const d = haversineM(pos.coords.latitude, pos.coords.longitude, venueLat, venueLng);
-        if (pos.coords.accuracy > MAX_ACCEPTABLE_ACCURACY_M) {
-          // Record the fix so the UI can show the current accuracy, but
-          // don't commit to an in/out decision yet.
-          setGeoPos(pos);
-          setDistM(d);
+        // (1) Reject obviously stale fixes — browsers cache the last
+        // known location and can hand it back long after it's useful.
+        const fixAge = Date.now() - pos.timestamp;
+        if (fixAge > MAX_FIX_AGE_MS) return;
+
+        // (2) Update the best-fix memory. Evict if it's too old to trust.
+        const best = bestFixRef.current;
+        const bestAge = best ? Date.now() - best.timestamp : Infinity;
+        if (bestAge > BEST_FIX_MEMORY_MS) bestFixRef.current = null;
+        const isGoodAcc = pos.coords.accuracy <= MAX_ACCEPTABLE_ACCURACY_M;
+        if (isGoodAcc && (!bestFixRef.current || pos.coords.accuracy <= bestFixRef.current.coords.accuracy)) {
+          bestFixRef.current = pos;
+        }
+
+        // (3) Prefer the best cached good fix; fall back to the latest.
+        const effective = bestFixRef.current ?? pos;
+        const d = haversineM(effective.coords.latitude, effective.coords.longitude, venueLat, venueLng);
+        setGeoPos(effective);
+        setDistM(d);
+
+        if (effective.coords.accuracy > MAX_ACCEPTABLE_ACCURACY_M) {
           setGeoPhase("lowAccuracy");
           return;
         }
-        setGeoPos(pos);
-        setDistM(d);
-        const allowed = radiusM + Math.min(pos.coords.accuracy, GPS_BUFFER);
+        const allowed = radiusM + Math.min(effective.coords.accuracy, GPS_BUFFER);
         setGeoPhase(d <= allowed ? "inRange" : "outRange");
       },
       (err) => { setGeoPhase(err.code === 1 ? "denied" : "error"); },
@@ -288,13 +325,20 @@ export default function EmployeeTimeClock() {
     );
   }, [venueLat, venueLng, radiusM]);
 
+  // Auto-start on mount so GPS has time to converge before the user taps.
+  // Also restart whenever the venue pin/radius changes (e.g. manager edit).
   useEffect(() => {
+    startGeo(true);
     return () => { if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current); };
-  }, []);
+  }, [startGeo]);
 
   async function handleClockIn() {
     if (!venueId || !userId || acting) return;
-    if (geoPhase === "idle") { startGeo(); return; }
+    if (geoPhase === "idle") { startGeo(true); return; }
+    if (geoPhase === "requesting") {
+      toast({ title: "Locating…", description: "GPS is still acquiring. One moment." });
+      return;
+    }
     if (geoPhase === "lowAccuracy") {
       const accFt = geoPos ? toFeet(geoPos.coords.accuracy) : "?";
       toast({
@@ -511,7 +555,7 @@ export default function EmployeeTimeClock() {
 
             {/* Button core */}
             <button
-              onClick={isClockedIn ? handleClockOut : geoPhase === "idle" ? startGeo : handleClockIn}
+              onClick={isClockedIn ? handleClockOut : handleClockIn}
               disabled={acting}
               style={{
                 position: "absolute", inset: 16,
@@ -540,7 +584,7 @@ export default function EmployeeTimeClock() {
                 <>
                   <Clock4 size={26} style={{ color: btnColor, opacity: 0.9 }} />
                   <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 3, color: btnColor, textTransform: "uppercase" }}>
-                    {geoPhase === "idle" ? "Begin" : geoPhase === "requesting" ? "Locating…" : "Clock In"}
+                    {geoPhase === "requesting" ? "Locating…" : geoPhase === "lowAccuracy" ? "Locking GPS…" : "Clock In"}
                   </span>
                 </>
               )}
@@ -567,12 +611,12 @@ export default function EmployeeTimeClock() {
         )}
 
         {/* ── Location hint ──────────────────────────────────────────── */}
-        {!isClockedIn && (geoPhase === "idle" || geoPhase === "outRange" || geoPhase === "lowAccuracy") && (
+        {!isClockedIn && (geoPhase === "outRange" || geoPhase === "lowAccuracy") && (
           <div style={{
             display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 28,
             padding: "14px 18px",
-            background: `${geoPhase === "idle" || geoPhase === "lowAccuracy" ? G.gold : G.rose}06`,
-            border: `1px solid ${geoPhase === "idle" || geoPhase === "lowAccuracy" ? G.gold : G.rose}18`,
+            background: `${geoPhase === "lowAccuracy" ? G.gold : G.rose}06`,
+            border: `1px solid ${geoPhase === "lowAccuracy" ? G.gold : G.rose}18`,
             borderRadius: 16,
             animation: "tc-fadein 0.4s ease",
           }}>
@@ -580,17 +624,31 @@ export default function EmployeeTimeClock() {
               ? <AlertTriangle size={14} style={{ color: G.rose, marginTop: 1, flexShrink: 0 }} />
               : <MapPin size={14} style={{ color: G.goldSoft, marginTop: 1, flexShrink: 0 }} />
             }
-            <p style={{ margin: 0, fontSize: 12, color: G.sub, lineHeight: 1.7, letterSpacing: 0.3 }}>
-              {geoPhase === "idle" && (
-                <>Tap the clock above to begin location verification. You must be within {radiusFeet} feet of {activeVenue?.address ?? "the venue"}.</>
-              )}
-              {geoPhase === "lowAccuracy" && (
-                <>Still locking onto GPS — currently accurate to <b>±{accFtDisplay ?? "?"}</b>. Step outside if you're in a back room, and make sure <b>Precise Location</b> is on in your phone's Settings → Privacy → Location Services → this app. We'll let you clock in once we have a real GPS lock.</>
-              )}
-              {geoPhase === "outRange" && (
-                <>You are <b>{distDisplay ?? "too far"}</b> from the venue (GPS ±{accFtDisplay ?? "?"}). Move closer to {activeVenue?.address ?? "the venue"} and give GPS a moment to refresh.</>
-              )}
-            </p>
+            <div style={{ flex: 1 }}>
+              <p style={{ margin: 0, fontSize: 12, color: G.sub, lineHeight: 1.7, letterSpacing: 0.3 }}>
+                {geoPhase === "lowAccuracy" && (
+                  <>Still locking onto GPS — currently accurate to <b>±{accFtDisplay ?? "?"}</b>. Step outside if you're in a back room, and make sure <b>Precise Location</b> is on in your phone's Settings → Privacy → Location Services → this app. We'll let you clock in once we have a real GPS lock.</>
+                )}
+                {geoPhase === "outRange" && (
+                  <>GPS reads <b>{distDisplay ?? "too far"}</b> from the venue (±{accFtDisplay ?? "?"}). If you're actually at {activeVenue?.address ?? "the venue"}, your phone may be stuck on a cached Wi-Fi fix — tap <b>Refresh GPS</b> below, or toggle Wi-Fi off for a moment to force a real satellite lock.</>
+                )}
+              </p>
+              <button
+                type="button"
+                onClick={() => startGeo(true)}
+                style={{
+                  marginTop: 10, padding: "6px 12px",
+                  background: "transparent",
+                  border: `1px solid ${G.goldSoft}`,
+                  borderRadius: 999,
+                  color: G.champ,
+                  fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase",
+                  cursor: "pointer",
+                }}
+              >
+                Refresh GPS
+              </button>
+            </div>
           </div>
         )}
 
