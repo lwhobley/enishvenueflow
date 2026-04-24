@@ -37,7 +37,9 @@ const GPS_BUFFER = 25;
 // hundreds of metres) and treat it as a real location. Reject anything
 // worse than this for clock-in decisions; the user will see the current
 // accuracy on screen and either wait or step outside for a real GPS lock.
-const MAX_ACCEPTABLE_ACCURACY_M = 100;
+// 50 m (~164 ft) is still permissive of typical phone-GPS jitter but
+// rejects Wi-Fi / cell-tower fallbacks cleanly.
+const MAX_ACCEPTABLE_ACCURACY_M = 50;
 
 function haversineM(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371000;

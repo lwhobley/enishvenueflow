@@ -16,10 +16,10 @@ const DEFAULT_RADIUS_FEET = 1000;
 const FEET_PER_METER = 3.28084;
 // Any fix claiming worse than this accuracy is almost certainly WiFi /
 // cell-tower positioning rather than real GPS. Phone GPS outdoors is
-// typically 5–30 m; anything over 150 m isn't trustworthy for a clock-in
-// verification and we reject it outright so the user is forced to wait
-// for a better fix rather than being silently rejected as "too far".
-const MAX_ACCEPTABLE_ACCURACY_M = 150;
+// typically 5–30 m. Keeping this tight (75 m / ~246 ft) — with a bit
+// of headroom over the client-side 50 m cap — means the server rejects
+// coarse fixes even if the client lets one slip through.
+const MAX_ACCEPTABLE_ACCURACY_M = 75;
 // Allow a tight cushion for real-GPS jitter on top of the venue radius.
 const GPS_ACCURACY_BUFFER_M = 25;
 const SHIFT_WINDOW_BEFORE_MS = 30 * 60 * 1000;
