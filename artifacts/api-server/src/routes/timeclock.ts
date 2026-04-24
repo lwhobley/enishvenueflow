@@ -14,6 +14,13 @@ const FALLBACK_VENUE_LAT = 29.736002;
 const FALLBACK_VENUE_LNG = -95.461831;
 const DEFAULT_RADIUS_FEET = 1000;
 const FEET_PER_METER = 3.28084;
+// Any fix claiming worse than this accuracy is almost certainly WiFi /
+// cell-tower positioning rather than real GPS. Phone GPS outdoors is
+// typically 5–30 m; anything over 150 m isn't trustworthy for a clock-in
+// verification and we reject it outright so the user is forced to wait
+// for a better fix rather than being silently rejected as "too far".
+const MAX_ACCEPTABLE_ACCURACY_M = 150;
+// Allow a tight cushion for real-GPS jitter on top of the venue radius.
 const GPS_ACCURACY_BUFFER_M = 25;
 const SHIFT_WINDOW_BEFORE_MS = 30 * 60 * 1000;
 const SHIFT_WINDOW_AFTER_MS  = 15 * 60 * 1000;
@@ -108,6 +115,16 @@ router.post("/time-clock/in", async (req, res) => {
 
     if (isSuspiciousLocation(latN, lngN, accN)) {
       return res.status(403).json({ message: "Location appears to be spoofed or invalid. Real GPS required." });
+    }
+    if (accN > MAX_ACCEPTABLE_ACCURACY_M) {
+      // Coarse WiFi / cell-tower fix — refuse before comparing distances,
+      // because a ±kilometer accuracy can put the user miles from where
+      // they actually are. Better UX than a confusing "too far" error.
+      const feet = Math.round(accN * FEET_PER_METER);
+      return res.status(403).json({
+        message: `GPS isn't accurate enough yet (±${feet} ft). Step outside or wait a few seconds for a better fix, then try again.`,
+        accuracyMeters: accN,
+      });
     }
     if (clientTimestamp) {
       const ageSeconds = (Date.now() - Number(clientTimestamp)) / 1000;

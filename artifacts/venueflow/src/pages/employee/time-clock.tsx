@@ -31,7 +31,13 @@ const FALLBACK_VENUE_LAT = 29.736002;
 const FALLBACK_VENUE_LNG = -95.461831;
 const DEFAULT_RADIUS_FEET = 1000;
 const FEET_PER_METER = 3.28084;
+// Small GPS jitter cushion on top of the venue radius.
 const GPS_BUFFER = 25;
+// Phones sometimes return a coarse WiFi / cell-tower fix (accuracy in
+// hundreds of metres) and treat it as a real location. Reject anything
+// worse than this for clock-in decisions; the user will see the current
+// accuracy on screen and either wait or step outside for a real GPS lock.
+const MAX_ACCEPTABLE_ACCURACY_M = 100;
 
 function haversineM(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371000;
@@ -44,7 +50,7 @@ function haversineM(lat1: number, lon1: number, lat2: number, lon2: number) {
 function toFeet(m: number) { return (m * 3.28084).toFixed(0); }
 function pad(n: number)    { return String(n).padStart(2, "0"); }
 
-type GeoPhase  = "idle" | "requesting" | "denied" | "inRange" | "outRange" | "error";
+type GeoPhase  = "idle" | "requesting" | "denied" | "inRange" | "outRange" | "lowAccuracy" | "error";
 type ShiftPhase = "loading" | "scheduled" | "none";
 
 // ── Animated rings ────────────────────────────────────────────────────────────
@@ -73,6 +79,7 @@ function GpsSignal({ phase }: { phase: GeoPhase }) {
     denied: "Permission denied",
     inRange: "In range",
     outRange: "Out of range",
+    lowAccuracy: "Improving GPS…",
     error: "GPS unavailable",
   }[phase];
   return (
@@ -239,21 +246,43 @@ export default function EmployeeTimeClock() {
       .catch(() => { setShiftPhase("none"); setShiftLabel("Unknown"); });
   }, [venueId, userId]);
 
-  // Geo watcher
+  // Geo watcher — ignore coarse fixes. Phones routinely return a WiFi
+  // / cell-tower fix first (accuracy 500 m–several km) before the real
+  // GPS locks in. Using those for distance checks is how people end up
+  // "thousands of feet off". We keep watching until we get a fix under
+  // MAX_ACCEPTABLE_ACCURACY_M and only then classify in/out of range.
   const startGeo = useCallback(() => {
     if (!navigator.geolocation) { setGeoPhase("error"); return; }
     setGeoPhase("requesting");
     if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
+
+    // Belt-and-suspenders: kick off a one-shot request in parallel with the
+    // watch. Some browsers deliver the first watch event from cache; the
+    // explicit getCurrentPosition asks for a fresh high-accuracy fix.
+    navigator.geolocation.getCurrentPosition(
+      () => { /* no-op: the watcher below will pick up the fresh fix */ },
+      () => { /* errors handled by the watcher's error callback */ },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 },
+    );
+
     watchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        setGeoPos(pos);
         const d = haversineM(pos.coords.latitude, pos.coords.longitude, venueLat, venueLng);
+        if (pos.coords.accuracy > MAX_ACCEPTABLE_ACCURACY_M) {
+          // Record the fix so the UI can show the current accuracy, but
+          // don't commit to an in/out decision yet.
+          setGeoPos(pos);
+          setDistM(d);
+          setGeoPhase("lowAccuracy");
+          return;
+        }
+        setGeoPos(pos);
         setDistM(d);
         const allowed = radiusM + Math.min(pos.coords.accuracy, GPS_BUFFER);
         setGeoPhase(d <= allowed ? "inRange" : "outRange");
       },
       (err) => { setGeoPhase(err.code === 1 ? "denied" : "error"); },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
     );
   }, [venueLat, venueLng, radiusM]);
 
@@ -264,6 +293,15 @@ export default function EmployeeTimeClock() {
   async function handleClockIn() {
     if (!venueId || !userId || acting) return;
     if (geoPhase === "idle") { startGeo(); return; }
+    if (geoPhase === "lowAccuracy") {
+      const accFt = geoPos ? toFeet(geoPos.coords.accuracy) : "?";
+      toast({
+        title: "GPS still acquiring",
+        description: `Accuracy is ±${accFt} ft — step outside for a clear view of the sky and wait a moment.`,
+        variant: "destructive",
+      });
+      return;
+    }
     if (geoPhase !== "inRange") {
       toast({ title: "Location required", description: `You must be within ${radiusFeet} feet of the venue.`, variant: "destructive" }); return;
     }
@@ -340,6 +378,7 @@ export default function EmployeeTimeClock() {
   const distDisplay = distM !== null
     ? `${toFeet(distM)} ft`
     : null;
+  const accFtDisplay = geoPos ? `${toFeet(geoPos.coords.accuracy)} ft` : null;
 
   const btnColor = isClockedIn ? G.rose : (geoPhase === "inRange" && shiftPhase === "scheduled") ? G.sage : G.gold;
 
@@ -428,11 +467,12 @@ export default function EmployeeTimeClock() {
             icon={MapPin}
             label="Location"
             value={
-              geoPhase === "inRange"    ? (distDisplay ? `${distDisplay} away` : "In range") :
-              geoPhase === "outRange"   ? (distDisplay ?? "Out of range") :
-              geoPhase === "requesting" ? "Scanning…" :
-              geoPhase === "denied"     ? "Access denied" :
-              geoPhase === "error"      ? "Unavailable" :
+              geoPhase === "inRange"     ? (distDisplay ? `${distDisplay} away${accFtDisplay ? ` · ±${accFtDisplay}` : ""}` : "In range") :
+              geoPhase === "outRange"    ? (distDisplay ?? "Out of range") :
+              geoPhase === "lowAccuracy" ? (accFtDisplay ? `Locking on · ±${accFtDisplay}` : "Locking on…") :
+              geoPhase === "requesting"  ? "Scanning…" :
+              geoPhase === "denied"      ? "Access denied" :
+              geoPhase === "error"       ? "Unavailable" :
               "Not started"
             }
             color={geoPhase === "inRange" ? G.sage : geoPhase === "outRange" || geoPhase === "denied" ? G.rose : G.amber}
@@ -525,24 +565,29 @@ export default function EmployeeTimeClock() {
         )}
 
         {/* ── Location hint ──────────────────────────────────────────── */}
-        {!isClockedIn && (geoPhase === "idle" || geoPhase === "outRange") && (
+        {!isClockedIn && (geoPhase === "idle" || geoPhase === "outRange" || geoPhase === "lowAccuracy") && (
           <div style={{
             display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 28,
             padding: "14px 18px",
-            background: `${geoPhase === "idle" ? G.gold : G.rose}06`,
-            border: `1px solid ${geoPhase === "idle" ? G.gold : G.rose}18`,
+            background: `${geoPhase === "idle" || geoPhase === "lowAccuracy" ? G.gold : G.rose}06`,
+            border: `1px solid ${geoPhase === "idle" || geoPhase === "lowAccuracy" ? G.gold : G.rose}18`,
             borderRadius: 16,
             animation: "tc-fadein 0.4s ease",
           }}>
-            {geoPhase === "idle"
-              ? <MapPin size={14} style={{ color: G.goldSoft, marginTop: 1, flexShrink: 0 }} />
-              : <AlertTriangle size={14} style={{ color: G.rose, marginTop: 1, flexShrink: 0 }} />
+            {geoPhase === "outRange"
+              ? <AlertTriangle size={14} style={{ color: G.rose, marginTop: 1, flexShrink: 0 }} />
+              : <MapPin size={14} style={{ color: G.goldSoft, marginTop: 1, flexShrink: 0 }} />
             }
             <p style={{ margin: 0, fontSize: 12, color: G.sub, lineHeight: 1.7, letterSpacing: 0.3 }}>
-              {geoPhase === "idle"
-                ? `Tap the clock above to begin location verification. You must be within ${radiusFeet} feet of ${activeVenue?.address ?? "the venue"}.`
-                : `You are ${distDisplay ?? "too far"} from the venue. Please move closer to ${activeVenue?.address ?? "the venue"} and wait for GPS to refresh.`
-              }
+              {geoPhase === "idle" && (
+                <>Tap the clock above to begin location verification. You must be within {radiusFeet} feet of {activeVenue?.address ?? "the venue"}.</>
+              )}
+              {geoPhase === "lowAccuracy" && (
+                <>Still locking onto GPS — currently accurate to <b>±{accFtDisplay ?? "?"}</b>. Step outside if you're in a back room, and make sure <b>Precise Location</b> is on in your phone's Settings → Privacy → Location Services → this app. We'll let you clock in once we have a real GPS lock.</>
+              )}
+              {geoPhase === "outRange" && (
+                <>You are <b>{distDisplay ?? "too far"}</b> from the venue (GPS ±{accFtDisplay ?? "?"}). Move closer to {activeVenue?.address ?? "the venue"} and give GPS a moment to refresh.</>
+              )}
             </p>
           </div>
         )}
