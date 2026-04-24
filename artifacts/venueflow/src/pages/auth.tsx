@@ -3,133 +3,21 @@ import { useAuth, type AuthUser } from "@/contexts/auth-context";
 import enoshLogo from "@assets/IMG_2588_1776205200027.png";
 import igniteVideo from "@assets/Enish_Logo_Igniting_Video_Creation.mp4";
 
-function AuroraBackground() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return;
-
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
-
-    const onResize = () => {
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
-    };
-    window.addEventListener("resize", onResize);
-
-    type Orb = { x: number; y: number; vx: number; vy: number; r: number; color: [number, number, number] };
-    const orbs: Orb[] = [
-      { x: width * 0.2, y: height * 0.3, vx: 0.3, vy: 0.15, r: 320, color: [180, 18, 8] },
-      { x: width * 0.8, y: height * 0.6, vx: -0.25, vy: 0.2, r: 280, color: [160, 90, 8] },
-      { x: width * 0.5, y: height * 0.8, vx: 0.15, vy: -0.3, r: 240, color: [200, 30, 10] },
-      { x: width * 0.1, y: height * 0.7, vx: 0.4, vy: -0.1, r: 200, color: [140, 60, 5] },
-      { x: width * 0.9, y: height * 0.2, vx: -0.2, vy: 0.35, r: 260, color: [190, 15, 5] },
-    ];
-
-    type Particle = { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; size: number };
-    const particles: Particle[] = [];
-
-    function spawnParticle() {
-      particles.push({
-        x: Math.random() * width,
-        y: height + 10,
-        vx: (Math.random() - 0.5) * 1.2,
-        vy: -(Math.random() * 1.5 + 0.5),
-        life: 0,
-        maxLife: 80 + Math.random() * 120,
-        size: Math.random() * 3 + 1,
-      });
-    }
-
-    let frame = 0;
-    let glitchTimer = 0;
-    let animId: number;
-
-    ctx.fillStyle = "#060404";
-    ctx.fillRect(0, 0, width, height);
-
-    function draw() {
-      frame++;
-      glitchTimer++;
-
-      ctx.fillStyle = "rgba(6, 4, 4, 0.06)";
-      ctx.fillRect(0, 0, width, height);
-
-      for (const orb of orbs) {
-        orb.x += orb.vx;
-        orb.y += orb.vy;
-        if (orb.x < -orb.r) orb.x = width + orb.r;
-        if (orb.x > width + orb.r) orb.x = -orb.r;
-        if (orb.y < -orb.r) orb.y = height + orb.r;
-        if (orb.y > height + orb.r) orb.y = -orb.r;
-
-        const g = ctx.createRadialGradient(orb.x, orb.y, 0, orb.x, orb.y, orb.r);
-        g.addColorStop(0, `rgba(${orb.color[0]},${orb.color[1]},${orb.color[2]},0.13)`);
-        g.addColorStop(0.5, `rgba(${orb.color[0]},${orb.color[1]},${orb.color[2]},0.05)`);
-        g.addColorStop(1, "transparent");
-        ctx.fillStyle = g;
-        ctx.fillRect(0, 0, width, height);
-      }
-
-      if (frame % 3 === 0) spawnParticle();
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.life++;
-        if (p.life > p.maxLife) { particles.splice(i, 1); continue; }
-        const t = p.life / p.maxLife;
-        const alpha = t < 0.1 ? t * 10 * 0.4 : t > 0.8 ? (1 - t) * 5 * 0.4 : 0.4;
-        const r = Math.round(220 + t * 35);
-        const g = Math.round(60 - t * 50);
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size * (1 - t * 0.5), 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${r},${g},0,${alpha})`;
-        ctx.fill();
-      }
-
-      if (glitchTimer > 45 && Math.random() < 0.04) {
-        glitchTimer = 0;
-        const count = Math.floor(Math.random() * 4) + 1;
-        for (let i = 0; i < count; i++) {
-          const sy = Math.random() * height;
-          const sh = Math.random() * 4 + 1;
-          const dx = (Math.random() - 0.5) * 40;
-          try {
-            const data = ctx.getImageData(0, sy, width, sh);
-            ctx.putImageData(data, dx, sy);
-          } catch {}
-        }
-        ctx.fillStyle = `rgba(${Math.random() > 0.5 ? "200,50,0" : "180,130,0"},0.04)`;
-        ctx.fillRect(0, Math.random() * height, width, Math.random() * 2 + 1);
-      }
-
-      if (frame % 2 === 0) {
-        ctx.fillStyle = "rgba(0,0,0,0.025)";
-        for (let y = 0; y < height; y += 3) ctx.fillRect(0, y, width, 1);
-      }
-
-      animId = requestAnimationFrame(draw);
-    }
-
-    draw();
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener("resize", onResize);
-    };
-  }, []);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      style={{ position: "fixed", inset: 0, width: "100%", height: "100%", zIndex: 0 }}
-    />
-  );
-}
+// ── Light luxury palette — mirrors the rest of the app ────────────────────
+const L = {
+  pageTop:      "#FBF6E8",
+  pageBottom:   "#F0E8D3",
+  cream:        "#FFFDF7",
+  parchment:    "#F0E8D3",
+  gold:         "#B2882F",
+  goldSoft:     "#D9B867",
+  goldHair:     "rgba(178,136,47,0.14)",
+  border:       "rgba(178,136,47,0.24)",
+  espresso:     "#2A1F17",
+  taupe:        "rgba(42,31,23,0.58)",
+  taupeMuted:   "rgba(42,31,23,0.42)",
+  rose:         "#8A3D3D",
+};
 
 function LoginVideoTransition({ active, onFinish }: { active: boolean; onFinish: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -146,8 +34,6 @@ function LoginVideoTransition({ active, onFinish }: { active: boolean; onFinish:
     const video = videoRef.current;
     if (!video) return;
 
-    // Try to play with audio (PIN confirm was a user gesture, so most browsers
-    // allow it). If the browser still blocks unmuted autoplay, fall back to muted.
     video.muted = false;
     video.volume = 1;
     let cancelled = false;
@@ -161,15 +47,12 @@ function LoginVideoTransition({ active, onFinish }: { active: boolean; onFinish:
         try {
           await video.play();
         } catch {
-          // Can't play at all — don't trap the user on the transition.
           if (!cancelled) finish();
         }
       }
     };
     void tryPlay();
 
-    // Hard safety net: if the video never fires "ended" (codec issue, stalled
-    // network, etc.), advance anyway after its nominal duration + a small buffer.
     const safetyTimer = window.setTimeout(finish, 10000);
 
     return () => {
@@ -192,10 +75,8 @@ function LoginVideoTransition({ active, onFinish }: { active: boolean; onFinish:
         inset: 0,
         width: "100%",
         height: "100%",
-        // `contain` keeps the whole frame in view on narrow phone
-        // viewports — previously `cover` cropped the sides and made
-        // the video feel clipped. The surrounding background is #000
-        // so any letterbox bars blend in seamlessly.
+        // Keep the full frame in view on phones — letterbox against the
+        // dark transition background so the logo video never crops.
         objectFit: "contain",
         background: "#000",
         zIndex: 100,
@@ -207,21 +88,24 @@ function LoginVideoTransition({ active, onFinish }: { active: boolean; onFinish:
 
 function PinDots({ length }: { length: number }) {
   return (
-    <div style={{ display: "flex", gap: 14, justifyContent: "center", margin: "20px 0" }}>
-      {[0, 1, 2, 3].map((i) => (
-        <div
-          key={i}
-          style={{
-            width: 16,
-            height: 16,
-            borderRadius: "50%",
-            background: i < length ? "#CC1100" : "transparent",
-            border: `2px solid ${i < length ? "#CC1100" : "rgba(201,162,39,0.45)"}`,
-            transition: "all 0.12s ease",
-            boxShadow: i < length ? "0 0 10px rgba(204,17,0,0.7), 0 0 20px rgba(204,17,0,0.3)" : "none",
-          }}
-        />
-      ))}
+    <div style={{ display: "flex", gap: 14, justifyContent: "center", margin: "4px 0 20px" }}>
+      {[0, 1, 2, 3].map((i) => {
+        const filled = i < length;
+        return (
+          <div
+            key={i}
+            style={{
+              width: 14,
+              height: 14,
+              borderRadius: "50%",
+              background: filled ? L.gold : "transparent",
+              border: `2px solid ${filled ? L.gold : L.border}`,
+              transition: "all 0.15s ease",
+              boxShadow: filled ? `0 0 12px ${L.gold}55` : "none",
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -234,30 +118,35 @@ function Keypad({ onPress, disabled }: { onPress: (k: string) => void; disabled:
       {PAD_KEYS.map((k) => {
         const isAction = k === "←" || k === "✓";
         const isConfirm = k === "✓";
+        const isBack = k === "←";
         return (
           <button
             key={k}
             disabled={disabled}
             onClick={() => onPress(k)}
             style={{
-              height: 58,
-              borderRadius: 10,
-              border: `1px solid ${isConfirm ? "rgba(204,17,0,0.45)" : "rgba(201,162,39,0.18)"}`,
+              height: 56,
+              borderRadius: 12,
+              border: `1px solid ${isConfirm ? L.gold : L.border}`,
               background: isConfirm
-                ? "rgba(180,15,0,0.28)"
-                : "rgba(201,162,39,0.07)",
-              color: isAction ? (isConfirm ? "#FF4422" : "#C9A227") : "rgba(201,162,39,0.88)",
+                ? `linear-gradient(135deg, ${L.gold} 0%, #9E7523 100%)`
+                : L.cream,
+              color: isConfirm ? L.cream : isBack ? L.taupeMuted : L.espresso,
               fontSize: isAction ? 18 : 20,
-              fontWeight: 700,
+              fontWeight: 600,
+              letterSpacing: isAction ? 0 : 0.5,
               cursor: disabled ? "default" : "pointer",
-              backdropFilter: "blur(6px)",
-              transition: "background 0.1s, transform 0.08s",
+              transition: "background 0.12s, transform 0.08s, box-shadow 0.15s",
               fontFamily: "system-ui, sans-serif",
               opacity: disabled ? 0.4 : 1,
+              boxShadow: isConfirm
+                ? `0 6px 14px rgba(178,136,47,0.28), inset 0 1px 0 rgba(255,255,255,0.3)`
+                : `0 1px 2px rgba(42,31,23,0.04)`,
+              touchAction: "manipulation",
             }}
-            onMouseDown={(e) => { (e.currentTarget.style.transform = "scale(0.94)"); }}
-            onMouseUp={(e) => { (e.currentTarget.style.transform = "scale(1)"); }}
-            onMouseLeave={(e) => { (e.currentTarget.style.transform = "scale(1)"); }}
+            onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.95)"; }}
+            onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
           >
             {k}
           </button>
@@ -285,8 +174,6 @@ export default function AuthPage() {
       });
       if (res.ok) {
         const user: AuthUser = await res.json();
-        // Hand the user to the transition component; login() fires when the
-        // ignite video finishes (or errors / times out).
         setPendingUser(user);
       } else {
         setError("Incorrect PIN — try again");
@@ -327,13 +214,29 @@ export default function AuthPage() {
   }, [handleKey]);
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 50, overflow: "hidden" }}>
-      <AuroraBackground />
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 50, overflow: "hidden",
+      background: `linear-gradient(180deg, ${L.pageTop} 0%, ${L.pageBottom} 100%)`,
+    }}>
+      {/* Soft gold bloom — subtle luxury backdrop */}
+      <div aria-hidden style={{
+        position: "absolute",
+        top: "-20%", left: "50%", transform: "translateX(-50%)",
+        width: "140vmin", height: "140vmin",
+        background: `radial-gradient(circle, rgba(217,184,103,0.32) 0%, rgba(217,184,103,0.12) 40%, rgba(217,184,103,0) 70%)`,
+        pointerEvents: "none",
+      }} />
+      <div aria-hidden style={{
+        position: "absolute",
+        bottom: "-30%", right: "-10%",
+        width: "80vmin", height: "80vmin",
+        background: `radial-gradient(circle, rgba(240,217,198,0.5) 0%, rgba(240,217,198,0) 70%)`,
+        pointerEvents: "none",
+      }} />
+
       <LoginVideoTransition
         active={transitioning}
-        onFinish={() => {
-          if (pendingUser) login(pendingUser);
-        }}
+        onFinish={() => { if (pendingUser) login(pendingUser); }}
       />
 
       <div
@@ -344,15 +247,14 @@ export default function AuthPage() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          height: "100%",
-          gap: 0,
+          minHeight: "100%",
+          padding: "24px 20px",
           opacity: transitioning ? 0 : 1,
           transition: transitioning ? "opacity 0.4s ease" : "none",
         }}
       >
         {/* ENISH logo — base static + flame-clipped animated layer */}
-        <div style={{ marginBottom: 36, position: "relative", display: "inline-block" }}>
-          {/* Hidden SVG filter definitions */}
+        <div style={{ marginBottom: 20, position: "relative", display: "inline-block" }}>
           <svg style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }} aria-hidden>
             <defs>
               <filter id="flame-wobble" x="-20%" y="-30%" width="140%" height="160%" colorInterpolationFilters="sRGB">
@@ -366,17 +268,15 @@ export default function AuthPage() {
             </defs>
           </svg>
 
-          {/* Static base — the full logo, always visible */}
           <img
             src={enoshLogo}
             alt="ENISH"
             className="auth-logo"
             style={{
-              filter: "drop-shadow(0 0 28px rgba(201,162,39,0.4)) drop-shadow(0 0 10px rgba(204,17,0,0.25))",
+              filter: "drop-shadow(0 10px 24px rgba(42,31,23,0.18)) drop-shadow(0 0 18px rgba(217,184,103,0.35))",
             }}
           />
 
-          {/* Animated flame layer — same image, clipped to the flame column, turbulence filter applied */}
           <div
             style={{
               position: "absolute",
@@ -398,15 +298,30 @@ export default function AuthPage() {
           </div>
         </div>
 
-        {/* Tagline */}
+        {/* Portal title */}
+        <h1 style={{
+          margin: "0 0 6px",
+          fontSize: 22,
+          fontWeight: 600,
+          letterSpacing: -0.3,
+          color: L.espresso,
+          fontFamily: "system-ui, sans-serif",
+          textAlign: "center",
+        }}>
+          Enish Employee Portal
+        </h1>
+
+        {/* Subtitle */}
         <p
           style={{
-            color: "rgba(201,162,39,0.45)",
+            color: L.gold,
             fontSize: 10,
-            letterSpacing: 5,
+            letterSpacing: 4,
             textTransform: "uppercase",
-            marginBottom: 28,
+            marginTop: 0,
+            marginBottom: 26,
             fontFamily: "system-ui, sans-serif",
+            fontWeight: 600,
           }}
         >
           Enter PIN to continue
@@ -416,12 +331,11 @@ export default function AuthPage() {
         <div
           className={`pin-card${shake ? " pin-shake" : ""}`}
           style={{
-            background: "rgba(12,6,4,0.72)",
-            border: "1px solid rgba(201,162,39,0.15)",
-            borderRadius: 16,
-            padding: "24px 28px 28px",
-            backdropFilter: "blur(20px)",
-            boxShadow: "0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,162,39,0.06)",
+            background: L.cream,
+            border: `1px solid ${L.border}`,
+            borderRadius: 20,
+            padding: "24px 24px 28px",
+            boxShadow: `0 1px 2px rgba(42,31,23,0.05), 0 24px 48px -20px rgba(42,31,23,0.2), inset 0 1px 0 rgba(255,255,255,0.6)`,
           }}
         >
           <PinDots length={pin.length} />
@@ -429,7 +343,7 @@ export default function AuthPage() {
           {error ? (
             <p
               style={{
-                color: "#FF4422",
+                color: L.rose,
                 fontSize: 12,
                 textAlign: "center",
                 marginBottom: 14,
@@ -446,6 +360,19 @@ export default function AuthPage() {
 
           <Keypad onPress={handleKey} disabled={transitioning} />
         </div>
+
+        {/* Footer attribution */}
+        <p style={{
+          marginTop: 22,
+          fontSize: 10,
+          letterSpacing: 2.5,
+          textTransform: "uppercase",
+          color: L.taupeMuted,
+          fontFamily: "system-ui, sans-serif",
+          textAlign: "center",
+        }}>
+          ENISH USA · Hospitality
+        </p>
       </div>
     </div>
   );
