@@ -4,8 +4,9 @@ import {
   LayoutDashboard, Calendar, Wand2, Users, Map, BookOpen,
   UserSquare, BarChart, Clock, CalendarOff, DollarSign, Coins,
   FileText, Library, MessageSquare, Settings, MapPin, Menu, X, CalendarCheck, Plug,
-  LogOut, Bell,
+  LogOut, Bell, KeyRound,
 } from "lucide-react";
+import { ChangePinDialog } from "@/components/change-pin-dialog";
 import { useAuth } from "@/contexts/auth-context";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 
@@ -62,6 +63,7 @@ export function Layout({ children, isEmployee = false }: { children: React.React
   const { logout, user } = useAuth();
   const { subscribe, state: pushState } = usePushNotifications();
   const navItems = isEmployee ? employeeNavItems : managerNavItems;
+  const [changePinOpen, setChangePinOpen] = useState(false);
 
   // Track current browser-level permission so the Enable button only shows
   // when there's something useful to click.
@@ -275,6 +277,51 @@ export function Layout({ children, isEmployee = false }: { children: React.React
                 </button>
               </div>
 
+              {/* Change PIN — always available to the logged-in user.
+                  Important for staff to rotate away from the auto-seeded
+                  "last 4 of phone" PIN after their first sign-in. */}
+              {user ? (
+                <div style={{
+                  borderTop: `1px solid ${G.border}`,
+                  padding: "10px 14px",
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => { setOpen(false); setChangePinOpen(true); }}
+                    style={{
+                      width: "100%",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      padding: "8px 12px",
+                      borderRadius: 10,
+                      border: `1px solid ${G.border}`,
+                      background: "transparent",
+                      color: G.champ,
+                      fontSize: 11,
+                      letterSpacing: 1.4,
+                      textTransform: "uppercase",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      transition: "background 0.15s ease, border-color 0.15s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.background = G.goldDim;
+                      (e.currentTarget as HTMLElement).style.borderColor = G.goldHair;
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.background = "transparent";
+                      (e.currentTarget as HTMLElement).style.borderColor = G.border;
+                    }}
+                  >
+                    <KeyRound size={12} />
+                    Change PIN
+                  </button>
+                </div>
+              ) : null}
+
               {/* Enable notifications — shown when the browser hasn't
                   granted permission yet. Must be triggered by a user
                   gesture on iOS Safari / installed PWA. */}
@@ -390,6 +437,12 @@ export function Layout({ children, isEmployee = false }: { children: React.React
       >
         {open ? <X size={22} /> : <Menu size={22} />}
       </button>
+
+      <ChangePinDialog
+        open={changePinOpen}
+        onOpenChange={setChangePinOpen}
+        userId={user?.id ?? null}
+      />
     </div>
   );
 }
