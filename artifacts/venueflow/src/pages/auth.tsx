@@ -192,7 +192,11 @@ function LoginVideoTransition({ active, onFinish }: { active: boolean; onFinish:
         inset: 0,
         width: "100%",
         height: "100%",
-        objectFit: "cover",
+        // `contain` keeps the whole frame in view on narrow phone
+        // viewports — previously `cover` cropped the sides and made
+        // the video feel clipped. The surrounding background is #000
+        // so any letterbox bars blend in seamlessly.
+        objectFit: "contain",
         background: "#000",
         zIndex: 100,
         pointerEvents: "none",
