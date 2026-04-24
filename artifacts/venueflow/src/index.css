@@ -241,7 +241,16 @@ html, body {
 ::-webkit-scrollbar-thumb { background: rgba(178,136,47,0.28); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(178,136,47,0.45); }
 
-/* ── Logo flame animation ─────────────────────────── */
+/* ── Whole-flame body sway (pairs with SMIL path morphs) ─── */
+@keyframes flame-sway {
+  0%   { transform: rotate(-1.2deg) scaleY(0.98) scaleX(1.02); }
+  25%  { transform: rotate(0.8deg)  scaleY(1.04) scaleX(0.98); }
+  50%  { transform: rotate(-0.6deg) scaleY(1.02) scaleX(1.01); }
+  75%  { transform: rotate(1.4deg)  scaleY(1.05) scaleX(0.97); }
+  100% { transform: rotate(-1.2deg) scaleY(0.98) scaleX(1.02); }
+}
+
+/* ── Logo flame animation (legacy — left in for any other callers) ─ */
 .logo-flame-dance {
   animation: logo-flame-dance 0.72s ease-in-out infinite;
 }

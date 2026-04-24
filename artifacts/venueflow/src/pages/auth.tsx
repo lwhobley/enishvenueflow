@@ -19,6 +19,95 @@ const L = {
   rose:         "#8A3D3D",
 };
 
+function LogoFlame() {
+  // SVG flame shaped to roughly fill where the "I" sits in the ENISH logo.
+  // Three nested paths (outer/mid/core) with SMIL morph animations so the
+  // flame breathes without any canvas overhead. CSS jitter on the wrapper
+  // adds subtle rotation/scale so the whole thing feels alive.
+  return (
+    <svg
+      viewBox="0 0 100 200"
+      preserveAspectRatio="xMidYMax meet"
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        overflow: "visible",
+        pointerEvents: "none",
+        filter: "drop-shadow(0 0 18px rgba(255,120,0,0.55)) drop-shadow(0 0 6px rgba(255,60,0,0.45))",
+        transformOrigin: "50% 100%",
+        animation: "flame-sway 2.3s ease-in-out infinite",
+      }}
+      aria-hidden
+    >
+      <defs>
+        <radialGradient id="flame-outer" cx="50%" cy="88%" r="62%">
+          <stop offset="0%" stopColor="#FFC76B" stopOpacity="0.95" />
+          <stop offset="45%" stopColor="#E85D04" stopOpacity="0.85" />
+          <stop offset="80%" stopColor="#9D0208" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="#9D0208" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="flame-mid" cx="50%" cy="90%" r="55%">
+          <stop offset="0%" stopColor="#FFF4B0" stopOpacity="1" />
+          <stop offset="35%" stopColor="#FFD166" stopOpacity="0.95" />
+          <stop offset="70%" stopColor="#FF8A00" stopOpacity="0.6" />
+          <stop offset="100%" stopColor="#FF4500" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="flame-core" cx="50%" cy="90%" r="35%">
+          <stop offset="0%" stopColor="#FFFBEA" />
+          <stop offset="60%" stopColor="#FFE28A" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#FFC76B" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
+      {/* Outer plume */}
+      <path fill="url(#flame-outer)">
+        <animate
+          attributeName="d"
+          dur="0.55s"
+          repeatCount="indefinite"
+          values="
+            M50,200 C8,182 10,120 28,82 C36,58 46,30 50,0 C54,30 64,58 72,82 C90,120 92,182 50,200 Z;
+            M50,200 C14,186 16,126 34,86 C42,62 48,34 50,6 C52,34 58,62 66,86 C84,126 86,186 50,200 Z;
+            M50,200 C6,180 8,116 26,78 C34,54 44,26 50,-4 C56,26 66,54 74,78 C92,116 94,180 50,200 Z;
+            M50,200 C8,182 10,120 28,82 C36,58 46,30 50,0 C54,30 64,58 72,82 C90,120 92,182 50,200 Z
+          "
+        />
+      </path>
+
+      {/* Middle body */}
+      <path fill="url(#flame-mid)">
+        <animate
+          attributeName="d"
+          dur="0.42s"
+          repeatCount="indefinite"
+          values="
+            M50,196 C26,178 28,138 38,110 C42,90 47,62 50,36 C53,62 58,90 62,110 C72,138 74,178 50,196 Z;
+            M50,196 C30,178 32,142 40,114 C44,94 48,66 50,42 C52,66 56,94 60,114 C68,142 70,178 50,196 Z;
+            M50,196 C24,176 26,136 36,108 C41,88 46,60 50,32 C54,60 59,88 64,108 C74,136 76,176 50,196 Z;
+            M50,196 C26,178 28,138 38,110 C42,90 47,62 50,36 C53,62 58,90 62,110 C72,138 74,178 50,196 Z
+          "
+        />
+      </path>
+
+      {/* Inner hot core */}
+      <path fill="url(#flame-core)">
+        <animate
+          attributeName="d"
+          dur="0.32s"
+          repeatCount="indefinite"
+          values="
+            M50,190 C40,176 42,152 46,130 C48,110 49,88 50,76 C51,88 52,110 54,130 C58,152 60,176 50,190 Z;
+            M50,190 C43,176 45,154 47,134 C48,116 50,96 50,82 C50,96 52,116 53,134 C55,154 57,176 50,190 Z;
+            M50,190 C40,176 42,152 46,130 C48,110 49,88 50,76 C51,88 52,110 54,130 C58,152 60,176 50,190 Z
+          "
+        />
+      </path>
+    </svg>
+  );
+}
+
 function LoginVideoTransition({ active, onFinish }: { active: boolean; onFinish: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const finishedRef = useRef(false);
@@ -253,48 +342,48 @@ export default function AuthPage() {
           transition: transitioning ? "opacity 0.4s ease" : "none",
         }}
       >
-        {/* ENISH logo — base static + flame-clipped animated layer */}
+        {/* ENISH logo — the "I" is hidden from the original artwork and
+            replaced with a live SVG flame. Two copies of the logo with
+            complementary clip-paths render the left (E, N) and right
+            (S, H) halves; the flame fills the gap in between. */}
         <div style={{ marginBottom: 20, position: "relative", display: "inline-block" }}>
-          <svg style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }} aria-hidden>
-            <defs>
-              <filter id="flame-wobble" x="-20%" y="-30%" width="140%" height="160%" colorInterpolationFilters="sRGB">
-                <feTurbulence type="turbulence" baseFrequency="0.018 0.08" numOctaves="3" seed="5" result="noise">
-                  <animate attributeName="baseFrequency" values="0.018 0.08;0.032 0.12;0.022 0.09;0.014 0.07;0.028 0.11;0.018 0.08" dur="0.55s" repeatCount="indefinite" />
-                  <animate attributeName="seed" values="5;12;7;19;3;5" dur="2.4s" repeatCount="indefinite" />
-                </feTurbulence>
-                <feDisplacementMap in="SourceGraphic" in2="noise" scale="5" xChannelSelector="R" yChannelSelector="G" result="displaced" />
-                <feComposite in="displaced" in2="SourceGraphic" operator="atop" />
-              </filter>
-            </defs>
-          </svg>
-
           <img
             src={enoshLogo}
             alt="ENISH"
             className="auth-logo"
             style={{
+              display: "block",
+              clipPath: "inset(0 63% 0 0)",
               filter: "drop-shadow(0 10px 24px rgba(42,31,23,0.18)) drop-shadow(0 0 18px rgba(217,184,103,0.35))",
             }}
           />
-
+          <img
+            src={enoshLogo}
+            aria-hidden
+            alt=""
+            className="auth-logo"
+            style={{
+              display: "block",
+              position: "absolute",
+              top: 0,
+              left: 0,
+              clipPath: "inset(0 0 0 56%)",
+              filter: "drop-shadow(0 10px 24px rgba(42,31,23,0.18)) drop-shadow(0 0 18px rgba(217,184,103,0.35))",
+            }}
+          />
+          {/* Flame replaces the I column. Slightly taller + wider than the
+              gap so the plume licks up past the top of the letters. */}
           <div
             style={{
               position: "absolute",
-              inset: 0,
-              clipPath: "inset(0 44% 0 37%)",
+              left: "34%",
+              width: "25%",
+              top: "-15%",
+              bottom: "-2%",
               pointerEvents: "none",
-              overflow: "visible",
             }}
           >
-            <img
-              src={enoshLogo}
-              alt=""
-              aria-hidden
-              className="auth-logo logo-flame-dance"
-              style={{
-                transformOrigin: "50% 88%",
-              }}
-            />
+            <LogoFlame />
           </div>
         </div>
 
