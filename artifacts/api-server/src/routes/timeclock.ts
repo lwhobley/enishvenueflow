@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { timeClockEntries, timeOffRequests, users, shifts, venues } from "@workspace/db";
 import { eq, and, gte, lte, or } from "drizzle-orm";
 import { adpStatus, isAdpConfigured, pushTimeEntry, pullRecentEntries } from "../lib/adp";
+import { notifyManagers, notifyUser } from "../lib/push";
 
 const router = Router();
 
@@ -432,6 +433,13 @@ router.post("/time-off", async (req, res) => {
     const [req_] = await db.insert(timeOffRequests)
       .values({ userId, venueId, startDate, endDate, type, notes: notes ?? null }).returning();
     res.status(201).json(req_);
+    const [requester] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, userId));
+    void notifyManagers(venueId, {
+      title: "New time-off request",
+      body: `${requester?.fullName ?? "An employee"} requested ${type} from ${startDate} to ${endDate}`,
+      url: "/manager/time-off",
+      tag: `time-off-${req_.id}`,
+    });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to create time-off request" });
@@ -445,6 +453,12 @@ router.put("/time-off/:id/approve", async (req, res) => {
       .where(eq(timeOffRequests.id, id)).returning();
     if (!updated) return res.status(404).json({ message: "Request not found" });
     res.json(updated);
+    void notifyUser(updated.userId, {
+      title: "Time-off approved",
+      body: `${updated.type} · ${updated.startDate} to ${updated.endDate}`,
+      url: "/employee/schedule",
+      tag: `time-off-${id}`,
+    });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to approve" });
@@ -458,6 +472,12 @@ router.put("/time-off/:id/deny", async (req, res) => {
       .where(eq(timeOffRequests.id, id)).returning();
     if (!updated) return res.status(404).json({ message: "Request not found" });
     res.json(updated);
+    void notifyUser(updated.userId, {
+      title: "Time-off denied",
+      body: `${updated.type} · ${updated.startDate} to ${updated.endDate}`,
+      url: "/employee/schedule",
+      tag: `time-off-${id}`,
+    });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to deny" });

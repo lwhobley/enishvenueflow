@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { messages, notifications, documents, users } from "@workspace/db";
 import { eq, and, lte } from "drizzle-orm";
 import { sql } from "drizzle-orm";
+import { notifyVenue } from "../lib/push";
 
 const router = Router();
 
@@ -26,7 +27,19 @@ router.post("/messages", async (req, res) => {
     if (!venueId || !senderId || !channel || !content) return res.status(400).json({ message: "venueId, senderId, channel, content required" });
     const [msg] = await db.insert(messages).values({ venueId, senderId, channel, content }).returning();
     const [user] = await db.select().from(users).where(eq(users.id, senderId));
-    res.status(201).json({ ...msg, senderName: user?.fullName ?? null });
+    const senderName = user?.fullName ?? "Team";
+    res.status(201).json({ ...msg, senderName });
+    // Fan out a push to every other subscriber in the venue.
+    void notifyVenue(
+      venueId,
+      {
+        title: `${senderName} in #${channel}`,
+        body: String(content).slice(0, 180),
+        url: `/manager/chat`,
+        tag: `chat-${venueId}-${channel}`,
+      },
+      { exceptUserId: senderId },
+    );
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to send message" });

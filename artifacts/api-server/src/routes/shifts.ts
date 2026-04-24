@@ -2,6 +2,21 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { shifts, shiftRequests, users, roles, schedules } from "@workspace/db";
 import { eq, and, inArray, gte, lte } from "drizzle-orm";
+import { notifyUser, notifyManagers } from "../lib/push";
+
+// Build a human-readable shift summary for push bodies.
+function describeShift(s: { startTime: Date | string; endTime: Date | string }): string {
+  const start = new Date(s.startTime);
+  const end = new Date(s.endTime);
+  const day = start.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const t = (d: Date) => d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return `${day}, ${t(start)}–${t(end)}`;
+}
+
+async function venueIdForSchedule(scheduleId: string): Promise<string | null> {
+  const [row] = await db.select({ venueId: schedules.venueId }).from(schedules).where(eq(schedules.id, scheduleId));
+  return row?.venueId ?? null;
+}
 
 const router = Router();
 
@@ -72,6 +87,14 @@ router.post("/shifts", async (req, res) => {
     }).returning();
     const [enriched] = await enrichShifts([shift]);
     res.status(201).json(enriched);
+    if (shift.userId) {
+      void notifyUser(shift.userId, {
+        title: "New shift scheduled",
+        body: `${enriched.roleName ?? "Shift"} · ${describeShift(shift)}`,
+        url: "/employee/schedule",
+        tag: `shift-${shift.id}`,
+      });
+    }
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to create shift" });
@@ -117,8 +140,21 @@ router.delete("/shifts/bulk", async (req, res) => {
   try {
     const { ids } = req.body;
     if (!Array.isArray(ids)) return res.status(400).json({ message: "ids array required" });
+    // Grab assignees first so we can notify them after the delete.
+    const deletedRows = await db
+      .select({ id: shifts.id, userId: shifts.userId, startTime: shifts.startTime, endTime: shifts.endTime })
+      .from(shifts).where(inArray(shifts.id, ids));
     await db.delete(shifts).where(inArray(shifts.id, ids));
     res.json({ message: "Shifts deleted" });
+    for (const r of deletedRows) {
+      if (!r.userId) continue;
+      void notifyUser(r.userId, {
+        title: "Shift removed",
+        body: describeShift(r),
+        url: "/employee/schedule",
+        tag: `shift-${r.id}`,
+      });
+    }
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to delete shifts" });
@@ -171,6 +207,7 @@ router.put("/shifts/:id/assign", async (req, res) => {
   try {
     const { id } = req.params;
     const { userId } = req.body;
+    const [prior] = await db.select().from(shifts).where(eq(shifts.id, id));
     const [updated] = await db.update(shifts).set({
       userId: userId ?? null,
       status: userId ? "scheduled" : "open",
@@ -178,6 +215,22 @@ router.put("/shifts/:id/assign", async (req, res) => {
     if (!updated) return res.status(404).json({ message: "Shift not found" });
     const [enriched] = await enrichShifts([updated]);
     res.json(enriched);
+    if (userId && userId !== prior?.userId) {
+      void notifyUser(userId, {
+        title: "Shift assigned to you",
+        body: `${enriched.roleName ?? "Shift"} · ${describeShift(updated)}`,
+        url: "/employee/schedule",
+        tag: `shift-${id}`,
+      });
+    }
+    if (prior?.userId && prior.userId !== userId) {
+      void notifyUser(prior.userId, {
+        title: "Shift reassigned",
+        body: `${enriched.roleName ?? "Shift"} · ${describeShift(updated)}`,
+        url: "/employee/schedule",
+        tag: `shift-${id}`,
+      });
+    }
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to assign shift" });
@@ -193,6 +246,16 @@ router.post("/shifts/:id/pickup", async (req, res) => {
     if (!updated) return res.status(400).json({ message: "Shift not available for pickup" });
     const [enriched] = await enrichShifts([updated]);
     res.json(enriched);
+    const venueId = await venueIdForSchedule(updated.scheduleId);
+    if (venueId) {
+      const [picker] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, userId));
+      void notifyManagers(venueId, {
+        title: "Shift picked up",
+        body: `${picker?.fullName ?? "An employee"} claimed ${enriched.roleName ?? "a shift"} · ${describeShift(updated)}`,
+        url: "/manager/schedule",
+        tag: `shift-pickup-${id}`,
+      });
+    }
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to pickup shift" });
@@ -205,6 +268,7 @@ router.put("/shifts/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const { userId, roleId, sectionId, startTime, endTime, notes, status } = req.body;
+    const [prior] = await db.select().from(shifts).where(eq(shifts.id, id));
     const updates: Record<string, unknown> = {};
     if (userId !== undefined) {
       updates.userId = userId;
@@ -220,6 +284,39 @@ router.put("/shifts/:id", async (req, res) => {
     if (!updated) return res.status(404).json({ message: "Shift not found" });
     const [enriched] = await enrichShifts([updated]);
     res.json(enriched);
+
+    // Push: notify anyone affected by the change.
+    const priorUser = prior?.userId ?? null;
+    const newUser = updated.userId ?? null;
+    const timeChanged =
+      !!prior &&
+      (new Date(prior.startTime).getTime() !== new Date(updated.startTime).getTime() ||
+        new Date(prior.endTime).getTime() !== new Date(updated.endTime).getTime());
+    const roleChanged = !!prior && prior.roleId !== updated.roleId;
+
+    if (newUser && newUser !== priorUser) {
+      void notifyUser(newUser, {
+        title: "Shift assigned to you",
+        body: `${enriched.roleName ?? "Shift"} · ${describeShift(updated)}`,
+        url: "/employee/schedule",
+        tag: `shift-${id}`,
+      });
+    } else if (newUser && (timeChanged || roleChanged)) {
+      void notifyUser(newUser, {
+        title: "Your shift was updated",
+        body: `${enriched.roleName ?? "Shift"} · ${describeShift(updated)}`,
+        url: "/employee/schedule",
+        tag: `shift-${id}`,
+      });
+    }
+    if (priorUser && priorUser !== newUser) {
+      void notifyUser(priorUser, {
+        title: "Shift reassigned",
+        body: `${enriched.roleName ?? "Shift"} · ${describeShift(updated)}`,
+        url: "/employee/schedule",
+        tag: `shift-${id}`,
+      });
+    }
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to update shift" });
@@ -229,9 +326,18 @@ router.put("/shifts/:id", async (req, res) => {
 router.delete("/shifts/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const deleted = await db.delete(shifts).where(eq(shifts.id, id)).returning({ id: shifts.id });
+    const deleted = await db.delete(shifts).where(eq(shifts.id, id)).returning();
     if (deleted.length === 0) return res.status(404).json({ message: "Shift not found" });
     res.json({ message: "Shift deleted" });
+    const row = deleted[0];
+    if (row?.userId) {
+      void notifyUser(row.userId, {
+        title: "Shift removed",
+        body: describeShift(row),
+        url: "/employee/schedule",
+        tag: `shift-${id}`,
+      });
+    }
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to delete shift" });

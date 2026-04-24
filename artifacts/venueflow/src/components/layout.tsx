@@ -4,9 +4,10 @@ import {
   LayoutDashboard, Calendar, Wand2, Users, Map, BookOpen,
   UserSquare, BarChart, Clock, CalendarOff, DollarSign, Coins,
   FileText, Library, MessageSquare, Settings, MapPin, Menu, X, CalendarCheck, Plug,
-  LogOut,
+  LogOut, Bell,
 } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 
 // ── Fine dining light luxury palette ─────────────────────────────────────────
 const G = {
@@ -57,13 +58,36 @@ export function Layout({ children, isEmployee = false }: { children: React.React
   const [location] = useLocation();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const { subscribe, state: pushState } = usePushNotifications();
   const navItems = isEmployee ? employeeNavItems : managerNavItems;
+
+  // Track current browser-level permission so the Enable button only shows
+  // when there's something useful to click.
+  const [pushPermission, setPushPermission] = useState<NotificationPermission>(() => {
+    if (typeof Notification === "undefined") return "denied";
+    return Notification.permission;
+  });
 
   const handleLogout = () => {
     setOpen(false);
     logout();
   };
+
+  const handleEnableNotifications = async () => {
+    if (!user) return;
+    // Must call from a user gesture on iOS Safari / installed PWA.
+    await subscribe(user.id, user.venueId);
+    if (typeof Notification !== "undefined") setPushPermission(Notification.permission);
+  };
+
+  const showEnableNotifications =
+    !!user &&
+    typeof Notification !== "undefined" &&
+    "PushManager" in window &&
+    pushPermission !== "granted" &&
+    pushState !== "subscribed" &&
+    pushState !== "unsupported";
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -242,6 +266,43 @@ export function Layout({ children, isEmployee = false }: { children: React.React
                   Log out
                 </button>
               </div>
+
+              {/* Enable notifications — shown when the browser hasn't
+                  granted permission yet. Must be triggered by a user
+                  gesture on iOS Safari / installed PWA. */}
+              {showEnableNotifications ? (
+                <div style={{
+                  borderTop: `1px solid ${G.border}`,
+                  padding: "10px 14px",
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => { void handleEnableNotifications(); }}
+                    disabled={pushState === "requesting"}
+                    style={{
+                      width: "100%",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      padding: "8px 12px",
+                      borderRadius: 10,
+                      border: `1px solid ${G.goldHair}`,
+                      background: G.goldDim,
+                      color: G.gold,
+                      fontSize: 11,
+                      letterSpacing: 1.4,
+                      textTransform: "uppercase",
+                      fontWeight: 700,
+                      cursor: pushState === "requesting" ? "default" : "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    <Bell size={12} />
+                    {pushState === "requesting" ? "Requesting…" : pushState === "denied" || pushPermission === "denied" ? "Notifications blocked — enable in browser settings" : "Enable notifications"}
+                  </button>
+                </div>
+              ) : null}
 
               {/* Build stamp — lets you confirm at a glance whether two
                   devices are running the same deploy. */}
