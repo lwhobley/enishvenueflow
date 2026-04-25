@@ -5,6 +5,7 @@ import {
   useListSchedules, getListSchedulesQueryKey,
   useCreateSchedule,
   useCreateShift,
+  useBulkCreateShifts,
   useListRoles, getListRolesQueryKey,
   useListUsers, getListUsersQueryKey,
 } from "@workspace/api-client-react";
@@ -13,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -25,12 +27,17 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Plus, ChevronLeft, ChevronRight, Trash2, Loader2, Calendar as CalendarIcon,
+  Users as UsersIcon, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth,
   isToday, parseISO, startOfMonth, startOfWeek,
 } from "date-fns";
+import {
+  useVenueAvailability, statusForUserOnDate, shortAvailabilityLabel,
+  type AvailabilityRow, type AvailabilityStatus,
+} from "@/lib/availability";
 
 type ShiftRow = {
   id: string;
@@ -85,6 +92,7 @@ export default function ManagerSchedule() {
 
   const [cursor, setCursor] = useState<Date>(() => startOfMonth(new Date()));
   const [addOpen, setAddOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [addDate, setAddDate] = useState<string>(() => isoDay(new Date()));
   const [editing, setEditing] = useState<ShiftRow | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -126,6 +134,9 @@ export default function ManagerSchedule() {
 
   const createSchedule = useCreateSchedule();
   const createShift = useCreateShift();
+  const bulkCreateShifts = useBulkCreateShifts();
+
+  const { data: availability } = useVenueAvailability(venueId);
 
   const updateShiftMut = useMutation({
     mutationFn: async (input: { id: string; data: Record<string, unknown> }) => {
@@ -223,6 +234,14 @@ export default function ManagerSchedule() {
               <Trash2 className="w-4 h-4 mr-2" /> Clear schedule
             </Button>
           ) : null}
+          {isAdmin ? (
+            <Button
+              variant="outline"
+              onClick={() => { setAddDate(isoDay(new Date())); setBulkOpen(true); }}
+            >
+              <UsersIcon className="w-4 h-4 mr-2" /> Bulk Add
+            </Button>
+          ) : null}
           <Button onClick={() => { setAddDate(isoDay(new Date())); setAddOpen(true); }}>
             <Plus className="w-4 h-4 mr-2" /> Add Shift
           </Button>
@@ -291,6 +310,7 @@ export default function ManagerSchedule() {
         initialDate={addDate}
         roles={roles ?? []}
         users={users ?? []}
+        availability={availability}
         saving={createShift.isPending || createSchedule.isPending}
         onSubmit={async (input) => {
           if (!venueId) { toast({ title: "No active venue", variant: "destructive" }); return; }
@@ -330,6 +350,7 @@ export default function ManagerSchedule() {
         initialShift={editing}
         roles={roles ?? []}
         users={users ?? []}
+        availability={availability}
         saving={updateShiftMut.isPending || deleteShiftMut.isPending}
         onDelete={async () => {
           if (!editing) return;
@@ -363,6 +384,54 @@ export default function ManagerSchedule() {
           } catch (err) {
             toast({
               title: "Failed to update",
+              description: err instanceof Error ? err.message : "Unknown error",
+              variant: "destructive",
+            });
+          }
+        }}
+      />
+
+      {/* Bulk add dialog (admin only) */}
+      <BulkShiftDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        initialDate={addDate}
+        roles={roles ?? []}
+        users={users ?? []}
+        availability={availability}
+        saving={bulkCreateShifts.isPending || createSchedule.isPending}
+        onSubmit={async (input) => {
+          if (!venueId) { toast({ title: "No active venue", variant: "destructive" }); return; }
+          if (input.userIds.length === 0) {
+            toast({ title: "Pick at least one employee", variant: "destructive" });
+            return;
+          }
+          try {
+            const scheduleId = await ensureScheduleForDate(input.date);
+            if (!scheduleId) throw new Error("Couldn't create the week's schedule");
+            const startIso = combineDateAndTimeToIso(input.date, input.startTime);
+            const endIso = combineDateAndTimeToIso(input.date, input.endTime);
+            await bulkCreateShifts.mutateAsync({
+              data: {
+                shifts: input.userIds.map((uid) => ({
+                  scheduleId,
+                  userId: uid,
+                  roleId: input.roleId,
+                  startTime: startIso,
+                  endTime: endIso,
+                  notes: input.notes || undefined,
+                })),
+              },
+            });
+            await qc.invalidateQueries({ queryKey: shiftsKey });
+            toast({
+              title: `Added ${input.userIds.length} shift${input.userIds.length === 1 ? "" : "s"}`,
+            });
+            setBulkOpen(false);
+          } catch (err) {
+            console.error(err);
+            toast({
+              title: "Failed to add shifts",
               description: err instanceof Error ? err.message : "Unknown error",
               variant: "destructive",
             });
@@ -461,7 +530,7 @@ type ShiftInput = {
 };
 
 function ShiftDialog({
-  mode, open, onOpenChange, initialDate, initialShift, roles, users,
+  mode, open, onOpenChange, initialDate, initialShift, roles, users, availability,
   onSubmit, onDelete, saving,
 }: {
   mode: "add" | "edit";
@@ -471,6 +540,7 @@ function ShiftDialog({
   initialShift?: ShiftRow | null;
   roles: Role[];
   users: UserRow[];
+  availability: AvailabilityRow[] | undefined;
   onSubmit: (input: ShiftInput) => void | Promise<void>;
   onDelete?: () => void | Promise<void>;
   saving: boolean;
@@ -554,9 +624,33 @@ function ShiftDialog({
               <SelectTrigger id="sh-user"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__open__">Open shift (anyone can pick up)</SelectItem>
-                {users.map((u) => <SelectItem key={u.id} value={u.id}>{u.fullName}</SelectItem>)}
+                {users.map((u) => {
+                  const status = statusForUserOnDate(availability, u.id, form.date, form.startTime, form.endTime);
+                  const tag = shortAvailabilityLabel(status);
+                  return (
+                    <SelectItem key={u.id} value={u.id}>
+                      <span className="flex items-center gap-2">
+                        <span>{u.fullName}</span>
+                        {tag ? (
+                          <span
+                            className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                              status.kind === "off"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-amber-100 text-amber-800"
+                            }`}
+                          >
+                            {tag}
+                          </span>
+                        ) : null}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
+            <AvailabilityHint
+              status={statusForUserOnDate(availability, form.userId, form.date, form.startTime, form.endTime)}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="sh-notes">Notes (optional)</Label>
@@ -579,5 +673,227 @@ function ShiftDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function AvailabilityHint({ status }: { status: AvailabilityStatus }) {
+  if (status.kind === "ok" || status.kind === "unset") return null;
+  return (
+    <div
+      className={`flex items-start gap-2 text-xs rounded-md px-2.5 py-2 ${
+        status.kind === "off"
+          ? "bg-red-50 text-red-800 border border-red-200"
+          : "bg-amber-50 text-amber-800 border border-amber-200"
+      }`}
+    >
+      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+      <span>{status.reason}</span>
+    </div>
+  );
+}
+
+type BulkShiftInput = {
+  date: string;
+  startTime: string;
+  endTime: string;
+  roleId: string;
+  userIds: string[];
+  notes: string;
+};
+
+function BulkShiftDialog({
+  open, onOpenChange, initialDate, roles, users, availability, onSubmit, saving,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  initialDate: string;
+  roles: Role[];
+  users: UserRow[];
+  availability: AvailabilityRow[] | undefined;
+  onSubmit: (input: BulkShiftInput) => void | Promise<void>;
+  saving: boolean;
+}) {
+  const [form, setForm] = useState<BulkShiftInput>(() => ({
+    date: initialDate,
+    startTime: "17:00",
+    endTime: "22:00",
+    roleId: "",
+    userIds: [],
+    notes: "",
+  }));
+
+  // Reset selection whenever the dialog reopens.
+  const keyState = `${open}-${initialDate}`;
+  const [lastKey, setLastKey] = useState(keyState);
+  if (open && keyState !== lastKey) {
+    setLastKey(keyState);
+    setForm({ date: initialDate, startTime: "17:00", endTime: "22:00", roleId: "", userIds: [], notes: "" });
+  }
+
+  const update = <K extends keyof BulkShiftInput>(key: K, value: BulkShiftInput[K]) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
+
+  const toggleUser = (id: string) => {
+    setForm((prev) => ({
+      ...prev,
+      userIds: prev.userIds.includes(id) ? prev.userIds.filter((x) => x !== id) : [...prev.userIds, id],
+    }));
+  };
+
+  const sortedUsers = useMemo(() => {
+    return [...users].sort((a, b) => a.fullName.localeCompare(b.fullName));
+  }, [users]);
+
+  const conflictedSelected = form.userIds
+    .map((id) => ({
+      id,
+      name: users.find((u) => u.id === id)?.fullName ?? id,
+      status: statusForUserOnDate(availability, id, form.date, form.startTime, form.endTime),
+    }))
+    .filter((row) => row.status.kind === "off" || row.status.kind === "outside");
+
+  const canSubmit =
+    !!form.date && !!form.startTime && !!form.endTime && !!form.roleId &&
+    form.startTime < form.endTime && form.userIds.length > 0;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!saving) onOpenChange(v); }}>
+      <DialogContent className="sm:max-w-[640px]">
+        <DialogHeader>
+          <DialogTitle>Bulk add shifts</DialogTitle>
+          <DialogDescription>
+            Pick a date, time, and role, then check off everyone who should work this shift.
+            One shift will be created per employee.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-1.5 sm:col-span-1">
+              <Label htmlFor="bulk-date">Date</Label>
+              <Input id="bulk-date" type="date" value={form.date} onChange={(e) => update("date", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="bulk-start">Start</Label>
+              <Input id="bulk-start" type="time" value={form.startTime} onChange={(e) => update("startTime", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="bulk-end">End</Label>
+              <Input id="bulk-end" type="time" value={form.endTime} onChange={(e) => update("endTime", e.target.value)} />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="bulk-role">Role</Label>
+            {roles.length === 0 ? (
+              <div className="text-sm text-muted-foreground border rounded-md px-3 py-2 bg-muted">
+                No roles configured yet. Add roles on the Employees page first.
+              </div>
+            ) : (
+              <Select value={form.roleId} onValueChange={(v) => update("roleId", v)}>
+                <SelectTrigger id="bulk-role"><SelectValue placeholder="Choose a role" /></SelectTrigger>
+                <SelectContent>
+                  {roles.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label>Employees ({form.userIds.length} selected)</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button" variant="ghost" size="sm"
+                  onClick={() => update("userIds", sortedUsers.map((u) => u.id))}
+                  disabled={sortedUsers.length === 0}
+                >
+                  Select all
+                </Button>
+                <Button
+                  type="button" variant="ghost" size="sm"
+                  onClick={() => update("userIds", [])}
+                  disabled={form.userIds.length === 0}
+                >
+                  Clear
+                </Button>
+              </div>
+            </div>
+            <div className="border rounded-md max-h-72 overflow-y-auto divide-y">
+              {sortedUsers.length === 0 ? (
+                <div className="text-sm text-muted-foreground px-3 py-4 text-center">
+                  No employees yet.
+                </div>
+              ) : sortedUsers.map((u) => {
+                const status = statusForUserOnDate(availability, u.id, form.date, form.startTime, form.endTime);
+                const checked = form.userIds.includes(u.id);
+                return (
+                  <label
+                    key={u.id}
+                    className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-accent/40"
+                  >
+                    <Checkbox checked={checked} onCheckedChange={() => toggleUser(u.id)} />
+                    <span className="flex-1 text-sm">{u.fullName}</span>
+                    <AvailabilityChip status={status} />
+                  </label>
+                );
+              })}
+            </div>
+            {conflictedSelected.length > 0 ? (
+              <div className="flex items-start gap-2 text-xs rounded-md px-2.5 py-2 bg-amber-50 text-amber-800 border border-amber-200">
+                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                <span>
+                  {conflictedSelected.length} selected employee
+                  {conflictedSelected.length === 1 ? " has" : "s have"} an availability conflict:{" "}
+                  {conflictedSelected.map((c) => c.name).join(", ")}. The shift will still be created — they just won't be available.
+                </span>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="bulk-notes">Notes (optional)</Label>
+            <Textarea id="bulk-notes" value={form.notes} onChange={(e) => update("notes", e.target.value)} rows={2} />
+          </div>
+          {form.startTime >= form.endTime ? (
+            <p className="text-xs text-destructive">End time must be after start time.</p>
+          ) : null}
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
+          <Button onClick={() => onSubmit(form)} disabled={!canSubmit || saving}>
+            {saving ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Adding {form.userIds.length}…</>
+            ) : (
+              <>Add {form.userIds.length} shift{form.userIds.length === 1 ? "" : "s"}</>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AvailabilityChip({ status }: { status: AvailabilityStatus }) {
+  if (status.kind === "ok") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+        <CheckCircle2 className="w-3 h-3" /> Available
+      </span>
+    );
+  }
+  if (status.kind === "unset") {
+    return <span className="text-[10px] uppercase tracking-wider text-muted-foreground">No preference</span>;
+  }
+  if (status.kind === "off") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-100 text-red-800" title={status.reason}>
+        <AlertTriangle className="w-3 h-3" /> Unavailable
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-800" title={status.reason}>
+      <AlertTriangle className="w-3 h-3" /> Outside hours
+    </span>
   );
 }
