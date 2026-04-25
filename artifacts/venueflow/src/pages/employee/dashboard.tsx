@@ -2,8 +2,9 @@ import { useAppContext } from "@/hooks/use-app-context";
 import { useListShifts, getListShiftsQueryKey, useListNotifications, getListNotificationsQueryKey, useListTimeOffRequests, getListTimeOffRequestsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, Calendar, Bell, CalendarOff } from "lucide-react";
+import { Calendar, Bell, CalendarOff } from "lucide-react";
 import { format } from "date-fns";
+import { CosmicInsightsCard } from "@/components/cosmic-insights-card";
 
 export default function EmployeeDashboard() {
   const { activeVenue, activeUser } = useAppContext();
@@ -28,6 +29,8 @@ export default function EmployeeDashboard() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Welcome, {activeUser?.fullName}</h1>
       </div>
+
+      <CosmicInsightsCard />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card className="col-span-1 lg:col-span-2">

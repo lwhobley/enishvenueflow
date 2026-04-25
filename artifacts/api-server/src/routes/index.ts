@@ -19,6 +19,7 @@ import integrationsRouter from "./integrations";
 import reportsRouter from "./reports";
 import literatureRouter from "./literature";
 import enrollmentRouter from "./enrollment";
+import aiRouter from "./ai";
 import { requireAuth } from "../middlewares/require-auth";
 import { enforceVenueScope } from "../middlewares/enforce-venue-scope";
 
@@ -56,5 +57,6 @@ router.use(integrationsRouter);
 router.use(reportsRouter);
 router.use(literatureRouter);
 router.use(enrollmentRouter);
+router.use(aiRouter);
 
 export default router;

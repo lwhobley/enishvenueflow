@@ -45,6 +45,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { CosmicInsightsCard } from "@/components/cosmic-insights-card";
 
 function formatRelative(iso: string | undefined): string {
   if (!iso) return "Not yet sent today";
@@ -405,6 +406,8 @@ export default function ManagerDashboard() {
   return (
     <div className="space-y-6">
       <Hero />
+
+      <CosmicInsightsCard />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat, index) => (
