@@ -1,12 +1,6 @@
-import { createHash } from "crypto";
-import { db, venues, roles, users } from "@workspace/db";
+import { db, venues, roles, users, hashPin } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger";
-
-const SALT = "enosh2024";
-function hashPin(pin: string) {
-  return createHash("sha256").update(pin + SALT).digest("hex");
-}
 
 export async function seedIfEmpty() {
   try {

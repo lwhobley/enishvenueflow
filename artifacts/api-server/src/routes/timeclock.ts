@@ -40,7 +40,12 @@ function haversineM(lat1: number, lon1: number, lat2: number, lon2: number): num
 
 function isSuspiciousLocation(lat: number, lng: number, accuracy: number): boolean {
   if (lat === 0 && lng === 0) return true;
-  if (accuracy !== undefined && accuracy < 0.1) return true;
+  // Real-phone GPS never reports sub-decimetre accuracy. A value < 0.1 m
+  // is the fingerprint of a mocked-location app reporting a perfect fix.
+  // (The previous `accuracy !== undefined` guard was dead code because
+  // accuracy is always a number by the time we get here — and worse,
+  // `Number(accuracy) || 50` swallowed any literal 0 from a spoof.)
+  if (Number.isFinite(accuracy) && accuracy < 0.1) return true;
   if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return true;
   return false;
 }
@@ -115,7 +120,10 @@ router.post("/time-clock/in", async (req, res) => {
     }
     const latN = Number(lat);
     const lngN = Number(lng);
-    const accN = Number(accuracy) || 50;
+    // Use ?? not ||: a literal 0 is meaningful for the spoof check
+    // (perfect-accuracy mocked GPS) and must not be silently rewritten
+    // to the 50 m default.
+    const accN = Number(accuracy ?? 50);
 
     if (isSuspiciousLocation(latN, lngN, accN)) {
       return res.status(403).json({ message: "Location appears to be spoofed or invalid. Real GPS required." });
@@ -190,7 +198,11 @@ router.post("/time-clock/in", async (req, res) => {
     const [entry] = await db.insert(timeClockEntries).values({
       userId, venueId, clockIn: now, status: "active", notes: notes ?? null,
       source: entrySource, biometricVerified: bioVerified, deviceId: deviceId ?? null,
-      adpSyncStatus: isAdpConfigured() ? "pending" : "pending",
+      // Mark "skipped" when ADP isn't configured so the periodic sync
+      // job doesn't keep re-trying entries it can never push. Setting
+      // this back to "pending" later (once ADP is configured) is a
+      // one-shot DB update.
+      adpSyncStatus: isAdpConfigured() ? "pending" : "skipped",
     }).returning();
 
     // Fire-and-forget ADP sync
@@ -396,8 +408,17 @@ router.get("/time-clock/entries", async (req, res) => {
     if (userId) conditions.push(eq(timeClockEntries.userId, userId));
     if (conditions.length) query = query.where(and(...conditions));
     const all = await query.orderBy(timeClockEntries.clockIn);
-    const allUsers = await db.select().from(users);
-    const userMap = Object.fromEntries(allUsers.map((u) => [u.id, u]));
+    // Scope the user lookup to the venue so we don't hand the caller a
+    // map of every user across every venue. enforceVenueScope already
+    // requires venueId to match req.auth, so this is safe and saves a
+    // full table scan on each call.
+    const userScopeWhere = venueId
+      ? eq(users.venueId, venueId)
+      : req.auth ? eq(users.venueId, req.auth.venueId) : undefined;
+    const venueUsers = userScopeWhere
+      ? await db.select().from(users).where(userScopeWhere)
+      : [];
+    const userMap = Object.fromEntries(venueUsers.map((u) => [u.id, u]));
     res.json(all.map((e) => formatEntry(e, userMap[e.userId]?.fullName)));
   } catch (err) {
     req.log.error(err);
@@ -451,8 +472,15 @@ router.get("/time-off", async (req, res) => {
     if (status) conditions.push(eq(timeOffRequests.status, status));
     if (conditions.length) query = query.where(and(...conditions));
     const all = await query.orderBy(timeOffRequests.createdAt);
-    const allUsers = await db.select().from(users);
-    const userMap = Object.fromEntries(allUsers.map((u) => [u.id, u]));
+    // Scope to the caller's venue — enforceVenueScope guarantees venueId
+    // (when provided) matches req.auth.venueId, so this stays correct.
+    const userScopeWhere = venueId
+      ? eq(users.venueId, venueId)
+      : req.auth ? eq(users.venueId, req.auth.venueId) : undefined;
+    const venueUsers = userScopeWhere
+      ? await db.select().from(users).where(userScopeWhere)
+      : [];
+    const userMap = Object.fromEntries(venueUsers.map((u) => [u.id, u]));
     res.json(all.map((r) => ({ ...r, userName: userMap[r.userId]?.fullName ?? null })));
   } catch (err) {
     req.log.error(err);

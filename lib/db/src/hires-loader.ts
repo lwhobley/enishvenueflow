@@ -1,11 +1,8 @@
-import { createHash } from "node:crypto";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { db } from "./index";
 import { users, venues, roles } from "./schema";
 import { NEW_HIRES_ROSTER, lastFourDigits, type Hire } from "./hires-roster";
-
-const PIN_SALT = "enosh2024";
-const hashPin = (pin: string) => createHash("sha256").update(pin + PIN_SALT).digest("hex");
+import { hashPin, lookupHashes, verifyPin } from "./pin-hash";
 
 export type LoadHiresResult = {
   hire: Hire;
@@ -42,13 +39,20 @@ export async function loadHires(opts: { venueId?: string } = {}): Promise<LoadHi
   for (const hire of NEW_HIRES_ROSTER) {
     const pin = lastFourDigits(hire.phone);
     const pinHash = hashPin(pin);
+    const { newHash, legacyHash } = lookupHashes(pin);
 
     const [existing] = await db
       .select()
       .from(users)
       .where(and(eq(users.venueId, venueId), eq(users.email, hire.email)));
 
-    const [pinUser] = await db.select().from(users).where(eq(users.pinHash, pinHash));
+    // PIN auth matches users whose stored hash is either the new
+    // scrypt-prefixed format or the legacy SHA-256 hash. A collision in
+    // either format would make sign-in ambiguous, so refuse here too.
+    const [pinUser] = await db
+      .select()
+      .from(users)
+      .where(or(eq(users.pinHash, newHash), eq(users.pinHash, legacyHash)));
     if (pinUser && (!existing || pinUser.id !== existing.id)) {
       results.push({
         hire, pin, action: "skipped_pin_collision",
@@ -61,6 +65,10 @@ export async function loadHires(opts: { venueId?: string } = {}): Promise<LoadHi
 
     if (existing) {
       // Only update when something actually differs — keeps logs quiet.
+      // For the PIN, treat the row as up-to-date if either the stored
+      // hash matches the new format OR the legacy SHA-256 still verifies
+      // the same plaintext PIN. Avoids a noisy update on every boot.
+      const pinAlreadyMatches = existing.pinHash === pinHash || verifyPin(pin, existing.pinHash);
       const changed =
         existing.fullName !== hire.fullName ||
         existing.phone !== hire.phone ||
@@ -68,7 +76,7 @@ export async function loadHires(opts: { venueId?: string } = {}): Promise<LoadHi
         existing.address !== hire.address ||
         JSON.stringify(existing.positions ?? []) !== JSON.stringify(hire.positions) ||
         existing.hireDate !== hire.hireDate ||
-        existing.pinHash !== pinHash ||
+        !pinAlreadyMatches ||
         (existing.roleId == null && roleId != null);
 
       if (!changed) {

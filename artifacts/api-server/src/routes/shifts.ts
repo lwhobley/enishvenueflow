@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { shifts, shiftRequests, users, roles, schedules } from "@workspace/db";
-import { eq, and, inArray, gte, lte } from "drizzle-orm";
+import { eq, and, inArray, gte, lte, ne } from "drizzle-orm";
 import { notifyUser, notifyManagers } from "../lib/push";
 import { assertSelf } from "../lib/auth-guards";
 
@@ -196,8 +196,36 @@ router.put("/shifts/bulk-assign", async (req, res) => {
   try {
     const { ids, userId } = req.body;
     if (!Array.isArray(ids) || !userId) return res.status(400).json({ message: "ids and userId required" });
+    // Capture prior assignees so we can notify both the new assignee and
+    // anyone who got reassigned away.
+    const priors = await db.select({ id: shifts.id, userId: shifts.userId }).from(shifts).where(inArray(shifts.id, ids));
+    const priorById = new Map(priors.map((p) => [p.id, p.userId]));
+
     const updated = await db.update(shifts).set({ userId, status: "scheduled" }).where(inArray(shifts.id, ids)).returning();
-    res.json(await enrichShifts(updated));
+    const enriched = await enrichShifts(updated);
+    res.json(enriched);
+
+    // Bulk-assign was previously silent — staff would just notice the
+    // shift on their schedule with no notification. Send the same
+    // "Shift assigned to you" / "Shift reassigned" pushes the single-
+    // assign path emits.
+    for (const row of updated) {
+      void notifyUser(row.userId!, {
+        title: "Shift assigned to you",
+        body: describeShift(row),
+        url: "/employee/schedule",
+        tag: `shift-${row.id}`,
+      });
+      const prior = priorById.get(row.id);
+      if (prior && prior !== row.userId) {
+        void notifyUser(prior, {
+          title: "Shift reassigned",
+          body: describeShift(row),
+          url: "/employee/schedule",
+          tag: `shift-${row.id}`,
+        });
+      }
+    }
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to bulk assign" });
@@ -355,10 +383,19 @@ router.get("/shift-requests", async (req, res) => {
     let query = db.select().from(shiftRequests).$dynamic();
     if (userId) query = query.where(eq(shiftRequests.userId, userId));
     const all = await query.orderBy(shiftRequests.createdAt);
-    const allUsers = await db.select().from(users);
-    const allRoles = await db.select().from(roles);
-    const userMap = Object.fromEntries(allUsers.map(u => [u.id, u]));
-    const roleMap = Object.fromEntries(allRoles.map(r => [r.id, r]));
+    // Scope users + roles to the caller's venue. enforceVenueScope keeps
+    // venueId (when supplied) honest; otherwise we fall back to the
+    // session's venueId. Either way we never enrich with rows from a
+    // different venue.
+    const venueScope = venueId ?? req.auth?.venueId;
+    const venueUsers = venueScope
+      ? await db.select().from(users).where(eq(users.venueId, venueScope))
+      : [];
+    const venueRoles = venueScope
+      ? await db.select().from(roles).where(eq(roles.venueId, venueScope))
+      : [];
+    const userMap = Object.fromEntries(venueUsers.map(u => [u.id, u]));
+    const roleMap = Object.fromEntries(venueRoles.map(r => [r.id, r]));
     // Enrich with shift data
     const shiftIds = [...new Set(all.map(r => r.shiftId))];
     let shiftDataMap: Record<string, typeof shifts.$inferSelect> = {};
@@ -410,17 +447,49 @@ router.put("/shift-requests/:id/approve", async (req, res) => {
     const { id } = req.params;
     const [request] = await db.select().from(shiftRequests).where(eq(shiftRequests.id, id));
     if (!request) return res.status(404).json({ message: "Request not found" });
+    if (request.status !== "pending") {
+      return res.status(409).json({ message: `Request already ${request.status}` });
+    }
 
-    // Execute business logic based on request type
+    // The shift mutation is the source of truth for who actually has it.
+    // Use the affected-row count to decide whether the approval succeeded
+    // — previously the update was conditional on status='open' but the
+    // caller treated a zero-row no-op as success and still flipped the
+    // request to approved, so two managers approving two competing
+    // pickups would both report success while only one user got the
+    // shift.
     if (request.type === "drop") {
-      // Unassign the shift — make it open for pickup
-      await db.update(shifts).set({ userId: null, status: "open" }).where(eq(shifts.id, request.shiftId));
+      // Only release the shift if the requester is still the holder; if
+      // the schedule has moved on (admin reassigned, etc.) refuse.
+      const released = await db
+        .update(shifts)
+        .set({ userId: null, status: "open" })
+        .where(and(eq(shifts.id, request.shiftId), eq(shifts.userId, request.userId)))
+        .returning({ id: shifts.id });
+      if (released.length === 0) {
+        return res.status(409).json({ message: "Shift is no longer assigned to the requester" });
+      }
     } else if (request.type === "pickup") {
-      // Assign the shift to the requester
-      await db.update(shifts).set({ userId: request.userId, status: "scheduled" }).where(and(eq(shifts.id, request.shiftId), eq(shifts.status, "open")));
-      // Reject any other pending pickup requests for the same shift
+      const claimed = await db
+        .update(shifts)
+        .set({ userId: request.userId, status: "scheduled" })
+        .where(and(eq(shifts.id, request.shiftId), eq(shifts.status, "open")))
+        .returning({ id: shifts.id });
+      if (claimed.length === 0) {
+        // Reflect reality on the request itself so the UI doesn't keep
+        // showing it as actionable.
+        await db.update(shiftRequests).set({ status: "rejected" }).where(eq(shiftRequests.id, id));
+        return res.status(409).json({ message: "Shift was already taken by someone else" });
+      }
+      // Reject any other pending pickup requests for the same shift in
+      // a single update so the loser sees a final state immediately.
       await db.update(shiftRequests).set({ status: "rejected" }).where(
-        and(eq(shiftRequests.shiftId, request.shiftId), eq(shiftRequests.type, "pickup"), eq(shiftRequests.status, "pending"))
+        and(
+          eq(shiftRequests.shiftId, request.shiftId),
+          eq(shiftRequests.type, "pickup"),
+          eq(shiftRequests.status, "pending"),
+          ne(shiftRequests.id, id),
+        ),
       );
     }
 

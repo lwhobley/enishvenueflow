@@ -16,3 +16,4 @@ export const db = drizzle(pool, { schema });
 export * from "./schema";
 export * from "./hires-roster";
 export * from "./hires-loader";
+export * from "./pin-hash";

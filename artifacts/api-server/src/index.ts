@@ -40,13 +40,19 @@ applyStartupMigrations()
   .then(async () => {
     await encryptLegacyPosCredentials();
     await ensureHires();
-    app.listen(port, (err) => {
-      if (err) {
-        logger.error({ err }, "Error listening on port");
-        process.exit(1);
-      }
-
+    // app.listen's callback only fires on *success*; listen errors come
+    // out of the server's "error" event. The previous `(err) => …`
+    // handler was dead code that never received an EADDRINUSE.
+    const server = app.listen(port, () => {
       logger.info({ port }, "Server listening");
       startReportScheduler();
     });
+    server.on("error", (err) => {
+      logger.error({ err }, "HTTP server error");
+      process.exit(1);
+    });
+  })
+  .catch((err) => {
+    logger.error({ err }, "Boot failed");
+    process.exit(1);
   });

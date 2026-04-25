@@ -1,24 +1,20 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { users, roles } from "@workspace/db";
-import { eq, and, ne } from "drizzle-orm";
-import { createHash } from "crypto";
+import { eq, and, ne, or } from "drizzle-orm";
+import { hashPin, lookupHashes } from "@workspace/db";
 
 const router = Router();
-const PIN_SALT = "enosh2024";
 
-function hashPin(pin: string): string {
-  return createHash("sha256").update(pin + PIN_SALT).digest("hex");
-}
-
-// PIN auth looks up by hash globally — auth.ts:20 returns the first matching
-// row. So before storing a hash, refuse if any other user already owns it,
-// otherwise sign-in becomes ambiguous between two accounts.
-async function isPinHashTaken(hash: string, exceptUserId?: string): Promise<boolean> {
-  const conditions = exceptUserId
-    ? and(eq(users.pinHash, hash), ne(users.id, exceptUserId))
-    : eq(users.pinHash, hash);
-  const [collision] = await db.select({ id: users.id }).from(users).where(conditions);
+// Refuse before storing a hash whose plaintext PIN would collide with
+// another active user's. Sign-in matches either the new scrypt hash or
+// the legacy SHA-256 hash, so a collision in either format means
+// /auth/pin would be ambiguous.
+async function isPinTaken(plaintextPin: string, exceptUserId?: string): Promise<boolean> {
+  const { newHash, legacyHash } = lookupHashes(plaintextPin);
+  const matchHash = or(eq(users.pinHash, newHash), eq(users.pinHash, legacyHash));
+  const where = exceptUserId ? and(matchHash, ne(users.id, exceptUserId)) : matchHash;
+  const [collision] = await db.select({ id: users.id }).from(users).where(where);
   return !!collision;
 }
 
@@ -78,10 +74,10 @@ router.post("/users", async (req, res) => {
       if (!isValidPin(String(pin))) {
         return res.status(400).json({ message: "PIN must be 4–8 digits" });
       }
-      pinHash = hashPin(String(pin));
-      if (await isPinHashTaken(pinHash)) {
+      if (await isPinTaken(String(pin))) {
         return res.status(409).json({ message: "That PIN is already in use — pick another" });
       }
+      pinHash = hashPin(String(pin));
     }
 
     const [user] = await db.insert(users).values({
@@ -133,11 +129,10 @@ router.put("/users/:id", async (req, res) => {
       if (!isValidPin(String(pin))) {
         return res.status(400).json({ message: "PIN must be 4–8 digits" });
       }
-      const newHash = hashPin(String(pin));
-      if (await isPinHashTaken(newHash, id)) {
+      if (await isPinTaken(String(pin), id)) {
         return res.status(409).json({ message: "That PIN is already in use — pick another" });
       }
-      updates.pinHash = newHash;
+      updates.pinHash = hashPin(String(pin));
     }
 
     const [updated] = await db.update(users).set(updates).where(eq(users.id, id)).returning();
