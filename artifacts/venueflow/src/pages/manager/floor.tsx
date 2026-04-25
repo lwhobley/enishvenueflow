@@ -50,10 +50,12 @@ type FloorSection = {
   color: string;
 };
 
-// Normalize any incoming rotation to 0/90/180/270.
+// Normalize any incoming rotation to the nearest 45-degree increment
+// (0/45/90/135/180/225/270/315). The rotate handle steps by 45° per
+// click, so users can land an item at any of the eight orientations.
 function normalizeRot(deg: number | null | undefined): number {
   if (typeof deg !== "number" || !Number.isFinite(deg)) return 0;
-  const n = ((Math.round(deg / 90) * 90) % 360 + 360) % 360;
+  const n = ((Math.round(deg / 45) * 45) % 360 + 360) % 360;
   return n;
 }
 
@@ -625,7 +627,8 @@ export default function ManagerFloor({
 
   const rotateSelected = useCallback(async (target: DragTarget, currentRot: number) => {
     if (!isAdmin) return;
-    const next = normalizeRot(currentRot + 90);
+    // 45° per click — eight orientations total (0/45/90/135/180/225/270/315).
+    const next = normalizeRot(currentRot + 45);
     if (target.type === "table") {
       setTableOv(prev => {
         const cur = prev[target.id] ?? { x: 0, y: 0 };
