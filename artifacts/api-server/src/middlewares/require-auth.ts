@@ -17,6 +17,7 @@ declare global {
 // the public enrollment surface.
 const PUBLIC_PATH_REGEXES: RegExp[] = [
   /^\/healthz$/,
+  /^\/version$/,
   /^\/auth\/pin$/,
   /^\/push\/vapid-public-key$/,
   /^\/enroll\/[^/]+\/[^/]+$/,

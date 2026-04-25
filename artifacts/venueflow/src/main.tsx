@@ -119,4 +119,57 @@ if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
   });
 }
 
+// Boot-time staleness check. The server returns its current commit SHA
+// from /api/version; the client knows its bundle's SHA via __BUILD_HASH__
+// (Vite-defined at build time). If they differ, the user is running a
+// stale bundle that's been pinned by an HTTP cache from a prior deploy
+// — unregister the old service worker, drop every cache, and reload.
+//
+// Loop guard: bump an attempt counter in sessionStorage. After 2 reloads
+// in the same session without convergence, give up so a misconfigured
+// /api/version endpoint can't put the page in an infinite refresh loop.
+async function ensureFreshBuild(): Promise<void> {
+  if (typeof window === "undefined" || typeof __BUILD_HASH__ !== "string") return;
+  if (__BUILD_HASH__ === "dev") return;
+
+  const ATTEMPT_KEY = "vf-cache-bust-attempts";
+  const attempts = Number(sessionStorage.getItem(ATTEMPT_KEY) ?? "0");
+  if (attempts >= 2) return;
+
+  try {
+    const res = await fetch("/api/version", { cache: "no-store" });
+    if (!res.ok) return;
+    const data = (await res.json()) as { buildHash?: string };
+    const serverHash = data.buildHash;
+    if (typeof serverHash !== "string" || serverHash === "dev") return;
+    if (serverHash === __BUILD_HASH__) {
+      sessionStorage.removeItem(ATTEMPT_KEY);
+      return;
+    }
+
+    sessionStorage.setItem(ATTEMPT_KEY, String(attempts + 1));
+
+    if ("serviceWorker" in navigator) {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      } catch { /* ignore */ }
+    }
+    if ("caches" in window) {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      } catch { /* ignore */ }
+    }
+    // Force-revalidate the SPA shell so the next load actually fetches
+    // the new index.html from the network rather than HTTP cache.
+    try { await fetch(window.location.pathname, { cache: "reload" }); } catch { /* ignore */ }
+
+    window.location.reload();
+  } catch {
+    // Network blip or a server that doesn't expose /version. Don't block boot.
+  }
+}
+void ensureFreshBuild();
+
 createRoot(document.getElementById("root")!).render(<App />);
