@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { timeClockEntries, timeOffRequests, users, shifts, venues, schedules } from "@workspace/db";
+import { timeClockEntries, timeOffRequests, users, shifts, schedules } from "@workspace/db";
 import { eq, and, gte, lte, or, inArray } from "drizzle-orm";
 import { adpStatus, isAdpConfigured, pushTimeEntry, pullRecentEntries } from "../lib/adp";
 import { notifyManagers, notifyUser } from "../lib/push";
@@ -8,35 +8,14 @@ import { assertSelf } from "../lib/auth-guards";
 
 const router = Router();
 
-// ── Venue anchor fallbacks (used only if the venue record has no GPS pin) ───
-// To move the pin: manager → Settings → Clock-in GPS Pin, or PUT
-// /api/venues/:id with { latitude, longitude, clockInRadiusFeet }.
-const FALLBACK_VENUE_LAT = 29.736002;
-const FALLBACK_VENUE_LNG = -95.461831;
-const DEFAULT_RADIUS_FEET = 800;
+// We no longer enforce a venue-pin geofence — clock-in just requires a
+// plausible GPS fix from the device. These two constants gate that:
+// reject fixes whose accuracy is so coarse they're obviously a Wi-Fi /
+// cell-tower guess, and reject obviously-spoofed coordinates.
 const FEET_PER_METER = 3.28084;
-// Any fix claiming worse than this accuracy is almost certainly WiFi /
-// cell-tower positioning rather than real GPS. Phone GPS outdoors is
-// typically 5–30 m. Keeping this tight (75 m / ~246 ft) — with a bit
-// of headroom over the client-side 50 m cap — means the server rejects
-// coarse fixes even if the client lets one slip through.
-const MAX_ACCEPTABLE_ACCURACY_M = 75;
-// Allow a tight cushion for real-GPS jitter on top of the venue radius.
-const GPS_ACCURACY_BUFFER_M = 25;
+const MAX_ACCEPTABLE_ACCURACY_M = 75; // ~246 ft — allows normal phone-GPS jitter, rejects Wi-Fi-only fixes
 const SHIFT_WINDOW_BEFORE_MS = 30 * 60 * 1000;
 const SHIFT_WINDOW_AFTER_MS  = 15 * 60 * 1000;
-
-// Haversine distance in metres
-function haversineM(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 function isSuspiciousLocation(lat: number, lng: number, accuracy: number): boolean {
   if (lat === 0 && lng === 0) return true;
@@ -141,24 +120,6 @@ router.post("/time-clock/in", async (req, res) => {
     if (clientTimestamp) {
       const ageSeconds = (Date.now() - Number(clientTimestamp)) / 1000;
       if (ageSeconds > 30) return res.status(403).json({ message: "Location data is stale. Please try again." });
-    }
-
-    // Resolve the venue's GPS pin + radius. If unset, fall back to the
-    // historical constants for backward compatibility.
-    const [venueRow] = await db.select().from(venues).where(eq(venues.id, venueId));
-    const venueLat = venueRow?.latitude != null ? Number(venueRow.latitude) : FALLBACK_VENUE_LAT;
-    const venueLng = venueRow?.longitude != null ? Number(venueRow.longitude) : FALLBACK_VENUE_LNG;
-    const radiusFeet = venueRow?.clockInRadiusFeet ?? DEFAULT_RADIUS_FEET;
-    const radiusM = radiusFeet / FEET_PER_METER;
-
-    const dist = haversineM(latN, lngN, venueLat, venueLng);
-    const allowedDist = radiusM + Math.min(accN, GPS_ACCURACY_BUFFER_M);
-    if (dist > allowedDist) {
-      const feet = (dist * FEET_PER_METER).toFixed(0);
-      return res.status(403).json({
-        message: `You must be within ${radiusFeet} feet of ${venueRow?.address ?? "the venue"}. You are currently ${feet} ft away.`,
-        distanceMeters: dist, distanceFeet: Number(feet),
-      });
     }
 
     const now = new Date();
