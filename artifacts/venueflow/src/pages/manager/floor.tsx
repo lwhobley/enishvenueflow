@@ -19,6 +19,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { TableLegend } from "@/components/table-legend";
 import floorPlanBg from "@assets/IMG_2248_1776293611211.png";
 
 type ChairRecord = { id: string; venueId: string; x: number; y: number; width: number; height: number; rotation?: number };
@@ -668,10 +669,11 @@ export default function ManagerFloor() {
         )}
       </div>
 
-      {/* ── Outer container ── */}
+      {/* ── Floor plan + Table sales legend ── */}
+      <div className="flex gap-3 items-start flex-col lg:flex-row">
       <div
         ref={containerRef}
-        className={`w-full overflow-hidden border rounded-xl relative bg-neutral-200 ${addMode ? "cursor-crosshair" : ""}`}
+        className={`flex-1 min-w-0 w-full overflow-hidden border rounded-xl relative bg-neutral-200 ${addMode ? "cursor-crosshair" : ""}`}
         style={{ height: CH * scale }}
         onClick={handleCanvasClick}
         onKeyDown={e => { if (e.key === "Escape") setAddMode(null); }}
@@ -820,6 +822,18 @@ export default function ManagerFloor() {
             </div>
           )}
         </div>
+      </div>
+
+      <TableLegend
+        venueId={activeVenue?.id ?? ""}
+        tables={(tables ?? []).map((t) => ({
+          id: t.id,
+          label: t.label,
+          price: (t as unknown as { price?: number | null }).price ?? null,
+          purchaserName: (t as unknown as { purchaserName?: string | null }).purchaserName ?? null,
+        }))}
+        isAdmin={isAdmin}
+      />
       </div>
 
       <AlertDialog open={confirmRenumber} onOpenChange={(v) => { if (!renumbering) setConfirmRenumber(v); }}>

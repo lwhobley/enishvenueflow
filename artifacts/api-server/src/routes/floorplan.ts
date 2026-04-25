@@ -12,6 +12,8 @@ function formatTable(t: typeof tables.$inferSelect, sectionName?: string | null)
     y: parseFloat(t.y),
     width: parseFloat(t.width),
     height: parseFloat(t.height),
+    price: t.price != null ? parseFloat(t.price) : null,
+    purchaserName: t.purchaserName ?? null,
     sectionName: sectionName ?? null,
   };
 }
@@ -78,7 +80,7 @@ router.put("/tables/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const updates: Record<string, unknown> = {};
-    const { label, capacity, status, x, y, width, height, shape, rotation } = req.body;
+    const { label, capacity, status, x, y, width, height, shape, rotation, price, purchaserName } = req.body;
     if (label !== undefined) updates.label = label;
     if (capacity !== undefined) updates.capacity = capacity;
     if (status !== undefined) updates.status = status;
@@ -88,6 +90,18 @@ router.put("/tables/:id", async (req, res) => {
     if (height !== undefined) updates.height = String(height);
     if (shape !== undefined) updates.shape = shape;
     if (rotation !== undefined) updates.rotation = Number(rotation) || 0;
+    if (price !== undefined) {
+      if (price === null || price === "") {
+        updates.price = null;
+      } else {
+        const n = Number(price);
+        if (!Number.isFinite(n) || n < 0) return res.status(400).json({ message: "price must be a non-negative number" });
+        updates.price = String(n);
+      }
+    }
+    if (purchaserName !== undefined) {
+      updates.purchaserName = purchaserName === "" ? null : purchaserName;
+    }
     const [updated] = await db.update(tables).set(updates).where(eq(tables.id, id)).returning();
     if (!updated) return res.status(404).json({ message: "Table not found" });
     res.json(formatTable(updated));

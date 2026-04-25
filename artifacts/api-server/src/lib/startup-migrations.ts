@@ -24,6 +24,16 @@ const STATEMENTS: { name: string; sql: string }[] = [
     sql: `ALTER TABLE "chairs" ADD COLUMN IF NOT EXISTS "rotation" integer NOT NULL DEFAULT 0`,
   },
 
+  // ── Tables: per-table sales tracking ────────────────────────────────────
+  {
+    name: "tables.price",
+    sql: `ALTER TABLE "tables" ADD COLUMN IF NOT EXISTS "price" numeric(12, 2)`,
+  },
+  {
+    name: "tables.purchaser_name",
+    sql: `ALTER TABLE "tables" ADD COLUMN IF NOT EXISTS "purchaser_name" text`,
+  },
+
   // ── Venue: enrollment token + GPS pin + clock-in radius ─────────────────
   {
     name: "venues.enrollment_token",

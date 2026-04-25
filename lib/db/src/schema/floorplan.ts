@@ -27,6 +27,10 @@ export const tables = pgTable("tables", {
   height: numeric("height", { precision: 8, scale: 2 }).notNull().default("80"),
   shape: text("shape").notNull().default("square"),
   rotation: integer("rotation").notNull().default(0),
+  // Sales tracking — set from the floor plan legend when a table is sold.
+  // Both nullable: a table without a buyer is unsold/available.
+  price: numeric("price", { precision: 12, scale: 2 }),
+  purchaserName: text("purchaser_name"),
 });
 
 export const insertTableSchema = createInsertSchema(tables).omit({ id: true });
