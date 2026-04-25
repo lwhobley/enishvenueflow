@@ -366,9 +366,14 @@ export default function EmployeeTimeClock() {
   }
 
   // ── Derived ────────────────────────────────────────────────────────────────
-  const H = pad(now.getHours());
+  // 12-hour clock with AM/PM. The classic noon-vs-midnight rule: hour 0 is
+  // 12 AM, hour 12 is 12 PM, anything else is hour mod 12.
+  const hour24 = now.getHours();
+  const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+  const H = pad(hour12);
   const M = pad(now.getMinutes());
   const S = pad(now.getSeconds());
+  const ampm = hour24 < 12 ? "AM" : "PM";
   const secPct = (now.getSeconds() / 60) * 100;
 
   const elapsedStr = (() => {
@@ -406,6 +411,12 @@ export default function EmployeeTimeClock() {
               color: G.goldSoft, fontVariantNumeric: "tabular-nums",
               minWidth: 48,
             }}>{S}</span>
+            <span style={{
+              fontSize: 16, fontWeight: 600, letterSpacing: 2,
+              color: G.goldSoft,
+              marginLeft: 6,
+              textTransform: "uppercase",
+            }}>{ampm}</span>
           </div>
 
           <p style={{ margin: "10px 0 0", fontSize: 11, color: G.sub, letterSpacing: 3, textTransform: "uppercase" }}>
