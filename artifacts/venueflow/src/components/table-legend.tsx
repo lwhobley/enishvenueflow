@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { getListTablesQueryKey } from "@workspace/api-client-react";
 import { Loader2 } from "lucide-react";
 
 export type LegendTable = {
@@ -12,6 +11,7 @@ export type LegendTable = {
 
 interface Props {
   venueId: string;
+  scope: "restaurant" | "nightlife";
   tables: LegendTable[];
   isAdmin: boolean;
 }
@@ -38,7 +38,7 @@ async function putTable(id: string, body: Record<string, unknown>): Promise<void
   }
 }
 
-export function TableLegend({ venueId, tables, isAdmin }: Props) {
+export function TableLegend({ venueId, scope, tables, isAdmin }: Props) {
   const sorted = useMemo(() => {
     return [...tables].sort((a, b) => {
       const [an, as] = labelSortKey(a.label);
@@ -80,7 +80,7 @@ export function TableLegend({ venueId, tables, isAdmin }: Props) {
         ) : (
           <ul className="divide-y">
             {sorted.map((t) => (
-              <LegendRow key={t.id} venueId={venueId} table={t} editable={isAdmin} />
+              <LegendRow key={t.id} venueId={venueId} scope={scope} table={t} editable={isAdmin} />
             ))}
           </ul>
         )}
@@ -90,8 +90,8 @@ export function TableLegend({ venueId, tables, isAdmin }: Props) {
 }
 
 function LegendRow({
-  venueId, table, editable,
-}: { venueId: string; table: LegendTable; editable: boolean }) {
+  venueId, scope, table, editable,
+}: { venueId: string; scope: "restaurant" | "nightlife"; table: LegendTable; editable: boolean }) {
   const qc = useQueryClient();
   const [saving, setSaving] = useState<"price" | "name" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -115,7 +115,9 @@ function LegendRow({
           : { purchaserName: trimmed === "" ? null : trimmed };
       await putTable(table.id, body);
       ref.current = trimmed;
-      await qc.invalidateQueries({ queryKey: getListTablesQueryKey({ venueId }) });
+      // Match the manager floor plan's scope-aware query key so the
+      // table list refreshes for whichever scope this row belongs to.
+      await qc.invalidateQueries({ queryKey: ["/tables", venueId, scope] });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {

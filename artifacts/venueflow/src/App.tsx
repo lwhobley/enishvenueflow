@@ -68,7 +68,8 @@ function Router({ isAdmin }: { isAdmin: boolean }) {
       <Route path="/manager/dashboard"><RequireAdmin><Layout><ManagerDashboard /></Layout></RequireAdmin></Route>
       <Route path="/manager/schedule"><RequireAdmin><Layout><ManagerSchedule /></Layout></RequireAdmin></Route>
       <Route path="/manager/employees"><RequireAdmin><Layout><ManagerEmployees /></Layout></RequireAdmin></Route>
-      <Route path="/manager/floor"><RequireAdmin><Layout><ManagerFloor /></Layout></RequireAdmin></Route>
+      <Route path="/manager/floor"><RequireAdmin><Layout><ManagerFloor scope="restaurant" title="Floor Plan" /></Layout></RequireAdmin></Route>
+      <Route path="/manager/nightlife-floor"><RequireAdmin><Layout><ManagerFloor scope="nightlife" title="Nightlife Floor Plan" /></Layout></RequireAdmin></Route>
       <Route path="/manager/reservations"><RequireAdmin><Layout><ManagerReservations /></Layout></RequireAdmin></Route>
       <Route path="/manager/guests"><RequireAdmin><Layout><ManagerGuests /></Layout></RequireAdmin></Route>
       <Route path="/manager/analytics"><RequireAdmin><Layout><ManagerAnalytics /></Layout></RequireAdmin></Route>

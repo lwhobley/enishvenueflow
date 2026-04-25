@@ -2,15 +2,10 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useAppContext } from "@/hooks/use-app-context";
 import { useAuth } from "@/contexts/auth-context";
 import {
-  useListFloorSections,
-  getListFloorSectionsQueryKey,
-  useListTables,
-  getListTablesQueryKey,
   useUpdateTable,
-  useCreateTable,
   useDeleteTable,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, Square, Armchair, RotateCw, ListOrdered } from "lucide-react";
@@ -26,6 +21,34 @@ type ChairRecord = { id: string; venueId: string; x: number; y: number; width: n
 type DragTarget  = { type: "table" | "chair"; id: string };
 type TableShape  = "square" | "crescent";
 type ResizeMode  = "se" | "e" | "s";
+
+// Floor plans split into independent layouts: "restaurant" (default,
+// daytime dining) and "nightlife" (the bar / club configuration). Each
+// scope has its own tables, chairs, and sections, edited independently.
+export type FloorScope = "restaurant" | "nightlife";
+
+type FloorTable = {
+  id: string;
+  venueId: string;
+  sectionId: string;
+  label: string;
+  capacity: number;
+  status: string;
+  x: number; y: number; width: number; height: number;
+  shape: string;
+  rotation: number;
+  price: number | null;
+  purchaserName: string | null;
+  sectionName: string | null;
+};
+
+type FloorSection = {
+  id: string;
+  venueId: string;
+  name: string;
+  capacity: number;
+  color: string;
+};
 
 // Normalize any incoming rotation to 0/90/180/270.
 function normalizeRot(deg: number | null | undefined): number {
@@ -193,7 +216,10 @@ function ResizeHandle({
   );
 }
 
-export default function ManagerFloor() {
+export default function ManagerFloor({
+  scope = "restaurant",
+  title = "Floor Plan",
+}: { scope?: FloorScope; title?: string } = {}) {
   const { activeVenue } = useAppContext();
   const { user }        = useAuth();
   const isAdmin         = user?.isAdmin ?? false;
@@ -233,31 +259,37 @@ export default function ManagerFloor() {
     return () => ro.disconnect();
   }, []);
 
-  const { data: sections } = useListFloorSections(
-    { venueId: activeVenue?.id || "" },
-    { query: { enabled: !!activeVenue?.id, queryKey: getListFloorSectionsQueryKey({ venueId: activeVenue?.id || "" }) } }
-  );
-  const { data: tables } = useListTables(
-    { venueId: activeVenue?.id || "" },
-    {
-      query: {
-        enabled: !!activeVenue?.id,
-        queryKey: getListTablesQueryKey({ venueId: activeVenue?.id || "" }),
-        // Poll every 5s for real-time sync across clients (browser + PWA).
-        // Pause while the current user is mid-drag so their move can't be
-        // clobbered by a remote snapshot. React Query already skips
-        // background tabs / hidden PWAs; we rely on that default.
-        refetchInterval: isInteracting ? false : 5000,
-        refetchOnWindowFocus: true,
-      },
-    }
-  );
+  // Both query keys carry the scope so the restaurant and nightlife
+  // floor plans cache independently — switching pages doesn't pollute
+  // the other plan with the wrong tables.
+  const venueId = activeVenue?.id || "";
+  const tablesQK   = ["/tables", venueId, scope] as const;
+  const sectionsQK = ["/floor-sections", venueId, scope] as const;
+
+  const { data: sections } = useQuery<FloorSection[]>({
+    queryKey: sectionsQK,
+    enabled: !!venueId,
+    queryFn: async () => {
+      return await apiFetch(`/floor-sections?venueId=${venueId}&scope=${scope}`);
+    },
+  });
+
+  const { data: tables } = useQuery<FloorTable[]>({
+    queryKey: tablesQK,
+    enabled: !!venueId,
+    queryFn: async () => {
+      return await apiFetch(`/tables?venueId=${venueId}&scope=${scope}`);
+    },
+    // Poll every 5s for real-time sync across clients (browser + PWA).
+    // Pause while the current user is mid-drag so their move can't be
+    // clobbered by a remote snapshot. React Query already skips
+    // background tabs / hidden PWAs; we rely on that default.
+    refetchInterval: isInteracting ? false : 5000,
+    refetchOnWindowFocus: true,
+  });
 
   const updateTable    = useUpdateTable();
-  const createTableMut = useCreateTable();
   const deleteTableMut = useDeleteTable();
-  const tablesQK       = getListTablesQueryKey({ venueId: activeVenue?.id || "" });
-  const sectionsQK     = getListFloorSectionsQueryKey({ venueId: activeVenue?.id || "" });
 
   const handleRenumber = async () => {
     if (!activeVenue?.id || renumbering) return;
@@ -265,7 +297,7 @@ export default function ManagerFloor() {
     try {
       const result = await apiFetch("/tables/renumber", {
         method: "POST",
-        body: JSON.stringify({ venueId: activeVenue.id }),
+        body: JSON.stringify({ venueId: activeVenue.id, scope }),
       }) as { count: number };
       await queryClient.invalidateQueries({ queryKey: tablesQK });
       toast({
@@ -292,7 +324,7 @@ export default function ManagerFloor() {
     const load = async () => {
       if (interactionRef.current) return;
       try {
-        const d = await apiFetch(`/chairs?venueId=${activeVenue.id}`);
+        const d = await apiFetch(`/chairs?venueId=${activeVenue.id}&scope=${scope}`);
         if (mounted) setChairs(Array.isArray(d) ? d : []);
       } catch {
         /* ignore transient errors */
@@ -307,7 +339,7 @@ export default function ManagerFloor() {
       clearInterval(interval);
       window.removeEventListener("focus", onFocus);
     };
-  }, [activeVenue?.id]);
+  }, [activeVenue?.id, scope]);
 
   // Ensure at least one section exists
   const ensureSection = useCallback(async (): Promise<string | null> => {
@@ -315,7 +347,7 @@ export default function ManagerFloor() {
     if (!activeVenue?.id) return null;
     const s = await apiFetch("/floor-sections", {
       method: "POST",
-      body: JSON.stringify({ venueId: activeVenue.id, name: "Main Floor", capacity: 0 }),
+      body: JSON.stringify({ venueId: activeVenue.id, name: "Main Floor", capacity: 0, scope }),
     });
     queryClient.invalidateQueries({ queryKey: sectionsQK });
     return s.id;
@@ -339,7 +371,7 @@ export default function ManagerFloor() {
     if (addMode === "chair") {
       const chair = await apiFetch("/chairs", {
         method: "POST",
-        body: JSON.stringify({ venueId: activeVenue.id, x, y }),
+        body: JSON.stringify({ venueId: activeVenue.id, x, y, scope }),
       });
       setChairs(prev => [...prev, chair]);
     } else {
@@ -348,18 +380,21 @@ export default function ManagerFloor() {
       const isCresc = addMode === "crescent";
       const w = isCresc ? 90 : 80;
       const h = isCresc ? 45 : 80;
-      await createTableMut.mutateAsync({ data: {
-        venueId: activeVenue.id, sectionId,
-        label: `T${(tables?.length ?? 0) + 1}`,
-        capacity: isCresc ? 6 : 4,
-        x: String(x), y: String(y),
-        width: String(w), height: String(h),
-        shape: addMode,
-      }});
+      await apiFetch("/tables", {
+        method: "POST",
+        body: JSON.stringify({
+          venueId: activeVenue.id, sectionId, scope,
+          label: `T${(tables?.length ?? 0) + 1}`,
+          capacity: isCresc ? 6 : 4,
+          x: String(x), y: String(y),
+          width: String(w), height: String(h),
+          shape: addMode,
+        }),
+      });
       queryClient.invalidateQueries({ queryKey: tablesQK });
     }
     setAddMode(null);
-  }, [addMode, activeVenue?.id, ensureSection, createTableMut, tables?.length, queryClient, tablesQK]);
+  }, [addMode, activeVenue?.id, ensureSection, scope, tables?.length, queryClient, tablesQK]);
 
   // Keep latest drag-save data in refs so window listeners can access them
   const chairsRef   = useRef<ChairRecord[]>([]);
@@ -606,7 +641,7 @@ export default function ManagerFloor() {
     <div className="space-y-3">
       {/* ── Toolbar ── */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Floor Plan</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
         {isAdmin ? (
           <div className="flex gap-2 flex-wrap">
             <Button
@@ -826,11 +861,12 @@ export default function ManagerFloor() {
 
       <TableLegend
         venueId={activeVenue?.id ?? ""}
+        scope={scope}
         tables={(tables ?? []).map((t) => ({
           id: t.id,
           label: t.label,
-          price: (t as unknown as { price?: number | null }).price ?? null,
-          purchaserName: (t as unknown as { purchaserName?: string | null }).purchaserName ?? null,
+          price: t.price ?? null,
+          purchaserName: t.purchaserName ?? null,
         }))}
         isAdmin={isAdmin}
       />

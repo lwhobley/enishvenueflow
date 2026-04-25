@@ -1,9 +1,17 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { floorSections, tables, chairs } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const router = Router();
+
+// Floor plans split into independent layouts per venue. Anything that
+// isn't an explicit known scope falls back to "restaurant" so legacy
+// callers (and the employee floor view) keep working.
+type Scope = "restaurant" | "nightlife";
+function normalizeScope(raw: unknown): Scope {
+  return raw === "nightlife" ? "nightlife" : "restaurant";
+}
 
 function formatTable(t: typeof tables.$inferSelect, sectionName?: string | null) {
   return {
@@ -22,7 +30,11 @@ router.get("/floor-sections", async (req, res) => {
   try {
     const { venueId } = req.query as { venueId: string };
     if (!venueId) return res.status(400).json({ message: "venueId required" });
-    const all = await db.select().from(floorSections).where(eq(floorSections.venueId, venueId));
+    const scope = normalizeScope(req.query.scope);
+    const all = await db.select().from(floorSections).where(and(
+      eq(floorSections.venueId, venueId),
+      eq(floorSections.scope, scope),
+    ));
     res.json(all);
   } catch (err) {
     req.log.error(err);
@@ -34,7 +46,8 @@ router.post("/floor-sections", async (req, res) => {
   try {
     const { venueId, name, capacity, color = "#6366f1" } = req.body;
     if (!venueId || !name) return res.status(400).json({ message: "venueId and name required" });
-    const [section] = await db.insert(floorSections).values({ venueId, name, capacity: capacity ?? 0, color }).returning();
+    const scope = normalizeScope(req.body.scope);
+    const [section] = await db.insert(floorSections).values({ venueId, name, capacity: capacity ?? 0, color, scope }).returning();
     res.status(201).json(section);
   } catch (err) {
     req.log.error(err);
@@ -46,7 +59,11 @@ router.get("/tables", async (req, res) => {
   try {
     const { venueId, sectionId } = req.query as { venueId: string; sectionId?: string };
     if (!venueId) return res.status(400).json({ message: "venueId required" });
-    let query = db.select().from(tables).where(eq(tables.venueId, venueId)).$dynamic();
+    const scope = normalizeScope(req.query.scope);
+    let query = db.select().from(tables).where(and(
+      eq(tables.venueId, venueId),
+      eq(tables.scope, scope),
+    )).$dynamic();
     if (sectionId) query = query.where(eq(tables.sectionId, sectionId));
     const all = await query;
     const sections = await db.select().from(floorSections).where(eq(floorSections.venueId, venueId));
@@ -64,10 +81,12 @@ router.post("/tables", async (req, res) => {
     if (!venueId || !sectionId || !label || !capacity) {
       return res.status(400).json({ message: "venueId, sectionId, label, capacity required" });
     }
+    const scope = normalizeScope(req.body.scope);
     const [table] = await db.insert(tables).values({
       venueId, sectionId, label, capacity,
       x: String(x), y: String(y), width: String(width), height: String(height), shape,
       rotation: Number(rotation) || 0,
+      scope,
     }).returning();
     res.status(201).json(formatTable(table));
   } catch (err) {
@@ -130,8 +149,12 @@ router.post("/tables/renumber", async (req, res) => {
   try {
     const { venueId } = req.body as { venueId?: string };
     if (!venueId) return res.status(400).json({ message: "venueId required" });
+    const scope = normalizeScope(req.body.scope);
 
-    const all = await db.select().from(tables).where(eq(tables.venueId, venueId));
+    const all = await db.select().from(tables).where(and(
+      eq(tables.venueId, venueId),
+      eq(tables.scope, scope),
+    ));
     const sorted = [...all].sort((a, b) => {
       const an = parseInt((a.label ?? "").match(/\d+/)?.[0] ?? "", 10);
       const bn = parseInt((b.label ?? "").match(/\d+/)?.[0] ?? "", 10);
@@ -220,7 +243,11 @@ router.get("/chairs", async (req, res) => {
   try {
     const { venueId } = req.query as { venueId: string };
     if (!venueId) return res.status(400).json({ message: "venueId required" });
-    const all = await db.select().from(chairs).where(eq(chairs.venueId, venueId));
+    const scope = normalizeScope(req.query.scope);
+    const all = await db.select().from(chairs).where(and(
+      eq(chairs.venueId, venueId),
+      eq(chairs.scope, scope),
+    ));
     res.json(all.map(formatChair));
   } catch (err) {
     req.log.error(err);
@@ -232,8 +259,9 @@ router.post("/chairs", async (req, res) => {
   try {
     const { venueId, x = 0, y = 0, rotation = 0 } = req.body;
     if (!venueId) return res.status(400).json({ message: "venueId required" });
+    const scope = normalizeScope(req.body.scope);
     const [chair] = await db.insert(chairs).values({
-      venueId, x: String(x), y: String(y), rotation: Number(rotation) || 0,
+      venueId, x: String(x), y: String(y), rotation: Number(rotation) || 0, scope,
     }).returning();
     res.status(201).json(formatChair(chair));
   } catch (err) {

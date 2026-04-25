@@ -34,6 +34,20 @@ const STATEMENTS: { name: string; sql: string }[] = [
     sql: `ALTER TABLE "tables" ADD COLUMN IF NOT EXISTS "purchaser_name" text`,
   },
 
+  // ── Floor plan scope discriminator (restaurant / nightlife) ─────────────
+  {
+    name: "tables.scope",
+    sql: `ALTER TABLE "tables" ADD COLUMN IF NOT EXISTS "scope" text NOT NULL DEFAULT 'restaurant'`,
+  },
+  {
+    name: "chairs.scope",
+    sql: `ALTER TABLE "chairs" ADD COLUMN IF NOT EXISTS "scope" text NOT NULL DEFAULT 'restaurant'`,
+  },
+  {
+    name: "floor_sections.scope",
+    sql: `ALTER TABLE "floor_sections" ADD COLUMN IF NOT EXISTS "scope" text NOT NULL DEFAULT 'restaurant'`,
+  },
+
   // ── Venue: enrollment token + GPS pin + clock-in radius ─────────────────
   {
     name: "venues.enrollment_token",

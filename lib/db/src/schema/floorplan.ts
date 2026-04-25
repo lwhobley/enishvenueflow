@@ -8,6 +8,11 @@ export const floorSections = pgTable("floor_sections", {
   name: text("name").notNull(),
   capacity: integer("capacity").notNull().default(0),
   color: text("color").notNull().default("#6366f1"),
+  // Floor plans split into independent layouts: "restaurant" (default,
+  // daytime dining) and "nightlife" (the bar / club configuration). A
+  // venue can edit each independently. Existing rows default to
+  // "restaurant" via the column default.
+  scope: text("scope").notNull().default("restaurant"),
 });
 
 export const insertFloorSectionSchema = createInsertSchema(floorSections).omit({ id: true });
@@ -31,6 +36,9 @@ export const tables = pgTable("tables", {
   // Both nullable: a table without a buyer is unsold/available.
   price: numeric("price", { precision: 12, scale: 2 }),
   purchaserName: text("purchaser_name"),
+  // Same scope discriminator as floor_sections — "restaurant" (default)
+  // or "nightlife".
+  scope: text("scope").notNull().default("restaurant"),
 });
 
 export const insertTableSchema = createInsertSchema(tables).omit({ id: true });
@@ -45,6 +53,7 @@ export const chairs = pgTable("chairs", {
   width: numeric("width", { precision: 8, scale: 2 }).notNull().default("18"),
   height: numeric("height", { precision: 8, scale: 2 }).notNull().default("11"),
   rotation: integer("rotation").notNull().default(0),
+  scope: text("scope").notNull().default("restaurant"),
 });
 
 export const insertChairSchema = createInsertSchema(chairs).omit({ id: true });
