@@ -21,7 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { UserPlus, RefreshCw, Pencil, Phone, MapPin, Calendar, Plug, Link2, Copy, Check, RotateCw } from "lucide-react";
+import { UserPlus, RefreshCw, Pencil, Phone, MapPin, Calendar, Plug, Link2, Copy, Check, RotateCw, Users } from "lucide-react";
 
 type FormData = {
   fullName: string;
@@ -72,6 +72,8 @@ export default function ManagerEmployees() {
   const [formError, setFormError] = useState("");
 
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [reloadingRoster, setReloadingRoster] = useState(false);
+  const [reloadResult, setReloadResult] = useState("");
 
   const [toastOpen, setToastOpen] = useState(false);
   const [toastForm, setToastForm] = useState({ clientId: "", clientSecret: "", restaurantGuid: "" });
@@ -226,6 +228,39 @@ export default function ManagerEmployees() {
         <Button variant="outline" size="sm" onClick={() => setInviteOpen(true)} className="gap-2">
           <Link2 className="h-4 w-4" /> Invite employees
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={reloadingRoster || !activeVenue?.id}
+          onClick={async () => {
+            if (!activeVenue?.id) return;
+            setReloadingRoster(true);
+            setReloadResult("");
+            try {
+              const res = await fetch("/api/users/reload-roster", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ venueId: activeVenue.id }),
+              });
+              const body = await res.json();
+              if (!res.ok) throw new Error(body.message ?? `Failed (${res.status})`);
+              setReloadResult(
+                `Roster reloaded · ${body.inserted} added · ${body.updated} updated · ${body.skipped} unchanged${
+                  body.collisions?.length ? ` · ${body.collisions.length} skipped (PIN collision)` : ""
+                }`,
+              );
+              invalidateUsers();
+            } catch (err) {
+              setReloadResult(err instanceof Error ? err.message : "Reload failed");
+            } finally {
+              setReloadingRoster(false);
+            }
+          }}
+          className="gap-2"
+          title="Re-insert any deactivated or missing roster employees"
+        >
+          <Users className={`h-4 w-4 ${reloadingRoster ? "animate-pulse" : ""}`} /> Reload roster
+        </Button>
         <Button size="sm" onClick={openAdd} className="gap-2" style={{ background: "var(--gold)", color: "#0a0502" }}>
           <UserPlus className="h-4 w-4" /> Add Employee
         </Button>
@@ -237,6 +272,12 @@ export default function ManagerEmployees() {
         venueId={activeVenue?.id ?? null}
         currentUserId={activeUser?.id ?? null}
       />
+
+      {reloadResult ? (
+        <div className="text-sm rounded-md border border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/20 px-3 py-2">
+          {reloadResult}
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader>

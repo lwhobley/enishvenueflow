@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { users, roles } from "@workspace/db";
+import { users, roles, loadHires } from "@workspace/db";
 import { eq, and, ne, or } from "drizzle-orm";
 import { hashPin, lookupHashes } from "@workspace/db";
+import { requireManagerForVenue } from "../middlewares/manager-auth";
 
 const router = Router();
 
@@ -155,6 +156,35 @@ router.delete("/users/:id", async (req, res) => {
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to deactivate user" });
+  }
+});
+
+// Manager-only: re-run loadHires() against the venue. Same logic that runs
+// at api-server boot — upserts the roster (`lib/db/src/hires-roster.ts`),
+// re-activates any soft-deleted hire, and inserts anyone who's been
+// hard-deleted. Intended for the case where staff get accidentally
+// removed and a manager needs them back without waiting for the next
+// deploy.
+router.post("/users/reload-roster", requireManagerForVenue, async (req, res) => {
+  try {
+    const venueId = (req.body?.venueId as string | undefined) ?? req.auth?.venueId;
+    if (!venueId) return res.status(400).json({ message: "venueId required" });
+    const results = await loadHires({ venueId });
+    const inserted = results.filter((r) => r.action === "inserted").length;
+    const updated  = results.filter((r) => r.action === "updated").length;
+    const skipped  = results.filter((r) => r.action === "skipped_no_change").length;
+    const collisions = results.filter((r) => r.action === "skipped_pin_collision");
+    res.json({
+      ok: true,
+      inserted,
+      updated,
+      skipped,
+      collisions: collisions.map((c) => ({ name: c.hire.fullName, detail: c.detail })),
+      total: results.length,
+    });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to reload roster" });
   }
 });
 

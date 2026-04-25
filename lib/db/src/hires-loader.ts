@@ -77,7 +77,13 @@ export async function loadHires(opts: { venueId?: string } = {}): Promise<LoadHi
         JSON.stringify(existing.positions ?? []) !== JSON.stringify(hire.positions) ||
         existing.hireDate !== hire.hireDate ||
         !pinAlreadyMatches ||
-        (existing.roleId == null && roleId != null);
+        (existing.roleId == null && roleId != null) ||
+        // Re-activate any hire that was soft-deleted. Previously a row
+        // with isActive=false but otherwise matching the roster slipped
+        // past as "no change" and stayed hidden from the Employees list
+        // forever — which is what just happened in production after
+        // someone removed them from /manager/employees.
+        existing.isActive === false;
 
       if (!changed) {
         results.push({ hire, pin, action: "skipped_no_change", userId: existing.id });
