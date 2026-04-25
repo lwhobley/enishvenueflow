@@ -1,8 +1,34 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { schedules, shifts, users, roles } from "@workspace/db";
+import { schedules, shifts, users, roles, venues } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { GoogleGenAI } from "@google/genai";
+
+// Convert a wall-clock (yyyy-mm-dd HH:MM) in the venue's local timezone
+// to a UTC Date — needed because the DB stores shifts as UTC timestamps.
+// The naive `${day}T11:00:00.000Z` we used to do meant "11 AM UTC", which
+// in Houston is 5 AM local — fallback shifts started before sunrise.
+function localToUtc(ymd: string, hour: number, minute: number, timeZone: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number);
+  // First guess: treat the parts as if they were UTC. Then read what
+  // that instant looks like in `timeZone` and back out the offset.
+  const guess = Date.UTC(y, m - 1, d, hour, minute, 0, 0);
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone, hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const parts = Object.fromEntries(formatter.formatToParts(new Date(guess)).map((p) => [p.type, p.value]));
+  const asLocal = Date.UTC(
+    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+    Number(parts.hour) % 24, Number(parts.minute), Number(parts.second),
+  );
+  // The difference between guess (which we labelled UTC) and the same
+  // wall-clock interpreted in the local zone is the offset we need to
+  // subtract from the original guess to land on the intended UTC.
+  const offsetMs = asLocal - guess;
+  return new Date(guess - offsetMs);
+}
 
 const router = Router();
 
@@ -55,9 +81,11 @@ router.post("/schedules/ai-generate", async (req, res) => {
     endDate.setDate(endDate.getDate() + 6);
     const weekEnd = endDate.toISOString().split("T")[0];
 
-    // Get staff and roles for context
+    // Get staff, roles, and the venue's timezone for time calculations.
     const staffList = await db.select().from(users).where(and(eq(users.venueId, venueId), eq(users.isActive, true)));
     const roleList = await db.select().from(roles).where(eq(roles.venueId, venueId));
+    const [venueRow] = await db.select().from(venues).where(eq(venues.id, venueId));
+    const venueTz = venueRow?.timezone || "America/Chicago";
 
     // Create or find schedule
     let [schedule] = await db.insert(schedules).values({ venueId, weekStart, weekEnd }).returning();
@@ -126,10 +154,12 @@ Distribute shifts across 7 days, covering typical lunch (11:00-15:00) and dinner
       let staffIdx = 0;
       for (const day of days) {
         for (const role of roleList.slice(0, 3)) {
-          const lunchStart = `${day}T11:00:00.000Z`;
-          const lunchEnd = `${day}T15:00:00.000Z`;
-          const dinnerStart = `${day}T17:00:00.000Z`;
-          const dinnerEnd = `${day}T22:00:00.000Z`;
+          // 11 AM – 3 PM lunch and 5 PM – 10 PM dinner in the venue's
+          // local timezone, converted to the UTC instants the DB stores.
+          const lunchStart = localToUtc(day, 11, 0, venueTz).toISOString();
+          const lunchEnd   = localToUtc(day, 15, 0, venueTz).toISOString();
+          const dinnerStart = localToUtc(day, 17, 0, venueTz).toISOString();
+          const dinnerEnd   = localToUtc(day, 22, 0, venueTz).toISOString();
           const staff = staffCycle[staffIdx % staffCycle.length];
           generatedShifts.push({ roleId: role.id, userId: (staff as { id: string | null }).id, startTime: lunchStart, endTime: lunchEnd });
           staffIdx++;

@@ -7,9 +7,12 @@ import { assertSelf } from "../lib/auth-guards";
 
 const router = Router();
 
-// Configure VAPID
-const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY!;
-const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY!;
+// Configure VAPID — both keys are optional. When unset, /push/* endpoints
+// short-circuit with a 503 instead of crashing on undefined. The non-null
+// assertions on these env reads were a foot-gun: TypeScript thought the
+// values were strings but at runtime they could be undefined.
+const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY ?? "";
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY ?? "";
 const VAPID_EMAIL   = process.env.VAPID_EMAIL || "mailto:admin@enish.com";
 
 if (VAPID_PUBLIC && VAPID_PRIVATE) {

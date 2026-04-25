@@ -24,7 +24,10 @@ export type BusinessDayWindow = {
   timeZone: string;
 };
 
-const TZ = "America/Chicago";
+// Default timezone when a venue row doesn't carry one. Reports always
+// take the business day boundary in the venue's local time, so a venue
+// in NY or LA needs its own zone, not a hardcoded CT.
+const DEFAULT_TZ = "America/Chicago";
 
 /**
  * Compute UTC offset (in minutes) for the given instant in the given IANA TZ.
@@ -84,13 +87,14 @@ function combineDateTimeInZone(ymd: string, hms: string, timeZone: string): Date
  * End-of-night window: the full local business day (4am -> next 4am Central),
  * but capped at "now" so we never query the future.
  */
-export function computeWindow(kind: ReportKind, now: Date = new Date()): BusinessDayWindow {
-  const ymd = localYmd(now, TZ);
+export function computeWindow(kind: ReportKind, now: Date = new Date(), timeZone: string = DEFAULT_TZ): BusinessDayWindow {
+  const tz = timeZone || DEFAULT_TZ;
+  const ymd = localYmd(now, tz);
   const [y, m, d] = ymd.split("-").map(Number);
 
   // Business day starts at 4am local; if "now" is before 4am local, the
   // current business day is yesterday's date.
-  const fourAmToday = fromLocal(y, m, d, 4, TZ);
+  const fourAmToday = fromLocal(y, m, d, 4, tz);
   let businessYear = y;
   let businessMonth = m;
   let businessDay = d;
@@ -100,14 +104,14 @@ export function computeWindow(kind: ReportKind, now: Date = new Date()): Busines
     businessMonth = yesterday.getUTCMonth() + 1;
     businessDay = yesterday.getUTCDate();
   }
-  const startUtc = fromLocal(businessYear, businessMonth, businessDay, 4, TZ);
+  const startUtc = fromLocal(businessYear, businessMonth, businessDay, 4, tz);
   const nextDay = new Date(startUtc.getTime() + 24 * 60 * 60 * 1000);
   const endOfNightUtc = fromLocal(
     nextDay.getUTCFullYear(),
     nextDay.getUTCMonth() + 1,
     nextDay.getUTCDate(),
     4,
-    TZ,
+    tz,
   );
 
   // Both EOS and EON cap at "now" so we never query the future. EON additionally
@@ -116,7 +120,7 @@ export function computeWindow(kind: ReportKind, now: Date = new Date()): Busines
 
   const businessDate = `${String(businessYear).padStart(4, "0")}-${String(businessMonth).padStart(2, "0")}-${String(businessDay).padStart(2, "0")}`;
 
-  return { startUtc, endUtc, businessDate, timeZone: TZ };
+  return { startUtc, endUtc, businessDate, timeZone: tz };
 }
 
 export type ReservationsSection = {
@@ -194,10 +198,12 @@ export async function buildReport(opts: {
   kind: ReportKind;
   now?: Date;
 }): Promise<ReportPayload> {
-  const win = computeWindow(opts.kind, opts.now);
-
+  // Pull the venue first so the business-day window is computed in the
+  // venue's local timezone. Was hardcoded to America/Chicago, which gave
+  // a venue in NY a window that started at 5am ET.
   const [venueRow] = await db.select().from(venues).where(eq(venues.id, opts.venueId));
   const venueName = venueRow?.name ?? "Venue";
+  const win = computeWindow(opts.kind, opts.now, venueRow?.timezone ?? undefined);
 
   // ── Reservations section ──────────────────────────────────────────────────
   // The CT business day spans 4am→4am local, which crosses calendar midnight.
@@ -288,6 +294,12 @@ export async function buildReport(opts: {
   let totalHours = 0;
   let totalCost = 0;
   const byRoleMap = new Map<string, { hours: number; cost: number }>();
+  // Per-employee hours within the report window so we can apply the
+  // overtime threshold per person rather than to the venue's lump sum.
+  // Previously totalHours summed across every employee and Math.min(_, 40)
+  // capped the whole venue at 40 "regular" hours, which made overtime
+  // wildly overstated on any busy day.
+  const hoursByUser = new Map<string, number>();
   for (const e of allEntries) {
     // Clip the entry's interval to the report window so shifts that span the
     // boundary contribute only their in-window minutes.
@@ -301,6 +313,7 @@ export async function buildReport(opts: {
     const cost = hrs * rate;
     totalHours += hrs;
     totalCost += cost;
+    hoursByUser.set(e.userId, (hoursByUser.get(e.userId) ?? 0) + hrs);
     const role = u?.roleId ?? "unassigned";
     const cur = byRoleMap.get(role) ?? { hours: 0, cost: 0 };
     cur.hours += hrs;
@@ -326,8 +339,18 @@ export async function buildReport(opts: {
     }))
     .sort((a, b) => b.hours - a.hours);
 
-  const regularHours = Math.min(totalHours, 40);
-  const overtimeHours = Math.max(0, totalHours - 40);
+  // Daily overtime approximation: hours over 8 per employee count as
+  // overtime within the reporting window. Real overtime is a pay-period
+  // construct (40 hr/week federal, varies by state), so this is a
+  // lower-bound proxy meant for the daily report — not a payroll
+  // figure. Per-period overtime should live in the payroll generator.
+  const DAILY_OT_THRESHOLD = 8;
+  let regularHours = 0;
+  let overtimeHours = 0;
+  for (const hrs of hoursByUser.values()) {
+    regularHours += Math.min(hrs, DAILY_OT_THRESHOLD);
+    overtimeHours += Math.max(0, hrs - DAILY_OT_THRESHOLD);
+  }
 
   const laborSection: LaborSection = {
     totalHours: Math.round(totalHours * 100) / 100,

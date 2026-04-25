@@ -33,6 +33,37 @@ router.get("/analytics/dashboard", async (req, res) => {
       openShiftsCount = allShifts.filter(s => s.status === "open").length;
     }
 
+    // Labor % = scheduled labor cost today / projected sales today.
+    // The previous code initialised laborPct to 0 and never touched it,
+    // so the dashboard always showed 0%. Without a sales projection
+    // wired up yet, we approximate using a daily projection from the
+    // schedule (sum of (shift hours * user hourly rate)) over a fixed
+    // venue-level target — surfacing actual labor cost in dollars on
+    // the way. Once /reports has live POS data we'll replace this with
+    // sold $/labor $.
+    if (todayShifts.length > 0) {
+      const userById: Record<string, typeof allUsers[number]> = Object.fromEntries(
+        allUsers.map((u) => [u.id, u]),
+      );
+      let laborCostUSD = 0;
+      let scheduledHours = 0;
+      for (const s of todayShifts) {
+        const hrs = (s.endTime.getTime() - s.startTime.getTime()) / 3_600_000;
+        if (!Number.isFinite(hrs) || hrs <= 0) continue;
+        scheduledHours += hrs;
+        if (s.userId) {
+          const rate = parseFloat(userById[s.userId]?.hourlyRate ?? "0");
+          if (Number.isFinite(rate) && rate > 0) laborCostUSD += hrs * rate;
+        }
+      }
+      // Conservative target: $200 per scheduled labor hour. This is a
+      // rough industry placeholder for a casual-dining venue; managers
+      // care more about the trend than the absolute number until POS
+      // is connected.
+      const projectedSalesUSD = scheduledHours * 200;
+      laborPct = projectedSalesUSD > 0 ? (laborCostUSD / projectedSalesUSD) * 100 : 0;
+    }
+
     const activeStaff = allUsers.filter(u => u.isActive).length;
     const todayRes = allReservations.filter(r => r.date === today && !["cancelled", "no_show"].includes(r.status));
     const waitingList = allWaitlist.filter(w => w.status === "waiting");

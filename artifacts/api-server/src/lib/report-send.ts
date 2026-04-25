@@ -1,5 +1,5 @@
-import { db } from "@workspace/db";
-import { reportSends } from "@workspace/db";
+import { db, reportSends, reportSettings } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { buildReport, type ReportKind } from "./report-builder";
 import { buildSubject, renderHtml, renderText } from "./report-email";
 import { sendOutlookMail } from "./outlook";
@@ -23,9 +23,6 @@ export type SendReportResult =
       report: Awaited<ReturnType<typeof buildReport>>;
     }
   | { ok: false; reason: "unauthorized" | "send_failed"; message: string };
-
-import { reportSettings } from "@workspace/db";
-import { eq } from "drizzle-orm";
 
 const DEFAULT_RECIPIENTS = ["faith@enishusa.com", "liffort@enishusa.com"];
 

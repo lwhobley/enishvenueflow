@@ -1,15 +1,13 @@
 import { Router, type IRouter } from "express";
-import { randomBytes, createHash, timingSafeEqual } from "node:crypto";
-import { db, venues, users, roles, ENROLLABLE_POSITIONS, isEnrollablePosition } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import {
+  db, venues, users, roles, ENROLLABLE_POSITIONS, isEnrollablePosition,
+  hashPin, lookupHashes,
+} from "@workspace/db";
+import { and, eq, or } from "drizzle-orm";
 import { requireManagerForVenue } from "../middlewares/manager-auth";
 
 const router: IRouter = Router();
-const PIN_SALT = "enosh2024";
-
-function hashPin(pin: string): string {
-  return createHash("sha256").update(pin + PIN_SALT).digest("hex");
-}
 
 function newToken(): string {
   return randomBytes(24).toString("hex");
@@ -108,8 +106,15 @@ router.post("/enroll/:venueId/:token", async (req, res) => {
       return res.status(400).json({ message: "PIN must be 4–8 digits" });
     }
 
+    // Use the shared scrypt+pepper hash for the new row, but check
+    // collisions in BOTH formats so a pre-existing legacy user with the
+    // same PIN can't sneak past — sign-in matches either format.
     const pinHash = hashPin(pinStr);
-    const [pinCollision] = await db.select({ id: users.id }).from(users).where(eq(users.pinHash, pinHash));
+    const { newHash, legacyHash } = lookupHashes(pinStr);
+    const [pinCollision] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(or(eq(users.pinHash, newHash), eq(users.pinHash, legacyHash)));
     if (pinCollision) {
       return res.status(409).json({ message: "That PIN is already taken — please pick another" });
     }
