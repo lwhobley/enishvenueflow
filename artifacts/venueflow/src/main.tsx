@@ -97,4 +97,26 @@ window.fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
   return response;
 }) as typeof window.fetch;
 
+// Auto-refresh open tabs the moment a new service worker takes over.
+// vite-plugin-pwa's `registerType: "autoUpdate"` already prompts the
+// updated SW to activate (skipWaiting + clientsClaim in sw.ts), but
+// without a controllerchange listener the page keeps running its
+// already-loaded JS until the user manually reloads. With this
+// listener, deploys propagate to every open tab within seconds:
+// 1. browser re-fetches sw.js (no-cache header on the server)
+// 2. new SW installs, activates, claims clients
+// 3. controllerchange fires → window.location.reload() → fresh build
+//
+// `reloaded` guards against the install-time case where there was no
+// previous controller (first-ever visit), which would otherwise loop.
+if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloaded) return;
+    if (!navigator.serviceWorker.controller) return;
+    reloaded = true;
+    window.location.reload();
+  });
+}
+
 createRoot(document.getElementById("root")!).render(<App />);

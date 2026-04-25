@@ -12,6 +12,23 @@ clientsClaim();
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
+// Belt-and-suspenders cache nuke. cleanupOutdatedCaches() only removes
+// the previous Workbox precache; it leaves any other caches alone (a
+// prior deploy's runtime cache, an experimental cache name we tried
+// once, anything left behind by extensions). On activate, drop every
+// cache whose name doesn't match the current Workbox precache, so a
+// new deploy always starts from clean storage.
+self.addEventListener("activate", (event) => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(
+      keys
+        .filter((k) => !k.startsWith("workbox-precache"))
+        .map((k) => caches.delete(k))
+    );
+  })());
+});
+
 // ── Push notifications ────────────────────────────────────────────────────────
 self.addEventListener("push", (event) => {
   const data = event.data?.json() ?? {};

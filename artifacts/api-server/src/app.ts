@@ -68,9 +68,34 @@ const staticDir =
 
 if (existsSync(staticDir) && statSync(staticDir).isDirectory()) {
   const indexHtml = path.join(staticDir, "index.html");
-  app.use(express.static(staticDir, { index: false, maxAge: "1h" }));
+  // Hashed asset files (assets/index-XYZ.js, etc.) can sit in the cache
+  // for a year — their filenames change on every build. But the
+  // "entry-point" files (index.html, sw.js, registerSW.js, the web
+  // manifest) MUST revalidate on every request, otherwise the browser
+  // can serve a 1-hour-stale service worker and the user keeps running
+  // an old build long after deploy. Without no-cache on sw.js, the new
+  // SW that calls skipWaiting()/clientsClaim() never even reaches the
+  // browser to swap in.
+  const NO_CACHE_FILES = new Set(["index.html", "sw.js", "sw.mjs", "registerSW.js", "manifest.webmanifest"]);
+  app.use(express.static(staticDir, {
+    index: false,
+    setHeaders: (res, filePath) => {
+      const base = path.basename(filePath);
+      if (NO_CACHE_FILES.has(base)) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else {
+        res.setHeader("Cache-Control", "public, max-age=3600");
+      }
+    },
+  }));
   app.get(/^\/(?!api\/).*/, (_req, res, next) => {
     if (!existsSync(indexHtml)) return next();
+    // The SPA fallback also needs no-cache so a deploy with a new asset
+    // hash gets picked up on the next navigation, not after the
+    // previous index.html ages out of cache.
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.sendFile(indexHtml);
   });
 } else {
