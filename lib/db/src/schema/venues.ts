@@ -17,7 +17,7 @@ export const venues = pgTable("venues", {
   latitude: numeric("latitude", { precision: 10, scale: 7 }),
   longitude: numeric("longitude", { precision: 10, scale: 7 }),
   // Allowed distance (in feet) between the device and the pin at clock-in.
-  // Falls back to 1000 ft when null.
+  // Falls back to 800 ft when null.
   clockInRadiusFeet: integer("clock_in_radius_feet"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

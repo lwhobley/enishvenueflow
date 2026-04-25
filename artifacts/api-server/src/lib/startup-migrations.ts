@@ -41,6 +41,14 @@ const STATEMENTS: { name: string; sql: string }[] = [
     name: "venues.clock_in_radius_feet",
     sql: `ALTER TABLE "venues" ADD COLUMN IF NOT EXISTS "clock_in_radius_feet" integer`,
   },
+  // One-shot: switch any venue still on the prior default (1000 ft, or
+  // never explicitly set) to the new policy of 800 ft. Idempotent —
+  // re-running is a no-op once values are already 800. Manager-set
+  // values other than the prior default are preserved.
+  {
+    name: "venues.clock_in_radius_feet default 800",
+    sql: `UPDATE "venues" SET "clock_in_radius_feet" = 800 WHERE "clock_in_radius_feet" IS NULL OR "clock_in_radius_feet" = 1000`,
+  },
 
   // ── Literature library ──────────────────────────────────────────────────
   {

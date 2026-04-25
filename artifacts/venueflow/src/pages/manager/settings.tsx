@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Loader2, Target } from "lucide-react";
 
-const DEFAULT_RADIUS_FEET = 1000;
+const DEFAULT_RADIUS_FEET = 800;
 
 // Venue record shape with the GPS fields. The generated API client types
 // don't know about latitude/longitude/clockInRadiusFeet yet, so we narrow

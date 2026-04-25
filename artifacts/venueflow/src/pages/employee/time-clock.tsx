@@ -26,10 +26,10 @@ const G = {
 };
 
 // ── Venue anchor fallbacks (used when the venue record has no GPS pin) ──────
-// Manager sets the real pin + radius on /manager/venues → "Set GPS pin".
+// Manager sets the real pin + radius on Settings → Clock-in GPS Pin.
 const FALLBACK_VENUE_LAT = 29.736002;
 const FALLBACK_VENUE_LNG = -95.461831;
-const DEFAULT_RADIUS_FEET = 1000;
+const DEFAULT_RADIUS_FEET = 800;
 const FEET_PER_METER = 3.28084;
 // Small GPS jitter cushion on top of the venue radius.
 const GPS_BUFFER = 25;

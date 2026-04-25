@@ -9,11 +9,11 @@ import { assertSelf } from "../lib/auth-guards";
 const router = Router();
 
 // ── Venue anchor fallbacks (used only if the venue record has no GPS pin) ───
-// To move the pin: manager → /manager/venues → "Set GPS pin" modal, or PUT
+// To move the pin: manager → Settings → Clock-in GPS Pin, or PUT
 // /api/venues/:id with { latitude, longitude, clockInRadiusFeet }.
 const FALLBACK_VENUE_LAT = 29.736002;
 const FALLBACK_VENUE_LNG = -95.461831;
-const DEFAULT_RADIUS_FEET = 1000;
+const DEFAULT_RADIUS_FEET = 800;
 const FEET_PER_METER = 3.28084;
 // Any fix claiming worse than this accuracy is almost certainly WiFi /
 // cell-tower positioning rather than real GPS. Phone GPS outdoors is
