@@ -61,6 +61,30 @@ const STATEMENTS: { name: string; sql: string }[] = [
       )
     `,
   },
+
+  // ── Sessions table for bearer-token auth ───────────────────────────────
+  {
+    name: "user_sessions table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "user_sessions" (
+        "id" text PRIMARY KEY,
+        "user_id" text NOT NULL,
+        "venue_id" text NOT NULL,
+        "token_hash" text NOT NULL UNIQUE,
+        "expires_at" timestamp NOT NULL,
+        "created_at" timestamp NOT NULL DEFAULT now(),
+        "last_used_at" timestamp NOT NULL DEFAULT now()
+      )
+    `,
+  },
+  {
+    name: "user_sessions token_hash index",
+    sql: `CREATE INDEX IF NOT EXISTS "user_sessions_token_hash_idx" ON "user_sessions" ("token_hash")`,
+  },
+  {
+    name: "user_sessions user_id index",
+    sql: `CREATE INDEX IF NOT EXISTS "user_sessions_user_id_idx" ON "user_sessions" ("user_id")`,
+  },
 ];
 
 export async function applyStartupMigrations(): Promise<void> {

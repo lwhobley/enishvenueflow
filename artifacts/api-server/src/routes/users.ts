@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { users, roles } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { createHash } from "crypto";
 
 const router = Router();
@@ -9,6 +9,21 @@ const PIN_SALT = "enosh2024";
 
 function hashPin(pin: string): string {
   return createHash("sha256").update(pin + PIN_SALT).digest("hex");
+}
+
+// PIN auth looks up by hash globally — auth.ts:20 returns the first matching
+// row. So before storing a hash, refuse if any other user already owns it,
+// otherwise sign-in becomes ambiguous between two accounts.
+async function isPinHashTaken(hash: string, exceptUserId?: string): Promise<boolean> {
+  const conditions = exceptUserId
+    ? and(eq(users.pinHash, hash), ne(users.id, exceptUserId))
+    : eq(users.pinHash, hash);
+  const [collision] = await db.select({ id: users.id }).from(users).where(conditions);
+  return !!collision;
+}
+
+function isValidPin(pin: unknown): pin is string {
+  return typeof pin === "string" && /^\d{4,8}$/.test(pin);
 }
 
 function mapUser(u: typeof users.$inferSelect, roleMap: Record<string, { name: string; color: string }>) {
@@ -58,6 +73,17 @@ router.post("/users", async (req, res) => {
     } = req.body;
     if (!venueId || !fullName) return res.status(400).json({ message: "venueId and fullName required" });
 
+    let pinHash: string | null = null;
+    if (pin !== undefined && pin !== null && pin !== "") {
+      if (!isValidPin(String(pin))) {
+        return res.status(400).json({ message: "PIN must be 4–8 digits" });
+      }
+      pinHash = hashPin(String(pin));
+      if (await isPinHashTaken(pinHash)) {
+        return res.status(409).json({ message: "That PIN is already in use — pick another" });
+      }
+    }
+
     const [user] = await db.insert(users).values({
       venueId,
       fullName,
@@ -70,7 +96,7 @@ router.post("/users", async (req, res) => {
       isAdmin,
       hireDate: hireDate ?? null,
       hourlyRate: hourlyRate != null ? String(hourlyRate) : null,
-      pinHash: pin ? hashPin(String(pin)) : null,
+      pinHash,
     }).returning();
 
     const allRoles = await db.select().from(roles).where(eq(roles.venueId, venueId));
@@ -103,7 +129,16 @@ router.put("/users/:id", async (req, res) => {
     if (hireDate !== undefined) updates.hireDate = hireDate;
     if (hourlyRate !== undefined) updates.hourlyRate = hourlyRate != null ? String(hourlyRate) : null;
     if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl;
-    if (pin !== undefined && pin !== "") updates.pinHash = hashPin(String(pin));
+    if (pin !== undefined && pin !== "") {
+      if (!isValidPin(String(pin))) {
+        return res.status(400).json({ message: "PIN must be 4–8 digits" });
+      }
+      const newHash = hashPin(String(pin));
+      if (await isPinHashTaken(newHash, id)) {
+        return res.status(409).json({ message: "That PIN is already in use — pick another" });
+      }
+      updates.pinHash = newHash;
+    }
 
     const [updated] = await db.update(users).set(updates).where(eq(users.id, id)).returning();
     if (!updated) return res.status(404).json({ message: "User not found" });

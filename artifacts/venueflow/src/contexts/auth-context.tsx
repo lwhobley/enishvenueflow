@@ -8,6 +8,13 @@ export interface AuthUser {
   venueId: string;
   isAdmin: boolean;
   roleId: string | null;
+  /**
+   * Bearer session token issued by /auth/pin. Sent as
+   * `Authorization: Bearer <token>` on every API call. The server
+   * stores only the SHA-256 hash so a leaked DB dump can't be replayed.
+   */
+  sessionToken?: string;
+  sessionExpiresAt?: string;
 }
 
 interface AuthContextValue {
@@ -23,7 +30,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
     try {
       const s = localStorage.getItem(STORAGE_KEY);
-      return s ? JSON.parse(s) : null;
+      if (!s) return null;
+      const parsed = JSON.parse(s) as AuthUser & { sessionExpiresAt?: string };
+      // Treat a saved user without a session token as logged-out — the
+      // server requires bearer auth on every /api/* call now, so any
+      // pre-token cached profile would just produce a wall of 401s.
+      if (!parsed.sessionToken) {
+        localStorage.removeItem(STORAGE_KEY);
+        return null;
+      }
+      // Drop expired sessions on load.
+      if (parsed.sessionExpiresAt && new Date(parsed.sessionExpiresAt).getTime() < Date.now()) {
+        localStorage.removeItem(STORAGE_KEY);
+        return null;
+      }
+      return parsed;
     } catch {
       return null;
     }
@@ -47,6 +68,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    // Invalidate the session server-side. Best-effort — even if the
+    // request fails we always clear local state so the user is logged
+    // out of this device.
+    const token = user?.sessionToken;
+    if (token) {
+      void fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => { /* noop */ });
+    }
     setUser(null);
     localStorage.removeItem(STORAGE_KEY);
   };

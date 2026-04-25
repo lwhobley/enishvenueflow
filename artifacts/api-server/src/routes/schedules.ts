@@ -90,8 +90,16 @@ Distribute shifts across 7 days, covering typical lunch (11:00-15:00) and dinner
       const baseUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
       const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
 
-      if (baseUrl && apiKey) {
-        const ai = new GoogleGenAI({ apiKey, baseUrl });
+      if (apiKey) {
+        // The installed @google/genai client doesn't accept baseUrl in its
+        // typed constructor options, but we need to keep supporting the
+        // Replit-era proxy URL when it's set. Pass it via httpOptions and
+        // cast — the field is recognised at runtime.
+        const ai = new GoogleGenAI(
+          baseUrl
+            ? ({ apiKey, httpOptions: { baseUrl } } as unknown as { apiKey: string })
+            : { apiKey },
+        );
         const result = await ai.models.generateContent({
           model: "gemini-2.5-flash",
           contents: prompt,

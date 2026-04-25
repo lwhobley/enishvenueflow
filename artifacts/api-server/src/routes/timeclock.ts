@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { timeClockEntries, timeOffRequests, users, shifts, venues } from "@workspace/db";
-import { eq, and, gte, lte, or } from "drizzle-orm";
+import { timeClockEntries, timeOffRequests, users, shifts, venues, schedules } from "@workspace/db";
+import { eq, and, gte, lte, or, inArray } from "drizzle-orm";
 import { adpStatus, isAdpConfigured, pushTimeEntry, pullRecentEntries } from "../lib/adp";
 import { notifyManagers, notifyUser } from "../lib/push";
 
@@ -153,8 +153,21 @@ router.post("/time-clock/in", async (req, res) => {
     const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
     const todayEnd   = new Date(now); todayEnd.setHours(23, 59, 59, 999);
 
-    const todayShifts = await db.select().from(shifts)
-      .where(and(eq(shifts.userId, userId), eq(shifts.venueId, venueId), gte(shifts.startTime, todayStart), lte(shifts.startTime, todayEnd)));
+    // shifts has no venueId — venue is reached via shifts.scheduleId →
+    // schedules.venueId. Resolve the venue's schedule ids first, then
+    // filter today's shifts for this user inside that set.
+    const venueScheduleIds = (
+      await db.select({ id: schedules.id }).from(schedules).where(eq(schedules.venueId, venueId))
+    ).map((s) => s.id);
+    const todayShifts = venueScheduleIds.length === 0
+      ? []
+      : await db.select().from(shifts)
+          .where(and(
+            eq(shifts.userId, userId),
+            inArray(shifts.scheduleId, venueScheduleIds),
+            gte(shifts.startTime, todayStart),
+            lte(shifts.startTime, todayEnd),
+          ));
 
     if (todayShifts.length === 0) return res.status(403).json({ message: "You are not scheduled to work today." });
 

@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { useListVenues, useListUsers } from "@workspace/api-client-react";
-import type { Venue, User } from "@workspace/api-client-react/src/generated/api.schemas";
+import { useListVenues } from "@workspace/api-client-react";
+import type { Venue } from "@workspace/api-client-react/src/generated/api.schemas";
+import { useAuth, type AuthUser } from "@/contexts/auth-context";
 import { Loader2 } from "lucide-react";
 
 interface AppContextType {
   activeVenue: Venue | null;
-  activeUser: User | null;
+  activeUser: AuthUser | null;
   setActiveVenue: (venue: Venue) => void;
-  setActiveUser: (user: User) => void;
   isLoading: boolean;
 }
 
@@ -33,8 +33,13 @@ function writeStoredVenueId(id: string | null) {
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  // activeUser is always the authenticated user — never substituted with
+  // someone else (previously this code defaulted to the first admin in the
+  // venue, which silently impersonated whoever logged in).
+  const activeUser = user;
+
   const [activeVenue, setActiveVenueState] = useState<Venue | null>(null);
-  const [activeUser, setActiveUser] = useState<User | null>(null);
 
   const setActiveVenue = (venue: Venue) => {
     setActiveVenueState(venue);
@@ -44,32 +49,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const { data: venues, isLoading: isLoadingVenues } = useListVenues();
 
   // Pick the venue this device last used (persisted in localStorage). Falls
-  // back to venues[0] only when no stored id matches — this keeps two
-  // devices with mismatched venue list ordering from silently loading
-  // different data.
+  // back to venues[0] only when no stored id matches; non-admins should
+  // ultimately always see only their own venue, but until we filter
+  // server-side this keeps behavior consistent across devices.
   useEffect(() => {
     if (!venues || venues.length === 0 || activeVenue) return;
     const storedId = readStoredVenueId();
     const fromStorage = storedId ? venues.find((v) => v.id === storedId) : null;
-    const next = fromStorage ?? venues[0];
+    // If the authenticated user has a venueId and it appears in the list,
+    // honor that first — non-admins should never end up viewing a different
+    // venue's data.
+    const fromAuth = user?.venueId ? venues.find((v) => v.id === user.venueId) : null;
+    const next = fromStorage ?? fromAuth ?? venues[0];
     setActiveVenueState(next);
     writeStoredVenueId(next.id);
-  }, [venues, activeVenue]);
+  }, [venues, activeVenue, user?.venueId]);
 
-  const { data: users, isLoading: isLoadingUsers } = useListUsers(
-    { venueId: activeVenue?.id || "" },
-    { query: { enabled: !!activeVenue?.id } }
-  );
-
-  useEffect(() => {
-    if (users && users.length > 0 && !activeUser) {
-      // Find an admin user if possible, else just the first user
-      const admin = users.find(u => u.isAdmin);
-      setActiveUser(admin || users[0]);
-    }
-  }, [users, activeUser]);
-
-  const isLoading = isLoadingVenues || (!!activeVenue && isLoadingUsers);
+  const isLoading = isLoadingVenues;
 
   if (isLoading && !activeVenue) {
     return (
@@ -85,7 +81,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         activeVenue,
         activeUser,
         setActiveVenue,
-        setActiveUser,
         isLoading,
       }}
     >

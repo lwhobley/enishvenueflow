@@ -225,20 +225,26 @@ export function Layout({ children, isEmployee = false }: { children: React.React
                 fontSize: 11,
                 letterSpacing: 1,
               }}>
-                {isEmployee ? (
+                {/* Cross-link between Manager and Employee modes — only
+                    admins see this. Non-admin employees never get the
+                    manager-view link, and the manager guard in App.tsx
+                    would redirect them anyway. */}
+                {user?.isAdmin && isEmployee ? (
                   <Link href="/manager/dashboard" style={{ color: G.muted, textDecoration: "none", padding: "4px 8px" }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = G.gold; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = G.muted; }}
                   >
                     ← Manager View
                   </Link>
-                ) : (
+                ) : user?.isAdmin && !isEmployee ? (
                   <Link href="/employee/dashboard" style={{ color: G.muted, textDecoration: "none", padding: "4px 8px" }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = G.gold; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = G.muted; }}
                   >
                     → Employee View
                   </Link>
+                ) : (
+                  <span />
                 )}
                 <button
                   type="button"

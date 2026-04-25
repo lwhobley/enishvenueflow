@@ -1,7 +1,4 @@
 import type { Request, Response, NextFunction } from "express";
-import { db } from "@workspace/db";
-import { users } from "@workspace/db";
-import { eq } from "drizzle-orm";
 
 function pickString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
@@ -29,13 +26,20 @@ function extractRequestedVenueId(req: Request): VenueExtraction {
   return { ok: true, venueId: first };
 }
 
-export async function requireManagerForVenue(
+/**
+ * Manager-only gate. Identity comes from req.auth (populated by
+ * requireAuth) — never from caller-supplied headers, which were
+ * spoofable. requireAuth must run before this on every protected
+ * route, which it does because the global app-level pipeline mounts
+ * it once for the whole /api router.
+ */
+export function requireManagerForVenue(
   req: Request,
   res: Response,
   next: NextFunction,
-): Promise<void> {
-  const userId = req.header("x-user-id");
-  if (!userId) {
+): void {
+  const auth = req.auth;
+  if (!auth) {
     res.status(401).json({ message: "Authentication required" });
     return;
   }
@@ -51,19 +55,9 @@ export async function requireManagerForVenue(
     return;
   }
 
-  try {
-    const [user] = await db.select().from(users).where(eq(users.id, userId));
-    if (!user || !user.isActive) {
-      res.status(401).json({ message: "Invalid or inactive user" });
-      return;
-    }
-    if (!user.isAdmin || user.venueId !== venueId) {
-      res.status(403).json({ message: "Manager access required for this venue" });
-      return;
-    }
-    next();
-  } catch (err) {
-    req.log.error(err);
-    res.status(500).json({ message: "Authorization check failed" });
+  if (!auth.isAdmin || auth.venueId !== venueId) {
+    res.status(403).json({ message: "Manager access required for this venue" });
+    return;
   }
+  next();
 }

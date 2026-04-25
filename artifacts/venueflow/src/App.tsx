@@ -56,30 +56,36 @@ const queryClient = new QueryClient({
   },
 });
 
-function Router() {
+function Router({ isAdmin }: { isAdmin: boolean }) {
+  // Gate /manager/* behind the admin flag. Non-admins who land on a manager
+  // URL get bounced to /employee/dashboard. The auth wall already handled
+  // "no user"; this layer handles "user but not admin".
+  const RequireAdmin = ({ children }: { children: React.ReactNode }) =>
+    isAdmin ? <>{children}</> : <Redirect to="/employee/dashboard" />;
+
   return (
     <Switch>
       <Route path="/">
-        <Redirect to="/manager/dashboard" />
+        <Redirect to={isAdmin ? "/manager/dashboard" : "/employee/dashboard"} />
       </Route>
-      <Route path="/manager/dashboard"><Layout><ManagerDashboard /></Layout></Route>
-      <Route path="/manager/schedule"><Layout><ManagerSchedule /></Layout></Route>
-      <Route path="/manager/ai-schedule"><Layout><ManagerAISchedule /></Layout></Route>
-      <Route path="/manager/employees"><Layout><ManagerEmployees /></Layout></Route>
-      <Route path="/manager/floor"><Layout><ManagerFloor /></Layout></Route>
-      <Route path="/manager/reservations"><Layout><ManagerReservations /></Layout></Route>
-      <Route path="/manager/guests"><Layout><ManagerGuests /></Layout></Route>
-      <Route path="/manager/analytics"><Layout><ManagerAnalytics /></Layout></Route>
-      <Route path="/manager/time-clock"><Layout><ManagerTimeClock /></Layout></Route>
-      <Route path="/manager/time-off"><Layout><ManagerTimeOff /></Layout></Route>
-      <Route path="/manager/payroll"><Layout><ManagerPayroll /></Layout></Route>
-      <Route path="/manager/tip-pool"><Layout><ManagerTipPool /></Layout></Route>
-      <Route path="/manager/documents"><Layout><ManagerDocuments /></Layout></Route>
-      <Route path="/manager/literature"><Layout><ManagerLiterature /></Layout></Route>
-      <Route path="/manager/chat"><Layout><ManagerChat /></Layout></Route>
-      <Route path="/manager/settings"><Layout><ManagerSettings /></Layout></Route>
-      <Route path="/manager/venues"><Layout><ManagerVenues /></Layout></Route>
-      <Route path="/manager/integrations"><Layout><ManagerIntegrations /></Layout></Route>
+      <Route path="/manager/dashboard"><RequireAdmin><Layout><ManagerDashboard /></Layout></RequireAdmin></Route>
+      <Route path="/manager/schedule"><RequireAdmin><Layout><ManagerSchedule /></Layout></RequireAdmin></Route>
+      <Route path="/manager/ai-schedule"><RequireAdmin><Layout><ManagerAISchedule /></Layout></RequireAdmin></Route>
+      <Route path="/manager/employees"><RequireAdmin><Layout><ManagerEmployees /></Layout></RequireAdmin></Route>
+      <Route path="/manager/floor"><RequireAdmin><Layout><ManagerFloor /></Layout></RequireAdmin></Route>
+      <Route path="/manager/reservations"><RequireAdmin><Layout><ManagerReservations /></Layout></RequireAdmin></Route>
+      <Route path="/manager/guests"><RequireAdmin><Layout><ManagerGuests /></Layout></RequireAdmin></Route>
+      <Route path="/manager/analytics"><RequireAdmin><Layout><ManagerAnalytics /></Layout></RequireAdmin></Route>
+      <Route path="/manager/time-clock"><RequireAdmin><Layout><ManagerTimeClock /></Layout></RequireAdmin></Route>
+      <Route path="/manager/time-off"><RequireAdmin><Layout><ManagerTimeOff /></Layout></RequireAdmin></Route>
+      <Route path="/manager/payroll"><RequireAdmin><Layout><ManagerPayroll /></Layout></RequireAdmin></Route>
+      <Route path="/manager/tip-pool"><RequireAdmin><Layout><ManagerTipPool /></Layout></RequireAdmin></Route>
+      <Route path="/manager/documents"><RequireAdmin><Layout><ManagerDocuments /></Layout></RequireAdmin></Route>
+      <Route path="/manager/literature"><RequireAdmin><Layout><ManagerLiterature /></Layout></RequireAdmin></Route>
+      <Route path="/manager/chat"><RequireAdmin><Layout><ManagerChat /></Layout></RequireAdmin></Route>
+      <Route path="/manager/settings"><RequireAdmin><Layout><ManagerSettings /></Layout></RequireAdmin></Route>
+      <Route path="/manager/venues"><RequireAdmin><Layout><ManagerVenues /></Layout></RequireAdmin></Route>
+      <Route path="/manager/integrations"><RequireAdmin><Layout><ManagerIntegrations /></Layout></RequireAdmin></Route>
       <Route path="/employee/dashboard"><Layout isEmployee><EmployeeDashboard /></Layout></Route>
       <Route path="/employee/schedule"><Layout isEmployee><EmployeeSchedule /></Layout></Route>
       <Route path="/employee/availability"><Layout isEmployee><EmployeeAvailability /></Layout></Route>
@@ -115,7 +121,7 @@ function AppContent() {
   return (
     <AppProvider>
       <WouterRouter base={base}>
-        <Router />
+        <Router isAdmin={!!user.isAdmin} />
       </WouterRouter>
     </AppProvider>
   );

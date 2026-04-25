@@ -19,8 +19,16 @@ import integrationsRouter from "./integrations";
 import reportsRouter from "./reports";
 import literatureRouter from "./literature";
 import enrollmentRouter from "./enrollment";
+import { requireAuth } from "../middlewares/require-auth";
 
 const router: IRouter = Router();
+
+// Bearer-token auth. requireAuth itself allow-lists the public paths
+// (/healthz, /auth/pin, /push/vapid-public-key, /enroll/:venueId/:token)
+// so login, the SW VAPID bootstrap, and self-enrollment still work
+// before a session exists. Everything else requires a valid session
+// header populated by requireAuth into req.auth.
+router.use(requireAuth);
 
 router.use(healthRouter);
 router.use(authRouter);
