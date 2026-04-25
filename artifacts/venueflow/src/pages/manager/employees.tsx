@@ -21,7 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { UserPlus, RefreshCw, Pencil, Phone, MapPin, Calendar, Plug, Link2, Copy, Check, RotateCw, Users } from "lucide-react";
+import { UserPlus, RefreshCw, Pencil, Phone, MapPin, Calendar, Link2, Copy, Check, RotateCw, Users } from "lucide-react";
 
 type FormData = {
   fullName: string;
@@ -80,10 +80,6 @@ export default function ManagerEmployees() {
   const [toastSyncing, setToastSyncing] = useState(false);
   const [toastResult, setToastResult] = useState("");
 
-  const [otOpen, setOtOpen] = useState(false);
-  const [otForm, setOtForm] = useState({ apiKey: "", restaurantId: "" });
-  const [otSyncing, setOtSyncing] = useState(false);
-  const [otResult, setOtResult] = useState("");
 
   const { data: users, isLoading } = useListUsers(
     { venueId: activeVenue?.id || "" },
@@ -190,28 +186,6 @@ export default function ManagerEmployees() {
     }
   }
 
-  async function handleOtSync() {
-    if (!otForm.apiKey || !otForm.restaurantId) {
-      setOtResult("All fields are required.");
-      return;
-    }
-    setOtSyncing(true);
-    setOtResult("");
-    try {
-      const res = await fetch("/api/integrations/opentable/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ venueId: activeVenue!.id, ...otForm }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      setOtResult(`Sync complete — ${data.created} reservations added, ${data.updated} updated.`);
-    } catch (e: unknown) {
-      setOtResult((e as Error).message || "Sync failed. Check your credentials.");
-    } finally {
-      setOtSyncing(false);
-    }
-  }
 
   const roleById = Object.fromEntries((roles ?? []).map(r => [r.id, r]));
 
@@ -221,9 +195,6 @@ export default function ManagerEmployees() {
         <h1 className="text-3xl font-bold tracking-tight flex-1">Employees</h1>
         <Button variant="outline" size="sm" onClick={() => setToastOpen(true)} className="gap-2">
           <RefreshCw className="h-4 w-4" /> Sync Toast POS
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => setOtOpen(true)} className="gap-2">
-          <Plug className="h-4 w-4" /> Sync OpenTable
         </Button>
         <Button variant="outline" size="sm" onClick={() => setInviteOpen(true)} className="gap-2">
           <Link2 className="h-4 w-4" /> Invite employees
@@ -559,43 +530,6 @@ export default function ManagerEmployees() {
         </DialogContent>
       </Dialog>
 
-      {/* OpenTable Sync Dialog */}
-      <Dialog open={otOpen} onOpenChange={v => { setOtOpen(v); if (!v) setOtResult(""); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Sync from OpenTable</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Pull the next 30 days of reservations from OpenTable into ENISH. Existing reservations
-            are updated; new ones are added automatically. Get your credentials from the OpenTable
-            Partner Portal.
-          </p>
-          <div className="space-y-3 py-2">
-            <div>
-              <Label>API Key</Label>
-              <Input type="password" placeholder="OpenTable Bearer Token / API Key" value={otForm.apiKey}
-                onChange={e => setOtForm(f => ({ ...f, apiKey: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Restaurant ID</Label>
-              <Input placeholder="Your OpenTable Restaurant ID" value={otForm.restaurantId}
-                onChange={e => setOtForm(f => ({ ...f, restaurantId: e.target.value }))} />
-            </div>
-            {otResult && (
-              <p className={`text-sm ${otResult.includes("complete") ? "text-green-400" : "text-red-400"}`}>
-                {otResult}
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setOtOpen(false)}>Close</Button>
-            <Button onClick={handleOtSync} disabled={otSyncing}
-              style={{ background: "var(--gold)", color: "#0a0502" }}>
-              {otSyncing ? "Syncing…" : "Sync Reservations"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

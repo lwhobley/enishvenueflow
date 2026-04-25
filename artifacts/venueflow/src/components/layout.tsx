@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import {
-  LayoutDashboard, Calendar, Wand2, Users, Map, BookOpen,
+  LayoutDashboard, Calendar, Users, Map, BookOpen,
   UserSquare, BarChart, Clock, CalendarOff, DollarSign, Coins,
   FileText, Library, MessageSquare, Settings, MapPin, Menu, X, CalendarCheck, Plug,
   LogOut, Bell, KeyRound,
@@ -27,7 +27,6 @@ const G = {
 const managerNavItems = [
   { href: "/manager/dashboard",  icon: LayoutDashboard, label: "Dashboard"    },
   { href: "/manager/schedule",   icon: Calendar,        label: "Schedule"     },
-  { href: "/manager/ai-schedule",icon: Wand2,           label: "AI Schedule"  },
   { href: "/manager/employees",  icon: Users,           label: "Employees"    },
   { href: "/manager/floor",      icon: Map,             label: "Floor Plan"   },
   { href: "/manager/reservations",icon: BookOpen,       label: "Reservations" },
