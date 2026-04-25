@@ -181,6 +181,92 @@ router.post("/tables/renumber", async (req, res) => {
   }
 });
 
+// POST /floor-plan/copy — mirror every section, table, and chair from
+// `fromScope` into `toScope`, preserving x/y/width/height/rotation/shape/
+// label/capacity. Replaces whatever's currently in toScope. Sales data
+// (price, purchaserName) intentionally does NOT carry over — those are
+// per-event so the new layout starts unsold.
+router.post("/floor-plan/copy", async (req, res) => {
+  try {
+    const { venueId } = req.body as { venueId?: string };
+    if (!venueId) return res.status(400).json({ message: "venueId required" });
+    const fromScope = normalizeScope(req.body.fromScope);
+    const toScope = normalizeScope(req.body.toScope);
+    if (fromScope === toScope) {
+      return res.status(400).json({ message: "fromScope and toScope must differ" });
+    }
+
+    const counts = await db.transaction(async (tx) => {
+      // Wipe target scope so the copy is exact, not a merge.
+      await tx.delete(chairs).where(and(eq(chairs.venueId, venueId), eq(chairs.scope, toScope)));
+      await tx.delete(tables).where(and(eq(tables.venueId, venueId), eq(tables.scope, toScope)));
+      await tx.delete(floorSections).where(and(eq(floorSections.venueId, venueId), eq(floorSections.scope, toScope)));
+
+      // Sections need new ids. Build a map from old id → new id so the
+      // tables we copy can re-point their sectionId at the duplicate.
+      const srcSections = await tx.select().from(floorSections).where(and(
+        eq(floorSections.venueId, venueId),
+        eq(floorSections.scope, fromScope),
+      ));
+      const sectionIdMap = new Map<string, string>();
+      for (const s of srcSections) {
+        const [inserted] = await tx.insert(floorSections).values({
+          venueId, name: s.name, capacity: s.capacity, color: s.color, scope: toScope,
+        }).returning();
+        sectionIdMap.set(s.id, inserted.id);
+      }
+
+      const srcTables = await tx.select().from(tables).where(and(
+        eq(tables.venueId, venueId),
+        eq(tables.scope, fromScope),
+      ));
+      let copiedTables = 0;
+      if (srcTables.length > 0) {
+        const rows = srcTables
+          .map((t) => {
+            const newSectionId = sectionIdMap.get(t.sectionId);
+            if (!newSectionId) return null;
+            return {
+              venueId, sectionId: newSectionId,
+              label: t.label, capacity: t.capacity, status: "available",
+              x: t.x, y: t.y, width: t.width, height: t.height,
+              shape: t.shape, rotation: t.rotation,
+              price: null, purchaserName: null,
+              scope: toScope,
+            };
+          })
+          .filter((r): r is NonNullable<typeof r> => r !== null);
+        if (rows.length > 0) {
+          const inserted = await tx.insert(tables).values(rows).returning();
+          copiedTables = inserted.length;
+        }
+      }
+
+      const srcChairs = await tx.select().from(chairs).where(and(
+        eq(chairs.venueId, venueId),
+        eq(chairs.scope, fromScope),
+      ));
+      let copiedChairs = 0;
+      if (srcChairs.length > 0) {
+        const inserted = await tx.insert(chairs).values(
+          srcChairs.map((c) => ({
+            venueId, x: c.x, y: c.y, width: c.width, height: c.height,
+            rotation: c.rotation, scope: toScope,
+          }))
+        ).returning();
+        copiedChairs = inserted.length;
+      }
+
+      return { sections: srcSections.length, tables: copiedTables, chairs: copiedChairs };
+    });
+
+    res.json({ message: "Floor plan copied", ...counts });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to copy floor plan" });
+  }
+});
+
 router.post("/floor-layout/seed", async (req, res) => {
   try {
     const { venueId, sections: sectionDefs, tables: tableDefs, chairs: chairDefs } = req.body;

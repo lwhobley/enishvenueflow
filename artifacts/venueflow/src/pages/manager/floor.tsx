@@ -8,7 +8,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, Square, Armchair, RotateCw, ListOrdered } from "lucide-react";
+import { Plus, Trash2, Square, Armchair, RotateCw, ListOrdered, Copy } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -233,6 +233,8 @@ export default function ManagerFloor({
   const [editingLabel, setEditingLabel] = useState("");
   const [confirmRenumber, setConfirmRenumber] = useState(false);
   const [renumbering, setRenumbering]         = useState(false);
+  const [confirmCopy, setConfirmCopy]         = useState(false);
+  const [copying, setCopying]                 = useState(false);
   const [tableOv, setTableOv]           = useState<Record<string, { x: number; y: number; w?: number; h?: number; r?: number }>>({});
   const [scale, setScale]               = useState(1);
   // `true` while the user is actively dragging/resizing — pauses polling so
@@ -290,6 +292,40 @@ export default function ManagerFloor({
 
   const updateTable    = useUpdateTable();
   const deleteTableMut = useDeleteTable();
+
+  const otherScope: FloorScope = scope === "restaurant" ? "nightlife" : "restaurant";
+  const otherScopeLabel = otherScope === "restaurant" ? "Restaurant" : "Nightlife";
+
+  const handleCopyFromOther = async () => {
+    if (!activeVenue?.id || copying) return;
+    setCopying(true);
+    try {
+      const result = await apiFetch("/floor-plan/copy", {
+        method: "POST",
+        body: JSON.stringify({ venueId: activeVenue.id, fromScope: otherScope, toScope: scope }),
+      }) as { tables: number; chairs: number; sections: number };
+      await queryClient.invalidateQueries({ queryKey: tablesQK });
+      await queryClient.invalidateQueries({ queryKey: sectionsQK });
+      // Force chair refresh next tick.
+      try {
+        const d = await apiFetch(`/chairs?venueId=${activeVenue.id}&scope=${scope}`);
+        setChairs(Array.isArray(d) ? d : []);
+      } catch { /* ignore */ }
+      toast({
+        title: "Floor plan copied",
+        description: `Copied ${result.tables} tables and ${result.chairs} chairs from ${otherScopeLabel}.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Failed to copy",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setCopying(false);
+      setConfirmCopy(false);
+    }
+  };
 
   const handleRenumber = async () => {
     if (!activeVenue?.id || renumbering) return;
@@ -664,6 +700,14 @@ export default function ManagerFloor({
             </Button>
             <Button
               variant="outline"
+              onClick={() => setConfirmCopy(true)}
+              disabled={copying}
+              title={`Replace this layout with a copy of the ${otherScopeLabel} floor plan`}
+            >
+              <Copy className="w-4 h-4 mr-2" /> Copy from {otherScopeLabel}
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => setConfirmRenumber(true)}
               disabled={renumbering || !(tables && tables.length > 0)}
               title="Relabel every table T1, T2, T3 …"
@@ -871,6 +915,25 @@ export default function ManagerFloor({
         isAdmin={isAdmin}
       />
       </div>
+
+      <AlertDialog open={confirmCopy} onOpenChange={(v) => { if (!copying) setConfirmCopy(v); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Copy {otherScopeLabel} floor plan here?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This wipes the current {scope === "restaurant" ? "Restaurant" : "Nightlife"} floor plan and replaces it
+              with an exact copy of the {otherScopeLabel} layout — same table positions, sizes, shapes, and chairs.
+              Sales data (price + purchaser) is NOT carried over; the copy starts unsold.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={copying}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleCopyFromOther()} disabled={copying}>
+              {copying ? "Copying…" : `Copy from ${otherScopeLabel}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmRenumber} onOpenChange={(v) => { if (!renumbering) setConfirmRenumber(v); }}>
         <AlertDialogContent>
