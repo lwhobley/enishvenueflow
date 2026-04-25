@@ -4,6 +4,7 @@ import { timeClockEntries, timeOffRequests, users, shifts, venues, schedules } f
 import { eq, and, gte, lte, or, inArray } from "drizzle-orm";
 import { adpStatus, isAdpConfigured, pushTimeEntry, pullRecentEntries } from "../lib/adp";
 import { notifyManagers, notifyUser } from "../lib/push";
+import { assertSelf } from "../lib/auth-guards";
 
 const router = Router();
 
@@ -102,6 +103,9 @@ router.post("/time-clock/in", async (req, res) => {
       source, biometricVerified, deviceId,
     } = req.body;
     if (!userId || !venueId) return res.status(400).json({ message: "userId and venueId required" });
+    // Even admins shouldn't be able to clock IN as someone else — the time
+    // record is legally tied to whoever pressed the button.
+    if (!assertSelf(req, res, userId)) return;
 
     const entrySource: string = ["mobile_gps", "phone_biometric"].includes(source) ? source : "mobile_gps";
     const bioVerified = !!biometricVerified;
@@ -205,6 +209,7 @@ router.post("/time-clock/out", async (req, res) => {
   try {
     const { userId, venueId, breakMinutes = 0, notes, source, biometricVerified, deviceId } = req.body;
     if (!userId || !venueId) return res.status(400).json({ message: "userId and venueId required" });
+    if (!assertSelf(req, res, userId)) return;
 
     const [active] = await db.select().from(timeClockEntries)
       .where(and(eq(timeClockEntries.userId, userId), eq(timeClockEntries.status, "active")));
@@ -460,6 +465,10 @@ router.post("/time-off", async (req, res) => {
     const { userId, venueId, startDate, endDate, type, notes } = req.body;
     if (!userId || !venueId || !startDate || !endDate || !type)
       return res.status(400).json({ message: "userId, venueId, startDate, endDate, type required" });
+    // Time-off requests must be filed by the actual requester. Admins can
+    // approve/deny via the dedicated endpoints below but shouldn't create
+    // a request "from" someone else.
+    if (!assertSelf(req, res, userId)) return;
     const [req_] = await db.insert(timeOffRequests)
       .values({ userId, venueId, startDate, endDate, type, notes: notes ?? null }).returning();
     res.status(201).json(req_);

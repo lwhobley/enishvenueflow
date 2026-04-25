@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { shifts, shiftRequests, users, roles, schedules } from "@workspace/db";
 import { eq, and, inArray, gte, lte } from "drizzle-orm";
 import { notifyUser, notifyManagers } from "../lib/push";
+import { assertSelf } from "../lib/auth-guards";
 
 // Build a human-readable shift summary for push bodies.
 function describeShift(s: { startTime: Date | string; endTime: Date | string }): string {
@@ -242,6 +243,9 @@ router.post("/shifts/:id/pickup", async (req, res) => {
     const { id } = req.params;
     const { userId } = req.body;
     if (!userId) return res.status(400).json({ message: "userId required" });
+    // A user can only pick up an open shift for themselves. Admins use
+    // PUT /shifts/:id/assign to reassign on someone else's behalf.
+    if (!assertSelf(req, res, userId)) return;
     const [updated] = await db.update(shifts).set({ userId, status: "scheduled" }).where(and(eq(shifts.id, id), eq(shifts.status, "open"))).returning();
     if (!updated) return res.status(400).json({ message: "Shift not available for pickup" });
     const [enriched] = await enrichShifts([updated]);
@@ -385,6 +389,9 @@ router.post("/shift-requests", async (req, res) => {
   try {
     const { userId, shiftId, type, requestedWithId, notes } = req.body;
     if (!userId || !shiftId || !type) return res.status(400).json({ message: "userId, shiftId, type required" });
+    // Drop / pickup / trade requests can only be filed by the requesting
+    // employee themselves.
+    if (!assertSelf(req, res, userId)) return;
     // Prevent duplicate pending requests
     const existing = await db.select().from(shiftRequests).where(
       and(eq(shiftRequests.userId, userId), eq(shiftRequests.shiftId, shiftId), eq(shiftRequests.type, type), eq(shiftRequests.status, "pending"))

@@ -20,6 +20,7 @@ import reportsRouter from "./reports";
 import literatureRouter from "./literature";
 import enrollmentRouter from "./enrollment";
 import { requireAuth } from "../middlewares/require-auth";
+import { enforceVenueScope } from "../middlewares/enforce-venue-scope";
 
 const router: IRouter = Router();
 
@@ -29,6 +30,11 @@ const router: IRouter = Router();
 // before a session exists. Everything else requires a valid session
 // header populated by requireAuth into req.auth.
 router.use(requireAuth);
+
+// Cross-venue guard: any caller-supplied venueId in body/query/params
+// must match the session's venueId. Stops a logged-in user in venue A
+// from listing or mutating data in venue B.
+router.use(enforceVenueScope);
 
 router.use(healthRouter);
 router.use(authRouter);

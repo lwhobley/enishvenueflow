@@ -3,6 +3,7 @@ import webpush from "web-push";
 import { db } from "@workspace/db";
 import { pushSubscriptions, users } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { assertSelf } from "../lib/auth-guards";
 
 const router = Router();
 
@@ -27,6 +28,9 @@ router.post("/push/subscribe", async (req, res) => {
     const { userId, venueId, subscription } = req.body;
     if (!userId || !venueId || !subscription?.endpoint)
       return res.status(400).json({ message: "userId, venueId, and subscription required" });
+    // A user only ever subscribes their own browser/PWA — push tokens are
+    // device-specific and shouldn't be writable on someone else's behalf.
+    if (!assertSelf(req, res, userId)) return;
 
     const { endpoint, keys } = subscription;
     if (!keys?.p256dh || !keys?.auth)

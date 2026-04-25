@@ -51,8 +51,26 @@ function isApiUrl(url: string): boolean {
   }
 }
 
+// Endpoints where a 401 is expected (wrong PIN, logout while already
+// expired) and should NOT trigger the auto-logout flow.
+const AUTH_401_NO_REDIRECT = ["/api/auth/pin", "/api/auth/logout"];
+
+let alreadyHandling401 = false;
+function handleAuthExpiredOnce() {
+  if (alreadyHandling401) return;
+  alreadyHandling401 = true;
+  try {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+  } catch { /* ignore */ }
+  // Hard reload back to the sign-in page. Doing it via window.location
+  // (rather than just clearing React state) also resets all in-flight
+  // queries / pending mutations so the user lands cleanly on the PIN
+  // screen instead of seeing flashes of stale data.
+  if (typeof window !== "undefined") window.location.replace("/");
+}
+
 const originalFetch: typeof window.fetch = window.fetch.bind(window);
-window.fetch = ((input: RequestInfo | URL, init: RequestInit = {}) => {
+window.fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
   const url =
     typeof input === "string"
       ? input
@@ -66,7 +84,17 @@ window.fetch = ((input: RequestInfo | URL, init: RequestInit = {}) => {
     const auth = readAuthFromStorage();
     if (auth?.sessionToken) headers.set("authorization", `Bearer ${auth.sessionToken}`);
   }
-  return originalFetch(input, { ...init, headers });
+  const response = await originalFetch(input, { ...init, headers });
+  // Auto-logout when the session has expired or been invalidated. We skip
+  // this on the login/logout endpoints themselves so a wrong PIN attempt
+  // doesn't bounce the user back to a fresh login screen mid-typing.
+  if (
+    response.status === 401 &&
+    !AUTH_401_NO_REDIRECT.some((p) => url.includes(p))
+  ) {
+    handleAuthExpiredOnce();
+  }
+  return response;
 }) as typeof window.fetch;
 
 createRoot(document.getElementById("root")!).render(<App />);
