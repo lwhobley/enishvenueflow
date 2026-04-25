@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Calendar, Users, Map, BookOpen,
-  UserSquare, BarChart, Clock, CalendarOff, DollarSign, Coins,
+  UserSquare, BarChart, Clock, CalendarOff, Coins,
   FileText, Library, MessageSquare, Settings, MapPin, Menu, X, CalendarCheck, Plug,
   LogOut, Bell, KeyRound,
 } from "lucide-react";
@@ -34,7 +34,6 @@ const managerNavItems = [
   { href: "/manager/analytics",  icon: BarChart,        label: "Analytics"    },
   { href: "/manager/time-clock", icon: Clock,           label: "Time Clock"   },
   { href: "/manager/time-off",   icon: CalendarOff,     label: "Time Off"     },
-  { href: "/manager/payroll",    icon: DollarSign,      label: "Payroll"      },
   { href: "/manager/tip-pool",   icon: Coins,           label: "Tip Pool"     },
   { href: "/manager/documents",  icon: FileText,        label: "Documents"    },
   { href: "/manager/literature", icon: Library,         label: "Literature"   },

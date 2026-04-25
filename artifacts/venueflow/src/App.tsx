@@ -19,7 +19,6 @@ import ManagerFloor from "@/pages/manager/floor";
 import ManagerAnalytics from "@/pages/manager/analytics";
 import ManagerTimeClock from "@/pages/manager/time-clock";
 import ManagerTimeOff from "@/pages/manager/time-off";
-import ManagerPayroll from "@/pages/manager/payroll";
 import ManagerTipPool from "@/pages/manager/tip-pool";
 import ManagerDocuments from "@/pages/manager/documents";
 import ManagerLiterature from "@/pages/manager/literature";
@@ -76,7 +75,6 @@ function Router({ isAdmin }: { isAdmin: boolean }) {
       <Route path="/manager/analytics"><RequireAdmin><Layout><ManagerAnalytics /></Layout></RequireAdmin></Route>
       <Route path="/manager/time-clock"><RequireAdmin><Layout><ManagerTimeClock /></Layout></RequireAdmin></Route>
       <Route path="/manager/time-off"><RequireAdmin><Layout><ManagerTimeOff /></Layout></RequireAdmin></Route>
-      <Route path="/manager/payroll"><RequireAdmin><Layout><ManagerPayroll /></Layout></RequireAdmin></Route>
       <Route path="/manager/tip-pool"><RequireAdmin><Layout><ManagerTipPool /></Layout></RequireAdmin></Route>
       <Route path="/manager/documents"><RequireAdmin><Layout><ManagerDocuments /></Layout></RequireAdmin></Route>
       <Route path="/manager/literature"><RequireAdmin><Layout><ManagerLiterature /></Layout></RequireAdmin></Route>

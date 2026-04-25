@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { tipPools, tipPoolEntries, payrollRecords, timeClockEntries, users, schedules } from "@workspace/db";
+import { tipPools, tipPoolEntries, timeClockEntries, users, schedules } from "@workspace/db";
 import { eq, and, gte, lte } from "drizzle-orm";
 
 const router = Router();
@@ -15,19 +15,6 @@ function formatEntry(e: typeof tipPoolEntries.$inferSelect, userName?: string | 
     hoursWorked: parseFloat(e.hoursWorked),
     points: parseFloat(e.points),
     tipAmount: parseFloat(e.tipAmount),
-    userName: userName ?? null,
-  };
-}
-
-function formatPayroll(p: typeof payrollRecords.$inferSelect, userName?: string | null) {
-  return {
-    ...p,
-    regularHours: parseFloat(p.regularHours),
-    overtimeHours: parseFloat(p.overtimeHours),
-    regularPay: parseFloat(p.regularPay),
-    overtimePay: parseFloat(p.overtimePay),
-    tipAmount: parseFloat(p.tipAmount),
-    totalPay: parseFloat(p.totalPay),
     userName: userName ?? null,
   };
 }
@@ -163,78 +150,6 @@ router.get("/tip-pools/:id/entries", async (req, res) => {
   }
 });
 
-// Payroll
-router.get("/payroll", async (req, res) => {
-  try {
-    const { venueId, periodStart, periodEnd } = req.query as { venueId: string; periodStart?: string; periodEnd?: string };
-    if (!venueId) return res.status(400).json({ message: "venueId required" });
-    let query = db.select().from(payrollRecords).where(eq(payrollRecords.venueId, venueId)).$dynamic();
-    const all = await query.orderBy(payrollRecords.createdAt);
-    const allUsers = await db.select().from(users);
-    const userMap = Object.fromEntries(allUsers.map(u => [u.id, u]));
-    let filtered = all;
-    if (periodStart) filtered = filtered.filter(p => p.periodStart >= periodStart);
-    if (periodEnd) filtered = filtered.filter(p => p.periodEnd <= periodEnd);
-    res.json(filtered.map(p => formatPayroll(p, userMap[p.userId]?.fullName)));
-  } catch (err) {
-    req.log.error(err);
-    res.status(500).json({ message: "Failed to list payroll" });
-  }
-});
 
-router.post("/payroll/generate", async (req, res) => {
-  try {
-    const { venueId, periodStart, periodEnd } = req.body;
-    if (!venueId || !periodStart || !periodEnd) return res.status(400).json({ message: "venueId, periodStart, periodEnd required" });
-    const venueUsers = await db.select().from(users).where(and(eq(users.venueId, venueId), eq(users.isActive, true)));
-    const clockEntries = await db.select().from(timeClockEntries).where(eq(timeClockEntries.venueId, venueId));
-    // Filter entries in range
-    const inRange = clockEntries.filter(e => {
-      const d = e.clockIn.toISOString().split("T")[0];
-      return d >= periodStart && d <= periodEnd && e.status === "completed";
-    });
-
-    const records = [];
-    for (const user of venueUsers) {
-      const userEntries = inRange.filter(e => e.userId === user.id);
-      const totalHours = userEntries.reduce((sum, e) => sum + (e.totalHours ? parseFloat(e.totalHours) : 0), 0);
-      const regularHours = Math.min(totalHours, 40);
-      const overtimeHours = Math.max(0, totalHours - 40);
-      const hourlyRate = user.hourlyRate ? parseFloat(user.hourlyRate) : 15;
-      const regularPay = regularHours * hourlyRate;
-      const overtimePay = overtimeHours * hourlyRate * 1.5;
-      const tipAmount = 0; // Would come from tip pools
-      const totalPay = regularPay + overtimePay + tipAmount;
-
-      // Delete existing for this period
-      const existing = await db.select().from(payrollRecords).where(and(eq(payrollRecords.userId, user.id), eq(payrollRecords.venueId, venueId)));
-      const existingInPeriod = existing.filter(p => p.periodStart === periodStart && p.periodEnd === periodEnd);
-      for (const e of existingInPeriod) {
-        await db.delete(payrollRecords).where(eq(payrollRecords.id, e.id));
-      }
-
-      const [record] = await db.insert(payrollRecords).values({
-        userId: user.id,
-        venueId,
-        periodStart,
-        periodEnd,
-        regularHours: String(regularHours.toFixed(2)),
-        overtimeHours: String(overtimeHours.toFixed(2)),
-        regularPay: String(regularPay.toFixed(2)),
-        overtimePay: String(overtimePay.toFixed(2)),
-        tipAmount: String(tipAmount.toFixed(2)),
-        totalPay: String(totalPay.toFixed(2)),
-      }).returning();
-      records.push(record);
-    }
-
-    const allUsers = await db.select().from(users);
-    const userMap = Object.fromEntries(allUsers.map(u => [u.id, u]));
-    res.status(201).json(records.map(p => formatPayroll(p, userMap[p.userId]?.fullName)));
-  } catch (err) {
-    req.log.error(err);
-    res.status(500).json({ message: "Failed to generate payroll" });
-  }
-});
 
 export default router;
