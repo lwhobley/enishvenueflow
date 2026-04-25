@@ -76,15 +76,19 @@ built frontend).
    - Healthcheck: `/api/healthz`
 
 ### Database migrations
-Run the Drizzle schema push against your Railway Postgres on first deploy and
-whenever the schema changes. The simplest way is to run it locally pointed at
-the Railway Postgres URL:
+Schema changes ship as **idempotent SQL in the api-server boot path**, not via
+`drizzle-kit push`. Every boot runs `applyStartupMigrations()` (see
+`artifacts/api-server/src/lib/startup-migrations.ts`) which executes a list
+of `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` and `CREATE TABLE IF NOT EXISTS`
+statements. Re-running on every deploy is a no-op once a column is in place,
+and there is no destructive rename inference — `drizzle-kit push`'s big
+foot-gun.
 
-```bash
-DATABASE_URL="$RAILWAY_DATABASE_URL" pnpm --filter @workspace/db run push
-```
+When you add a new column or table to `lib/db/src/schema/`, append the matching
+SQL to `STATEMENTS` in `startup-migrations.ts` and redeploy. That's it.
 
-Or, to automate it on every deploy, change the start command in `railway.json`
-to prepend `pnpm --filter @workspace/db run push &&` (not recommended for
-long-lived production DBs because `drizzle-kit push` can be destructive on
-renames).
+You can still run `pnpm --filter @workspace/db run push` against a **dev** DB
+for quick iteration, but don't point it at production — for a destructive
+change (column rename, drop, type change) write a hand-tuned SQL block in
+`startup-migrations.ts` instead, then verify it idempotently survives a
+re-run.
