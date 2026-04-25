@@ -108,6 +108,42 @@ router.delete("/tables/:id", async (req, res) => {
   }
 });
 
+// POST /tables/renumber — relabels every table in the venue to T1, T2, …
+// Sort order: parse a number out of the current label first (so existing
+// numeric ordering is preserved when it's there), then fall back to
+// position (x then y) so labels still come out left-to-right / top-down.
+router.post("/tables/renumber", async (req, res) => {
+  try {
+    const { venueId } = req.body as { venueId?: string };
+    if (!venueId) return res.status(400).json({ message: "venueId required" });
+
+    const all = await db.select().from(tables).where(eq(tables.venueId, venueId));
+    const sorted = [...all].sort((a, b) => {
+      const an = parseInt((a.label ?? "").match(/\d+/)?.[0] ?? "", 10);
+      const bn = parseInt((b.label ?? "").match(/\d+/)?.[0] ?? "", 10);
+      // Tables that already have a number sort by it first; non-numeric
+      // labels (e.g. "BAR", "VIP") sort to the end.
+      if (Number.isFinite(an) && Number.isFinite(bn) && an !== bn) return an - bn;
+      if (Number.isFinite(an) !== Number.isFinite(bn)) return Number.isFinite(an) ? -1 : 1;
+      const ax = parseFloat(a.x), bx = parseFloat(b.x);
+      if (ax !== bx) return ax - bx;
+      const ay = parseFloat(a.y), by = parseFloat(b.y);
+      return ay - by;
+    });
+
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < sorted.length; i++) {
+        await tx.update(tables).set({ label: `T${i + 1}` }).where(eq(tables.id, sorted[i].id));
+      }
+    });
+
+    res.json({ message: "Tables renumbered", count: sorted.length });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to renumber tables" });
+  }
+});
+
 router.post("/floor-layout/seed", async (req, res) => {
   try {
     const { venueId, sections: sectionDefs, tables: tableDefs, chairs: chairDefs } = req.body;

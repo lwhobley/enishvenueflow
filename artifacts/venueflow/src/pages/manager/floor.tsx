@@ -13,7 +13,12 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, Square, Armchair, RotateCw } from "lucide-react";
+import { Plus, Trash2, Square, Armchair, RotateCw, ListOrdered } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 import floorPlanBg from "@assets/IMG_2248_1776293611211.png";
 
 type ChairRecord = { id: string; venueId: string; x: number; y: number; width: number; height: number; rotation?: number };
@@ -192,12 +197,15 @@ export default function ManagerFloor() {
   const { user }        = useAuth();
   const isAdmin         = user?.isAdmin ?? false;
   const queryClient     = useQueryClient();
+  const { toast }       = useToast();
 
   const [chairs, setChairs]             = useState<ChairRecord[]>([]);
   const [selected, setSelected]         = useState<DragTarget | null>(null);
   const [addMode, setAddMode]           = useState<"square" | "crescent" | "chair" | null>(null);
   const [editingId, setEditingId]       = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
+  const [confirmRenumber, setConfirmRenumber] = useState(false);
+  const [renumbering, setRenumbering]         = useState(false);
   const [tableOv, setTableOv]           = useState<Record<string, { x: number; y: number; w?: number; h?: number; r?: number }>>({});
   const [scale, setScale]               = useState(1);
   // `true` while the user is actively dragging/resizing — pauses polling so
@@ -249,6 +257,31 @@ export default function ManagerFloor() {
   const deleteTableMut = useDeleteTable();
   const tablesQK       = getListTablesQueryKey({ venueId: activeVenue?.id || "" });
   const sectionsQK     = getListFloorSectionsQueryKey({ venueId: activeVenue?.id || "" });
+
+  const handleRenumber = async () => {
+    if (!activeVenue?.id || renumbering) return;
+    setRenumbering(true);
+    try {
+      const result = await apiFetch("/tables/renumber", {
+        method: "POST",
+        body: JSON.stringify({ venueId: activeVenue.id }),
+      }) as { count: number };
+      await queryClient.invalidateQueries({ queryKey: tablesQK });
+      toast({
+        title: "Tables renumbered",
+        description: `${result.count} table${result.count === 1 ? "" : "s"} relabeled T1–T${result.count}.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Failed to renumber",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setRenumbering(false);
+      setConfirmRenumber(false);
+    }
+  };
 
   // Poll chairs on the same cadence as tables, skipping polls during an
   // active interaction so we don't stomp on the in-flight drag.
@@ -593,6 +626,14 @@ export default function ManagerFloor() {
             >
               <Armchair className="w-4 h-4 mr-2" /> Add Chair
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmRenumber(true)}
+              disabled={renumbering || !(tables && tables.length > 0)}
+              title="Relabel every table T1, T2, T3 …"
+            >
+              <ListOrdered className="w-4 h-4 mr-2" /> Renumber Tables
+            </Button>
             <Button variant="destructive" disabled={!selected} onClick={handleRemove}>
               <Trash2 className="w-4 h-4 mr-2" /> Remove
             </Button>
@@ -780,6 +821,25 @@ export default function ManagerFloor() {
           )}
         </div>
       </div>
+
+      <AlertDialog open={confirmRenumber} onOpenChange={(v) => { if (!renumbering) setConfirmRenumber(v); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Renumber every table?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This relabels all {tables?.length ?? 0} tables in numerical order to T1, T2, T3, …
+              Existing labels (including any custom names like "BAR" or "VIP") will be overwritten.
+              Reservations and shifts are unaffected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={renumbering}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleRenumber()} disabled={renumbering}>
+              {renumbering ? "Renumbering…" : "Renumber"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
