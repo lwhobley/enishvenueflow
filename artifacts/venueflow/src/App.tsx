@@ -24,7 +24,6 @@ import ManagerDocuments from "@/pages/manager/documents";
 import ManagerLiterature from "@/pages/manager/literature";
 import ManagerChat from "@/pages/manager/chat";
 import ManagerSettings from "@/pages/manager/settings";
-import ManagerVenues from "@/pages/manager/venues";
 import ManagerIntegrations from "@/pages/manager/integrations";
 
 // Employee Pages
@@ -80,7 +79,6 @@ function Router({ isAdmin }: { isAdmin: boolean }) {
       <Route path="/manager/literature"><RequireAdmin><Layout><ManagerLiterature /></Layout></RequireAdmin></Route>
       <Route path="/manager/chat"><RequireAdmin><Layout><ManagerChat /></Layout></RequireAdmin></Route>
       <Route path="/manager/settings"><RequireAdmin><Layout><ManagerSettings /></Layout></RequireAdmin></Route>
-      <Route path="/manager/venues"><RequireAdmin><Layout><ManagerVenues /></Layout></RequireAdmin></Route>
       <Route path="/manager/integrations"><RequireAdmin><Layout><ManagerIntegrations /></Layout></RequireAdmin></Route>
       <Route path="/employee/dashboard"><Layout isEmployee><EmployeeDashboard /></Layout></Route>
       <Route path="/employee/schedule"><Layout isEmployee><EmployeeSchedule /></Layout></Route>

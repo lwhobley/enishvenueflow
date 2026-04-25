@@ -20,31 +20,27 @@ function serializeVenue(v: typeof venues.$inferSelect) {
   };
 }
 
+// Single-venue app: every authed caller is scoped to their own venue. The
+// list endpoint returns a one-element array (kept as an array so the
+// generated client and React Query keys don't have to change).
 router.get("/venues", async (req, res) => {
   try {
-    const all = await db.select().from(venues).orderBy(venues.createdAt);
-    res.json(all.map(serializeVenue));
+    const venueId = req.auth?.venueId;
+    if (!venueId) return res.json([]);
+    const rows = await db.select().from(venues).where(eq(venues.id, venueId));
+    res.json(rows.map(serializeVenue));
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to list venues" });
   }
 });
 
-router.post("/venues", async (req, res) => {
-  try {
-    const { name, address, timezone = "America/New_York", subscriptionTier = "free" } = req.body;
-    if (!name || !address) return res.status(400).json({ message: "name and address required" });
-    const [venue] = await db.insert(venues).values({ name, address, timezone, subscriptionTier }).returning();
-    res.status(201).json(serializeVenue(venue));
-  } catch (err) {
-    req.log.error(err);
-    res.status(500).json({ message: "Failed to create venue" });
-  }
-});
-
 router.put("/venues/:id", async (req, res) => {
   try {
     const { id } = req.params;
+    if (req.auth?.venueId && id !== req.auth.venueId) {
+      return res.status(403).json({ message: "Cannot edit another venue" });
+    }
     const { name, address, timezone, subscriptionTier, isActive, latitude, longitude, clockInRadiusFeet } = req.body;
     const updates: Record<string, unknown> = {};
     if (name !== undefined) updates.name = name;

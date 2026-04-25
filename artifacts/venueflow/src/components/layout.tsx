@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Calendar, Users, Map, BookOpen,
   UserSquare, BarChart, Clock, CalendarOff, Coins,
-  FileText, Library, MessageSquare, Settings, MapPin, Menu, X, CalendarCheck, Plug,
+  FileText, Library, MessageSquare, Settings, Menu, X, CalendarCheck, Plug,
   LogOut, Bell, KeyRound,
 } from "lucide-react";
 import { ChangePinDialog } from "@/components/change-pin-dialog";
@@ -40,7 +40,6 @@ const managerNavItems = [
   { href: "/manager/chat",       icon: MessageSquare,   label: "Chat"         },
   { href: "/manager/integrations",icon: Plug,           label: "Integrations" },
   { href: "/manager/settings",   icon: Settings,        label: "Settings"     },
-  { href: "/manager/venues",     icon: MapPin,          label: "Venues"       },
 ];
 
 const employeeNavItems = [
