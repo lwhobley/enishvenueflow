@@ -341,6 +341,9 @@ importers:
 
   artifacts/venueflow:
     dependencies:
+      '@workspace/api-zod':
+        specifier: workspace:*
+        version: link:../../lib/api-zod
       vite-plugin-pwa:
         specifier: ^1.2.0
         version: 1.2.0(@types/babel__core@7.20.5)(vite@7.3.2(@types/node@25.3.5)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.2))(workbox-window@7.4.0)

@@ -4,3 +4,4 @@
 // Consumers that need a TS interface for a generated type should import it
 // directly from "@workspace/api-zod/src/generated/types/<name>".
 export * from "./generated/api";
+export * from "./blackouts";

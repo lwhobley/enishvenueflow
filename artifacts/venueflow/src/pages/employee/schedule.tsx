@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format, isFuture } from "date-fns";
+import { findBlackoutOverlaps, describeBlackouts, upcomingBlackouts } from "@workspace/api-zod";
 import { X, ArrowDownCircle, ArrowUpCircle, CalendarOff, Clock, ChevronDown } from "lucide-react";
 
 // ── palette ──────────────────────────────────────────────────────────────────
@@ -221,6 +222,16 @@ export default function EmployeeSchedule() {
   async function handleTimeOffSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!vId || !uId || !toStart || !toEnd) return;
+    // Local-side blackout guard so the user sees the rejection instantly
+    // instead of round-tripping the API. The server enforces the same list
+    // server-side — this is just a UX shortcut.
+    if (toType !== "sick") {
+      const conflicts = findBlackoutOverlaps(toStart, toEnd);
+      if (conflicts.length > 0) {
+        setToError(`These dates are blackout (${describeBlackouts(conflicts)}). Pick different dates or talk to your manager.`);
+        return;
+      }
+    }
     setToLoading(true);
     setToError("");
     setToSuccess(false);
@@ -340,6 +351,38 @@ export default function EmployeeSchedule() {
         {/* ── Time Off ── */}
         <TabsContent value="timeoff" style={{ marginTop: 16 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 20 }}>
+            {/* Blackout dates banner */}
+            {upcomingBlackouts().length > 0 && (
+              <div style={{
+                background: "rgba(176, 58, 46, 0.08)",
+                border: `1px solid rgba(176, 58, 46, 0.28)`,
+                borderRadius: 14,
+                padding: "14px 18px",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#B03A2E" }}>
+                    Blackout dates
+                  </span>
+                </div>
+                <p style={{ color: G.muted, fontSize: 12, lineHeight: 1.6, margin: "0 0 8px" }}>
+                  Time-off requests aren't accepted on these dates (FIFA World Cup all of June + peak holidays). Sick leave is exempt.
+                </p>
+                <ul style={{ margin: 0, paddingLeft: 18, color: G.text, fontSize: 12.5, lineHeight: 1.7 }}>
+                  {upcomingBlackouts().map((b) => (
+                    <li key={`${b.start}-${b.end}`}>
+                      <strong>{b.label}</strong>
+                      {" — "}
+                      {b.start === b.end ? format(new Date(`${b.start}T00:00:00`), "EEE, MMM d, yyyy") : (
+                        <>
+                          {format(new Date(`${b.start}T00:00:00`), "MMM d")} – {format(new Date(`${b.end}T00:00:00`), "MMM d, yyyy")}
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* Request form */}
             <div style={{ background: G.surfaceHi, border: `1px solid ${G.border}`, borderRadius: 14, padding: 24 }}>
               <h3 style={{ color: G.gold, fontSize: 14, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", margin: "0 0 20px" }}>New Request</h3>

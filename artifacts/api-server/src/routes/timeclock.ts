@@ -5,6 +5,7 @@ import { eq, and, gte, lte, or, inArray } from "drizzle-orm";
 import { adpStatus, isAdpConfigured, pushTimeEntry, pullRecentEntries } from "../lib/adp";
 import { notifyManagers, notifyUser } from "../lib/push";
 import { assertSelf } from "../lib/auth-guards";
+import { findBlackoutOverlaps, describeBlackouts } from "@workspace/api-zod";
 
 const router = Router();
 
@@ -458,6 +459,20 @@ router.post("/time-off", async (req, res) => {
     // approve/deny via the dedicated endpoints below but shouldn't create
     // a request "from" someone else.
     if (!assertSelf(req, res, userId)) return;
+
+    // Block out peak-volume periods (FIFA World Cup, holiday weekends).
+    // Sick-leave is exempt — illness can't be planned around the calendar
+    // and a manager can still adjust the entry after the fact if needed.
+    if (type !== "sick") {
+      const conflicts = findBlackoutOverlaps(startDate, endDate);
+      if (conflicts.length > 0) {
+        return res.status(403).json({
+          message: `These dates fall on blackout periods (${describeBlackouts(conflicts)}). Time-off can't be requested for these dates — talk to your manager if there's an exception.`,
+          blackouts: conflicts,
+        });
+      }
+    }
+
     const [req_] = await db.insert(timeOffRequests)
       .values({ userId, venueId, startDate, endDate, type, notes: notes ?? null }).returning();
     res.status(201).json(req_);

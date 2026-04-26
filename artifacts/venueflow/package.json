@@ -75,6 +75,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "@workspace/api-zod": "workspace:*",
     "vite-plugin-pwa": "^1.2.0",
     "workbox-core": "^7.4.0",
     "workbox-precaching": "^7.4.0",
