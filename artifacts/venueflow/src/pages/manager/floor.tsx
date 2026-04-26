@@ -878,7 +878,7 @@ export default function ManagerFloor({
       <div className="flex gap-3 items-stretch flex-col lg:flex-row">
       <div
         ref={containerRef}
-        className={`flex-1 min-w-0 w-full overflow-hidden border rounded-xl relative bg-neutral-200 ${addMode ? "cursor-crosshair" : ""}`}
+        className={`lg:flex-1 min-w-0 w-full overflow-hidden border rounded-xl relative bg-neutral-200 ${addMode ? "cursor-crosshair" : ""}`}
         style={{ height: Math.max(CH * scale, 240) }}
         onClick={handleCanvasClick}
         onKeyDown={e => { if (e.key === "Escape") setAddMode(null); }}
