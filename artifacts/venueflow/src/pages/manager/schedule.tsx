@@ -323,7 +323,7 @@ export default function ManagerSchedule() {
                 userId: input.userId || undefined,
                 roleId: input.roleId,
                 startTime: combineDateAndTimeToIso(input.date, input.startTime),
-                endTime: combineDateAndTimeToIso(input.date, input.endTime),
+                endTime: combineDateAndTimeToIso(input.endDate, input.endTime),
                 notes: input.notes || undefined,
               },
             });
@@ -375,7 +375,7 @@ export default function ManagerSchedule() {
                 userId: input.userId || null,
                 roleId: input.roleId,
                 startTime: combineDateAndTimeToIso(input.date, input.startTime),
-                endTime: combineDateAndTimeToIso(input.date, input.endTime),
+                endTime: combineDateAndTimeToIso(input.endDate, input.endTime),
                 notes: input.notes || null,
               },
             });
@@ -410,7 +410,7 @@ export default function ManagerSchedule() {
             const scheduleId = await ensureScheduleForDate(input.date);
             if (!scheduleId) throw new Error("Couldn't create the week's schedule");
             const startIso = combineDateAndTimeToIso(input.date, input.startTime);
-            const endIso = combineDateAndTimeToIso(input.date, input.endTime);
+            const endIso = combineDateAndTimeToIso(input.endDate, input.endTime);
             await bulkCreateShifts.mutateAsync({
               data: {
                 shifts: input.userIds.map((uid) => ({
@@ -521,7 +521,8 @@ function ShiftChip({ shift, onClick }: { shift: ShiftRow; onClick: (e: React.Mou
 }
 
 type ShiftInput = {
-  date: string;
+  date: string;       // start date — YYYY-MM-DD
+  endDate: string;    // end date — YYYY-MM-DD; same as `date` for same-day shifts, +1 day for overnight
   startTime: string;
   endTime: string;
   roleId: string;
@@ -547,6 +548,7 @@ function ShiftDialog({
 }) {
   const [form, setForm] = useState<ShiftInput>(() => ({
     date: initialDate,
+    endDate: initialDate,
     startTime: "17:00",
     endTime: "22:00",
     roleId: "",
@@ -562,6 +564,7 @@ function ShiftDialog({
     if (initialShift) {
       setForm({
         date: isoDay(new Date(initialShift.startTime)),
+        endDate: isoDay(new Date(initialShift.endTime)),
         startTime: format(new Date(initialShift.startTime), "HH:mm"),
         endTime: format(new Date(initialShift.endTime), "HH:mm"),
         roleId: initialShift.roleId,
@@ -569,15 +572,32 @@ function ShiftDialog({
         notes: initialShift.notes ?? "",
       });
     } else {
-      setForm({ date: initialDate, startTime: "17:00", endTime: "22:00", roleId: "", userId: "", notes: "" });
+      setForm({ date: initialDate, endDate: initialDate, startTime: "17:00", endTime: "22:00", roleId: "", userId: "", notes: "" });
     }
   }
 
   const update = <K extends keyof ShiftInput>(key: K, value: ShiftInput[K]) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      // When the user changes the start date, advance end date along with
+      // it unless the dialog was already showing an overnight shift (end
+      // date != start date). That way the common "same-day" case stays
+      // one click; multi-day shifts are preserved relative to the new
+      // start.
+      if (key === "date" && prev.endDate === prev.date) {
+        next.endDate = value as string;
+      }
+      return next;
+    });
 
+  // Use full ISO timestamps so overnight shifts (4pm → 2am next day) are
+  // accepted. Falls back to false if either string is malformed.
+  const startMs = new Date(`${form.date}T${form.startTime}:00`).getTime();
+  const endMs   = new Date(`${form.endDate}T${form.endTime}:00`).getTime();
+  const overnight = form.endDate > form.date;
+  const validRange = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs;
   const canSubmit =
-    !!form.date && !!form.startTime && !!form.endTime && !!form.roleId && form.startTime < form.endTime;
+    !!form.date && !!form.endDate && !!form.startTime && !!form.endTime && !!form.roleId && validRange;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!saving) onOpenChange(v); }}>
@@ -589,20 +609,31 @@ function ShiftDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="sh-date">Date</Label>
-            <Input id="sh-date" type="date" value={form.date} onChange={(e) => update("date", e.target.value)} />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="sh-date">Start date</Label>
+              <Input id="sh-date" type="date" value={form.date} onChange={(e) => update("date", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="sh-enddate">End date</Label>
+              <Input id="sh-enddate" type="date" value={form.endDate} min={form.date} onChange={(e) => update("endDate", e.target.value)} />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="sh-start">Start</Label>
+              <Label htmlFor="sh-start">Start time</Label>
               <Input id="sh-start" type="time" value={form.startTime} onChange={(e) => update("startTime", e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="sh-end">End</Label>
+              <Label htmlFor="sh-end">End time</Label>
               <Input id="sh-end" type="time" value={form.endTime} onChange={(e) => update("endTime", e.target.value)} />
             </div>
           </div>
+          {overnight ? (
+            <p className="text-xs text-muted-foreground">
+              Overnight shift — ends {format(new Date(`${form.endDate}T00:00:00`), "EEE MMM d")}.
+            </p>
+          ) : null}
           <div className="space-y-1.5">
             <Label htmlFor="sh-role">Role</Label>
             {roles.length === 0 ? (
@@ -656,8 +687,10 @@ function ShiftDialog({
             <Label htmlFor="sh-notes">Notes (optional)</Label>
             <Textarea id="sh-notes" value={form.notes} onChange={(e) => update("notes", e.target.value)} rows={2} />
           </div>
-          {form.startTime >= form.endTime ? (
-            <p className="text-xs text-destructive">End time must be after start time.</p>
+          {!validRange ? (
+            <p className="text-xs text-destructive">
+              End must be after start. For overnight shifts (e.g. 4pm → 2am), bump the end date to the next day.
+            </p>
           ) : null}
         </div>
         <DialogFooter className="gap-2">
@@ -693,7 +726,8 @@ function AvailabilityHint({ status }: { status: AvailabilityStatus }) {
 }
 
 type BulkShiftInput = {
-  date: string;
+  date: string;       // start date — YYYY-MM-DD
+  endDate: string;    // end date — YYYY-MM-DD; same as `date` for same-day shifts, +1 day for overnight
   startTime: string;
   endTime: string;
   roleId: string;
@@ -715,6 +749,7 @@ function BulkShiftDialog({
 }) {
   const [form, setForm] = useState<BulkShiftInput>(() => ({
     date: initialDate,
+    endDate: initialDate,
     startTime: "17:00",
     endTime: "22:00",
     roleId: "",
@@ -727,11 +762,17 @@ function BulkShiftDialog({
   const [lastKey, setLastKey] = useState(keyState);
   if (open && keyState !== lastKey) {
     setLastKey(keyState);
-    setForm({ date: initialDate, startTime: "17:00", endTime: "22:00", roleId: "", userIds: [], notes: "" });
+    setForm({ date: initialDate, endDate: initialDate, startTime: "17:00", endTime: "22:00", roleId: "", userIds: [], notes: "" });
   }
 
   const update = <K extends keyof BulkShiftInput>(key: K, value: BulkShiftInput[K]) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      if (key === "date" && prev.endDate === prev.date) {
+        next.endDate = value as string;
+      }
+      return next;
+    });
 
   const toggleUser = (id: string) => {
     setForm((prev) => ({
@@ -752,9 +793,13 @@ function BulkShiftDialog({
     }))
     .filter((row) => row.status.kind === "off" || row.status.kind === "outside");
 
+  const startMs = new Date(`${form.date}T${form.startTime}:00`).getTime();
+  const endMs   = new Date(`${form.endDate}T${form.endTime}:00`).getTime();
+  const overnight = form.endDate > form.date;
+  const validRange = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs;
   const canSubmit =
-    !!form.date && !!form.startTime && !!form.endTime && !!form.roleId &&
-    form.startTime < form.endTime && form.userIds.length > 0;
+    !!form.date && !!form.endDate && !!form.startTime && !!form.endTime && !!form.roleId &&
+    validRange && form.userIds.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!saving) onOpenChange(v); }}>
@@ -767,20 +812,31 @@ function BulkShiftDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="space-y-1.5 sm:col-span-1">
-              <Label htmlFor="bulk-date">Date</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="bulk-date">Start date</Label>
               <Input id="bulk-date" type="date" value={form.date} onChange={(e) => update("date", e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="bulk-start">Start</Label>
+              <Label htmlFor="bulk-enddate">End date</Label>
+              <Input id="bulk-enddate" type="date" value={form.endDate} min={form.date} onChange={(e) => update("endDate", e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="bulk-start">Start time</Label>
               <Input id="bulk-start" type="time" value={form.startTime} onChange={(e) => update("startTime", e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="bulk-end">End</Label>
+              <Label htmlFor="bulk-end">End time</Label>
               <Input id="bulk-end" type="time" value={form.endTime} onChange={(e) => update("endTime", e.target.value)} />
             </div>
           </div>
+          {overnight ? (
+            <p className="text-xs text-muted-foreground">
+              Overnight shift — ends {format(new Date(`${form.endDate}T00:00:00`), "EEE MMM d")}.
+            </p>
+          ) : null}
 
           <div className="space-y-1.5">
             <Label htmlFor="bulk-role">Role</Label>
@@ -854,8 +910,10 @@ function BulkShiftDialog({
             <Label htmlFor="bulk-notes">Notes (optional)</Label>
             <Textarea id="bulk-notes" value={form.notes} onChange={(e) => update("notes", e.target.value)} rows={2} />
           </div>
-          {form.startTime >= form.endTime ? (
-            <p className="text-xs text-destructive">End time must be after start time.</p>
+          {!validRange ? (
+            <p className="text-xs text-destructive">
+              End must be after start. For overnight shifts (e.g. 4pm → 2am), bump the end date to the next day.
+            </p>
           ) : null}
         </div>
         <DialogFooter className="gap-2">
