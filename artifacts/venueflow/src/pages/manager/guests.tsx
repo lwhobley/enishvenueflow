@@ -80,6 +80,8 @@ export default function ManagerGuests() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
                   <TableHead>VIP</TableHead>
                   <TableHead>Visits</TableHead>
                   <TableHead>Total Spent</TableHead>
@@ -89,6 +91,20 @@ export default function ManagerGuests() {
                 {guests?.map(guest => (
                   <TableRow key={guest.id}>
                     <TableCell className="font-medium">{guest.fullName}</TableCell>
+                    <TableCell>
+                      {guest.email ? (
+                        <a href={`mailto:${guest.email}`} className="text-primary hover:underline">{guest.email}</a>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {guest.phone ? (
+                        <a href={`tel:${guest.phone}`} className="text-primary hover:underline tabular-nums">{guest.phone}</a>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <div className="flex">
                         {[...Array(3)].map((_, i) => (
@@ -102,7 +118,7 @@ export default function ManagerGuests() {
                 ))}
                 {!guests?.length && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No guests found.
                     </TableCell>
                   </TableRow>
