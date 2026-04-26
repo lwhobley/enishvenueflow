@@ -44,10 +44,13 @@ router.get("/floor-sections", async (req, res) => {
 
 router.post("/floor-sections", async (req, res) => {
   try {
-    const { venueId, name, capacity, color = "#6366f1" } = req.body;
+    const { venueId, name, capacity, color = "#6366f1", assignedUserId } = req.body;
     if (!venueId || !name) return res.status(400).json({ message: "venueId and name required" });
     const scope = normalizeScope(req.body.scope);
-    const [section] = await db.insert(floorSections).values({ venueId, name, capacity: capacity ?? 0, color, scope }).returning();
+    const [section] = await db.insert(floorSections).values({
+      venueId, name, capacity: capacity ?? 0, color, scope,
+      assignedUserId: assignedUserId || null,
+    }).returning();
     res.status(201).json(section);
   } catch (err) {
     req.log.error(err);
@@ -58,7 +61,7 @@ router.post("/floor-sections", async (req, res) => {
 router.put("/floor-sections/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, color, capacity } = req.body;
+    const { name, color, capacity, assignedUserId } = req.body;
     const updates: Record<string, unknown> = {};
     if (name !== undefined) updates.name = String(name).trim();
     if (color !== undefined) updates.color = String(color);
@@ -66,6 +69,10 @@ router.put("/floor-sections/:id", async (req, res) => {
       const n = Math.round(Number(capacity));
       if (!Number.isFinite(n) || n < 0) return res.status(400).json({ message: "capacity must be a non-negative integer" });
       updates.capacity = n;
+    }
+    // Clear with null or empty string; otherwise persist the user id.
+    if (assignedUserId !== undefined) {
+      updates.assignedUserId = assignedUserId === null || assignedUserId === "" ? null : String(assignedUserId);
     }
     if (Object.keys(updates).length === 0) return res.status(400).json({ message: "Nothing to update" });
     const [updated] = await db.update(floorSections).set(updates).where(eq(floorSections.id, id)).returning();

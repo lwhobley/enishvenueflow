@@ -29,6 +29,12 @@ export interface DialogSection {
   id: string;
   name: string;
   color: string;
+  assignedUserId: string | null;
+}
+
+export interface DialogUser {
+  id: string;
+  fullName: string;
 }
 
 interface Props {
@@ -40,6 +46,7 @@ interface Props {
     | null;
   reservation: DialogReservation | null;
   sections: DialogSection[];
+  users: DialogUser[];
   isAdmin: boolean;
   // Today's date in the venue's local format (YYYY-MM-DD).
   today: string;
@@ -57,12 +64,18 @@ function fmt12(hhmm: string): string {
 }
 
 export function TableInfoDialog({
-  open, onOpenChange, venueId, table, reservation, sections, isAdmin, today,
+  open, onOpenChange, venueId, table, reservation, sections, users, isAdmin, today,
   reservationsQueryKey, tablesQueryKey,
 }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [movingSection, setMovingSection] = useState(false);
+
+  const userById = new Map(users.map((u) => [u.id, u.fullName]));
+  const currentSection = table ? sections.find((s) => s.id === table.sectionId) : undefined;
+  const currentAssignee = currentSection?.assignedUserId
+    ? userById.get(currentSection.assignedUserId)
+    : null;
 
   const [guestName, setGuestName] = useState("");
   const [partySize, setPartySize] = useState("");
@@ -237,6 +250,15 @@ export function TableInfoDialog({
                 );
               })()
             )}
+          </div>
+        ) : null}
+
+        {currentSection ? (
+          <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">Server</span>
+            <span className={`font-medium ${currentAssignee ? "" : "text-muted-foreground"}`}>
+              {currentAssignee ?? "Unassigned"}
+            </span>
           </div>
         ) : null}
 

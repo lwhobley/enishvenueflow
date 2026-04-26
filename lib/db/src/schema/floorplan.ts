@@ -13,6 +13,10 @@ export const floorSections = pgTable("floor_sections", {
   // venue can edit each independently. Existing rows default to
   // "restaurant" via the column default.
   scope: text("scope").notNull().default("restaurant"),
+  // Server / bartender currently responsible for every table in this
+  // section. Nullable — a section without an assignee is "unassigned"
+  // and can be claimed when the manager builds the night's roster.
+  assignedUserId: text("assigned_user_id"),
 });
 
 export const insertFloorSectionSchema = createInsertSchema(floorSections).omit({ id: true });

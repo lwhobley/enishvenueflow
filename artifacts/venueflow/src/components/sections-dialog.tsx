@@ -6,6 +6,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Pencil, Trash2, Check, X } from "lucide-react";
 
@@ -14,7 +17,15 @@ export interface SectionRow {
   name: string;
   color: string;
   capacity: number;
+  assignedUserId: string | null;
 }
+
+export interface SectionUser {
+  id: string;
+  fullName: string;
+}
+
+const UNASSIGNED = "__unassigned__";
 
 interface Props {
   open: boolean;
@@ -22,6 +33,7 @@ interface Props {
   venueId: string;
   scope: "restaurant" | "nightlife";
   sections: SectionRow[];
+  users: SectionUser[];
   // Query keys to invalidate after a mutation so the floor plan refreshes.
   sectionsQueryKey: readonly unknown[];
   tablesQueryKey: readonly unknown[];
@@ -39,14 +51,20 @@ const PRESET_COLORS = [
 ];
 
 export function SectionsDialog({
-  open, onOpenChange, venueId, scope, sections, sectionsQueryKey, tablesQueryKey,
+  open, onOpenChange, venueId, scope, sections, users, sectionsQueryKey, tablesQueryKey,
 }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
 
+  const sortedUsers = [...users].sort((a, b) => a.fullName.localeCompare(b.fullName));
+
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
+  const [newAssignee, setNewAssignee] = useState<string>(UNASSIGNED);
   const [creating, setCreating] = useState(false);
+
+  // Per-row in-flight assignee writes so individual rows can show a spinner.
+  const [assigningId, setAssigningId] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
@@ -73,7 +91,10 @@ export function SectionsDialog({
       const res = await fetch("/api/floor-sections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ venueId, name, color: newColor, capacity: 0, scope }),
+        body: JSON.stringify({
+          venueId, name, color: newColor, capacity: 0, scope,
+          assignedUserId: newAssignee === UNASSIGNED ? null : newAssignee,
+        }),
       });
       if (!res.ok) {
         const json = (await res.json().catch(() => ({}))) as { message?: string };
@@ -82,6 +103,7 @@ export function SectionsDialog({
       await refresh();
       setNewName("");
       setNewColor(PRESET_COLORS[0]);
+      setNewAssignee(UNASSIGNED);
       toast({ title: "Section created", description: name });
     } catch (err) {
       toast({
@@ -91,6 +113,30 @@ export function SectionsDialog({
       });
     } finally {
       setCreating(false);
+    }
+  };
+
+  const assignUser = async (sectionId: string, userId: string) => {
+    setAssigningId(sectionId);
+    try {
+      const res = await fetch(`/api/floor-sections/${sectionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignedUserId: userId === UNASSIGNED ? null : userId }),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(json.message ?? `Save failed (${res.status})`);
+      }
+      await refresh();
+    } catch (err) {
+      toast({
+        title: "Failed to assign",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setAssigningId(null);
     }
   };
 
@@ -176,7 +222,7 @@ export function SectionsDialog({
             </div>
             <div className="flex gap-2">
               <Input
-                placeholder="e.g. Patio"
+                placeholder="e.g. Section 1, Bar A, VIP"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") void handleCreate(); }}
@@ -185,6 +231,20 @@ export function SectionsDialog({
                 {creating ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Plus className="w-4 h-4 mr-1.5" />}
                 Add
               </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">Assign to</Label>
+              <Select value={newAssignee} onValueChange={setNewAssignee}>
+                <SelectTrigger className="h-8 flex-1">
+                  <SelectValue placeholder="Unassigned" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                  {sortedUsers.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>{u.fullName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <ColorRow value={newColor} onChange={setNewColor} />
           </div>
@@ -202,10 +262,12 @@ export function SectionsDialog({
                 {sections.map((s) => {
                   const isEditing = editingId === s.id;
                   const isDeleting = deletingId === s.id;
+                  const isAssigning = assigningId === s.id;
                   return (
-                    <li key={s.id} className="px-3 py-2.5 flex items-center gap-3 text-sm">
+                    <li key={s.id} className="px-3 py-2.5 text-sm space-y-2">
+                      <div className="flex items-center gap-3">
                       <span
-                        className="inline-block w-4 h-4 rounded-full border"
+                        className="inline-block w-4 h-4 rounded-full border flex-shrink-0"
                         style={{ backgroundColor: isEditing ? editingColor : s.color }}
                       />
                       {isEditing ? (
@@ -241,6 +303,25 @@ export function SectionsDialog({
                           </Button>
                         </>
                       )}
+                      </div>
+                      <div className="flex items-center gap-2 pl-7">
+                        <Label className="text-xs text-muted-foreground w-20">Assigned to</Label>
+                        <Select
+                          value={s.assignedUserId ?? UNASSIGNED}
+                          onValueChange={(v) => void assignUser(s.id, v)}
+                        >
+                          <SelectTrigger className="h-8 flex-1">
+                            <SelectValue placeholder="Unassigned" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                            {sortedUsers.map((u) => (
+                              <SelectItem key={u.id} value={u.id}>{u.fullName}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {isAssigning ? <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" /> : null}
+                      </div>
                     </li>
                   );
                 })}

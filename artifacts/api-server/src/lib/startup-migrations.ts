@@ -47,6 +47,10 @@ const STATEMENTS: { name: string; sql: string }[] = [
     name: "floor_sections.scope",
     sql: `ALTER TABLE "floor_sections" ADD COLUMN IF NOT EXISTS "scope" text NOT NULL DEFAULT 'restaurant'`,
   },
+  {
+    name: "floor_sections.assigned_user_id",
+    sql: `ALTER TABLE "floor_sections" ADD COLUMN IF NOT EXISTS "assigned_user_id" text`,
+  },
 
   // ── Venue: enrollment token + GPS pin + clock-in radius ─────────────────
   {

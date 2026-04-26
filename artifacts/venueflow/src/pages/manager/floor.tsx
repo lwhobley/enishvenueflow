@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/auth-context";
 import {
   useUpdateTable,
   useDeleteTable,
+  useListUsers, getListUsersQueryKey,
 } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -283,6 +284,16 @@ export default function ManagerFloor({
   const venueId = activeVenue?.id || "";
   const tablesQK   = ["/tables", venueId, scope] as const;
   const sectionsQK = ["/floor-sections", venueId, scope] as const;
+
+  // Venue roster for the section assignee picker. Only used by admins on
+  // the manager view; employees in readOnly mode get the same query
+  // result via Layout/AppContext but never edit it. The generated hook
+  // already polls per the global React Query default (30s) which is
+  // plenty for a list that changes weekly.
+  const { data: venueUsers } = useListUsers(
+    { venueId },
+    { query: { enabled: !!venueId, queryKey: getListUsersQueryKey({ venueId }) } },
+  );
 
   const { data: sections } = useQuery<FloorSection[]>({
     queryKey: sectionsQK,
@@ -744,17 +755,24 @@ export default function ManagerFloor({
                   <SelectValue placeholder="(none)" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(sections ?? []).map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="inline-block w-2.5 h-2.5 rounded-full"
-                          style={{ backgroundColor: s.color }}
-                        />
-                        {s.name}
-                      </span>
-                    </SelectItem>
-                  ))}
+                  {(sections ?? []).map((s) => {
+                    const assignedId = (s as unknown as { assignedUserId?: string | null }).assignedUserId;
+                    const assignee = assignedId
+                      ? (venueUsers ?? []).find((u) => u.id === assignedId)?.fullName ?? null
+                      : null;
+                    return (
+                      <SelectItem key={s.id} value={s.id}>
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="inline-block w-2.5 h-2.5 rounded-full"
+                            style={{ backgroundColor: s.color }}
+                          />
+                          {s.name}
+                          {assignee ? <span className="text-muted-foreground"> · {assignee}</span> : null}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
                   {(sections ?? []).length === 0 ? (
                     <SelectItem value="__none__" disabled>
                       No sections yet
@@ -1030,7 +1048,11 @@ export default function ManagerFloor({
         onOpenChange={setSectionsOpen}
         venueId={venueId}
         scope={scope}
-        sections={(sections ?? []).map((s) => ({ id: s.id, name: s.name, color: s.color, capacity: s.capacity }))}
+        sections={(sections ?? []).map((s) => ({
+          id: s.id, name: s.name, color: s.color, capacity: s.capacity,
+          assignedUserId: (s as unknown as { assignedUserId?: string | null }).assignedUserId ?? null,
+        }))}
+        users={(venueUsers ?? []).map((u) => ({ id: u.id, fullName: u.fullName }))}
         sectionsQueryKey={sectionsQK}
         tablesQueryKey={tablesQK}
       />
@@ -1055,7 +1077,11 @@ export default function ManagerFloor({
           };
           return dr;
         })()}
-        sections={(sections ?? []).map((s) => ({ id: s.id, name: s.name, color: s.color }))}
+        sections={(sections ?? []).map((s) => ({
+          id: s.id, name: s.name, color: s.color,
+          assignedUserId: (s as unknown as { assignedUserId?: string | null }).assignedUserId ?? null,
+        }))}
+        users={(venueUsers ?? []).map((u) => ({ id: u.id, fullName: u.fullName }))}
         isAdmin={isAdmin}
         today={todayIso}
         reservationsQueryKey={reservationsQK}
