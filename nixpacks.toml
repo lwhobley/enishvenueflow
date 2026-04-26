@@ -7,8 +7,12 @@ providers = ["node"]
 nixPkgs = ["nodejs_22", "pnpm"]
 
 [phases.install]
-cmds = [  "pnpm install --frozen-lockfile",
-]
+# --prod=false forces pnpm to install devDependencies even though
+# NODE_ENV=production is set (see [variables] below). vite, tsc,
+# esbuild and friends live in devDeps and are required to PRODUCE
+# the bundled output. Without this flag pnpm strips them and the
+# build phase below fails with "vite: not found".
+cmds = ["pnpm install --frozen-lockfile --prod=false"]
 
 [phases.build]
 cmds = ["pnpm run build"]
