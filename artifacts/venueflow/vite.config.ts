@@ -68,9 +68,9 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,woff,woff2}"],
       },
       manifest: {
-        name: "ENISH",
-        short_name: "ENISH",
-        description: "ENISH Venue & Staff Management",
+        name: "VenueFlow",
+        short_name: "VenueFlow",
+        description: "VenueFlow — venue & staff management",
         theme_color: "#0C0806",
         background_color: "#0C0806",
         display: "standalone",

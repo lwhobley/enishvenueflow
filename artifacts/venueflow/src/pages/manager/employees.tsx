@@ -453,7 +453,7 @@ export default function ManagerEmployees() {
               <Input id="emp-pin" type="password" inputMode="numeric" maxLength={8}
                 placeholder={editingUser ? "Enter new PIN to change" : "4–8 digits"}
                 value={form.pin} onChange={e => setField("pin", e.target.value.replace(/\D/g, ""))} />
-              <p className="text-xs text-muted-foreground mt-1">Used to log into the ENISH employee app</p>
+              <p className="text-xs text-muted-foreground mt-1">Used to log into the VenueFlow employee app</p>
             </div>
 
             {/* Admin + Active toggles */}

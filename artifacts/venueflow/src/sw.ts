@@ -32,12 +32,12 @@ self.addEventListener("activate", (event) => {
 // ── Push notifications ────────────────────────────────────────────────────────
 self.addEventListener("push", (event) => {
   const data = event.data?.json() ?? {};
-  const title: string = data.title ?? "ENISH";
+  const title: string = data.title ?? "VenueFlow";
   const options: NotificationOptions = {
     body: data.body ?? "",
     icon: "/icons/icon.svg",
     badge: "/icons/badge.svg",
-    tag: data.tag ?? "enish-notification",
+    tag: data.tag ?? "venueflow-notification",
     data: { url: data.url ?? "/" },
     requireInteraction: data.requireInteraction ?? false,
   };
