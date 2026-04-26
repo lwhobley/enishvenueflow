@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import compression from "compression";
 import pinoHttp from "pino-http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,6 +49,12 @@ if (corsAllowList.length > 0) {
 } else if (process.env.NODE_ENV !== "production") {
   app.use(cors());
 }
+
+// gzip every JSON / text response. The dashboards and shift / reservation
+// list endpoints can return tens of KB of JSON; on a phone over 4G that's
+// the difference between snappy and laggy. The default threshold is 1KB,
+// so small responses (200 OK, single records) skip compression overhead.
+app.use(compression());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

@@ -117,6 +117,64 @@ const STATEMENTS: { name: string; sql: string }[] = [
     name: "user_sessions user_id index",
     sql: `CREATE INDEX IF NOT EXISTS "user_sessions_user_id_idx" ON "user_sessions" ("user_id")`,
   },
+
+  // ── Hot-path indexes (added for ~30 concurrent users) ───────────────────
+  // Every list endpoint that filters by these columns previously did a
+  // sequential scan. With a few hundred shifts and a few thousand
+  // time-clock entries that's tolerable; at 30 users polling, the scans
+  // pile up in the connection pool and slow everything else down.
+  {
+    name: "reservations(venue_id, date) index",
+    sql: `CREATE INDEX IF NOT EXISTS "reservations_venue_date_idx" ON "reservations" ("venue_id", "date")`,
+  },
+  {
+    name: "reservations(table_id) index",
+    sql: `CREATE INDEX IF NOT EXISTS "reservations_table_id_idx" ON "reservations" ("table_id")`,
+  },
+  {
+    name: "shifts(schedule_id) index",
+    sql: `CREATE INDEX IF NOT EXISTS "shifts_schedule_id_idx" ON "shifts" ("schedule_id")`,
+  },
+  {
+    name: "shifts(user_id) index",
+    sql: `CREATE INDEX IF NOT EXISTS "shifts_user_id_idx" ON "shifts" ("user_id")`,
+  },
+  {
+    name: "shifts(start_time) index",
+    sql: `CREATE INDEX IF NOT EXISTS "shifts_start_time_idx" ON "shifts" ("start_time")`,
+  },
+  {
+    name: "time_clock_entries(venue_id, status) index",
+    sql: `CREATE INDEX IF NOT EXISTS "time_clock_entries_venue_status_idx" ON "time_clock_entries" ("venue_id", "status")`,
+  },
+  {
+    name: "time_clock_entries(user_id, status) index",
+    sql: `CREATE INDEX IF NOT EXISTS "time_clock_entries_user_status_idx" ON "time_clock_entries" ("user_id", "status")`,
+  },
+  {
+    name: "tables(venue_id, scope) index",
+    sql: `CREATE INDEX IF NOT EXISTS "tables_venue_scope_idx" ON "tables" ("venue_id", "scope")`,
+  },
+  {
+    name: "chairs(venue_id, scope) index",
+    sql: `CREATE INDEX IF NOT EXISTS "chairs_venue_scope_idx" ON "chairs" ("venue_id", "scope")`,
+  },
+  {
+    name: "floor_sections(venue_id, scope) index",
+    sql: `CREATE INDEX IF NOT EXISTS "floor_sections_venue_scope_idx" ON "floor_sections" ("venue_id", "scope")`,
+  },
+  {
+    name: "users(venue_id) index",
+    sql: `CREATE INDEX IF NOT EXISTS "users_venue_id_idx" ON "users" ("venue_id")`,
+  },
+  {
+    name: "messages(venue_id, created_at) index",
+    sql: `CREATE INDEX IF NOT EXISTS "messages_venue_created_idx" ON "messages" ("venue_id", "created_at")`,
+  },
+  {
+    name: "availability(venue_id, user_id) index",
+    sql: `CREATE INDEX IF NOT EXISTS "availability_venue_user_idx" ON "availability" ("venue_id", "user_id")`,
+  },
 ];
 
 export async function applyStartupMigrations(): Promise<void> {
