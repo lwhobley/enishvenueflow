@@ -253,7 +253,6 @@ export default function ManagerFloor({
   const [confirmCopy, setConfirmCopy]         = useState(false);
   const [copying, setCopying]                 = useState(false);
   const [tableOv, setTableOv]           = useState<Record<string, { x: number; y: number; w?: number; h?: number; r?: number }>>({});
-  const [scale, setScale]               = useState(1);
   // `true` while the user is actively dragging/resizing — pauses polling so
   // incoming server data can't snap an in-progress shape back.
   const [isInteracting, setIsInteracting] = useState(false);
@@ -264,12 +263,21 @@ export default function ManagerFloor({
   const canvasRef    = useRef<HTMLDivElement>(null);
   const dragRef      = useRef<{ target: DragTarget; sx: number; sy: number; ox: number; oy: number } | null>(null);
 
-  // Resize-aware scale so canvas always fills the box
+  // Resize-aware scale so canvas always fills the box. Initial value (0.35)
+  // is a reasonable mobile default — it keeps the first paint a sensible
+  // size instead of rendering CH=832px tall before the ResizeObserver
+  // measures and shrinks. The observer corrects to the actual ratio on
+  // the next frame.
+  const [scale, setScale]               = useState(0.35);
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const update = () => {
-      const s = Math.min(1, el.clientWidth / CW);
+      // clientWidth can be 0 momentarily during layout — guard so we
+      // don't latch a zero scale and collapse the canvas to height 0.
+      const w = el.clientWidth;
+      if (w <= 0) return;
+      const s = Math.min(1, w / CW);
       setScale(s); scaleRef.current = s;
     };
     update();
@@ -863,11 +871,15 @@ export default function ManagerFloor({
       </div>
 
       {/* ── Floor plan + Table sales legend ── */}
-      <div className="flex gap-3 items-start flex-col lg:flex-row">
+      {/* `items-stretch` (the default) is critical on mobile column mode —
+          `items-start` here would let each child shrink to its content
+          width, leaving the canvas <320px wide and the floor plan barely
+          visible. Stretching ensures the canvas fills the viewport. */}
+      <div className="flex gap-3 items-stretch flex-col lg:flex-row">
       <div
         ref={containerRef}
         className={`flex-1 min-w-0 w-full overflow-hidden border rounded-xl relative bg-neutral-200 ${addMode ? "cursor-crosshair" : ""}`}
-        style={{ height: CH * scale }}
+        style={{ height: Math.max(CH * scale, 240) }}
         onClick={handleCanvasClick}
         onKeyDown={e => { if (e.key === "Escape") setAddMode(null); }}
         tabIndex={0}
