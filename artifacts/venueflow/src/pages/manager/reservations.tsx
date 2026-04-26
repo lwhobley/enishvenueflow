@@ -10,11 +10,32 @@ import { Plus, Upload } from "lucide-react";
 import { CsvImportDialog, type CsvImportConfig, type ImportResult } from "@/components/csv-import-dialog";
 import { normalizeDate, normalizeTime } from "@/lib/csv";
 
+// Maps the strings restaurants typically export ("Reserved" / "Seated" /
+// "No-show" / "Confirmed" / etc.) to the canonical statuses our schema
+// stores. Anything unrecognized falls back to "confirmed" because most
+// imported reservations are confirmed bookings.
+function normalizeImportedStatus(raw: string): string {
+  const t = raw.trim().toLowerCase().replace(/[\s_-]+/g, "");
+  if (!t) return "confirmed";
+  if (t === "reserved" || t === "confirmed" || t === "booked") return "confirmed";
+  if (t === "pending" || t === "tentative" || t === "request") return "pending";
+  if (t === "arrived" || t === "checkedin") return "arrived";
+  if (t === "seated") return "seated";
+  if (t === "completed" || t === "departed" || t === "done" || t === "finished") return "completed";
+  if (t === "cancelled" || t === "canceled") return "cancelled";
+  if (t === "noshow") return "no_show";
+  return "confirmed";
+}
+
 const reservationImportConfig: CsvImportConfig = {
+  // Unrecognized CSV columns get folded into the `notes` field as
+  // `Column Header: value · Column Header: value` so nothing is silently
+  // dropped on a wide OpenTable / Resy / spreadsheet export.
+  unmappedTo: "notes",
   fields: [
     { key: "guestName", label: "Guest Name", aliases: ["name", "guest", "full name"], required: true },
-    { key: "guestEmail", label: "Email", aliases: ["email"] },
-    { key: "guestPhone", label: "Phone", aliases: ["phone", "phone number"] },
+    { key: "guestEmail", label: "Email", aliases: ["email", "email address"] },
+    { key: "guestPhone", label: "Phone", aliases: ["phone", "phone number", "cell", "mobile"] },
     {
       key: "partySize", label: "Party Size", aliases: ["party", "size", "guests", "covers"],
       required: true,
@@ -31,17 +52,24 @@ const reservationImportConfig: CsvImportConfig = {
       validate: (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? null : "Couldn't parse date"),
     },
     {
-      key: "time", label: "Time",
+      key: "time", label: "Time", aliases: ["visit time", "reservation time"],
       required: true,
       transform: (v) => normalizeTime(v),
       validate: (v) => (typeof v === "string" && /^\d{2}:\d{2}$/.test(v) ? null : "Couldn't parse time"),
     },
     {
+      key: "status", label: "Status", aliases: ["reservation status", "state"],
+      transform: (v) => normalizeImportedStatus(v),
+    },
+    {
       key: "durationMinutes", label: "Duration (min)", aliases: ["duration", "minutes"],
       transform: (v) => (v === "" ? null : parseInt(v, 10) || null),
     },
-    { key: "tableLabel", label: "Table", aliases: ["table number", "table label"] },
-    { key: "notes", label: "Notes", aliases: ["comments", "comment"] },
+    { key: "tableLabel", label: "Table", aliases: ["table", "table number", "table label"] },
+    {
+      key: "notes", label: "Notes",
+      aliases: ["comments", "comment", "dining visit notes", "visit notes", "guest notes", "request"],
+    },
   ],
 };
 

@@ -60,10 +60,17 @@ router.post("/reservations/bulk", async (req, res) => {
         durationMinutes?: number;
         tableLabel?: string | null;
         notes?: string | null;
+        status?: string | null;
       }>;
     };
     if (!venueId) return res.status(400).json({ message: "venueId required" });
     if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ message: "reservations[] required" });
+    // Match the lifecycle endpoints' canonical statuses. Anything outside
+    // this set falls back to "confirmed" since most imported reservations
+    // are confirmed bookings exported from another tool.
+    const ALLOWED_STATUS = new Set([
+      "pending", "confirmed", "arrived", "seated", "completed", "cancelled", "no_show",
+    ]);
 
     // Map any tableLabel strings → tableId once, instead of querying per row.
     const venueTables = await db.select({ id: tables.id, label: tables.label })
@@ -99,6 +106,8 @@ router.post("/reservations/bulk", async (req, res) => {
         ? labelToId.get(r.tableLabel.trim().toLowerCase()) ?? null
         : null;
 
+      const status = r.status && ALLOWED_STATUS.has(r.status) ? r.status : "confirmed";
+
       toInsert.push({
         venueId,
         guestName,
@@ -112,6 +121,7 @@ router.post("/reservations/bulk", async (req, res) => {
         tableId,
         notes: r.notes?.trim() || null,
         source: "csv-import",
+        status,
       });
       inserted++;
     }

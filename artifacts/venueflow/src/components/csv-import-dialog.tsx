@@ -24,6 +24,14 @@ export interface CsvImportConfig {
   fields: CsvField[];
   /** Optional whole-row validator after per-field transforms. */
   validateRow?: (row: Record<string, unknown>) => string | null;
+  /**
+   * If set, any column whose header isn't recognized is folded into the
+   * field with this key as `Header: value · Header: value`, prepended to
+   * whatever value that field already received from a recognized column.
+   * Lets imports of wide spreadsheet exports (OpenTable, Resy) preserve
+   * out-of-band columns instead of silently dropping them.
+   */
+  unmappedTo?: string;
 }
 
 export interface ImportResult {
@@ -106,13 +114,34 @@ export function CsvImportDialog({
 
       const parsed: ParsedRow[] = rows.map((r) => {
         const values: Record<string, unknown> = {};
+        // Track unmapped column → cell pairs for the `unmappedTo` spillover.
+        const unmapped: Array<{ header: string; value: string }> = [];
+
         for (let i = 0; i < colKeys.length; i++) {
           const key = colKeys[i];
-          if (!key) continue;
-          const field = config.fields.find((f) => f.key === key)!;
           const cell = (r[i] ?? "").trim();
+          if (!key) {
+            // Unrecognized column — collect for spillover. Skip blank
+            // cells so a sparse extra column doesn't pollute notes.
+            const header = (rawHeaders[i] ?? "").trim();
+            if (cell !== "" && header !== "") unmapped.push({ header, value: cell });
+            continue;
+          }
+          const field = config.fields.find((f) => f.key === key)!;
           values[key] = field.transform ? field.transform(cell) : cell;
         }
+
+        // Spill unrecognized columns into the configured catch-all field
+        // (typically `notes`). If that field already got a value, append
+        // a separator so both pieces are preserved.
+        if (config.unmappedTo && unmapped.length > 0) {
+          const existing = values[config.unmappedTo];
+          const spilled = unmapped.map((u) => `${u.header}: ${u.value}`).join(" · ");
+          values[config.unmappedTo] = existing && typeof existing === "string" && existing.length > 0
+            ? `${existing} · ${spilled}`
+            : spilled;
+        }
+
         // Validate per-field, then whole row.
         let error: string | null = null;
         for (const f of config.fields) {
