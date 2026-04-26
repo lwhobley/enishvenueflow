@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
@@ -22,17 +25,27 @@ export interface DialogReservation {
   notes: string | null;
 }
 
+export interface DialogSection {
+  id: string;
+  name: string;
+  color: string;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   venueId: string;
-  table: { id: string; label: string; capacity: number } | null;
+  table:
+    | { id: string; label: string; capacity: number; sectionId: string | null }
+    | null;
   reservation: DialogReservation | null;
+  sections: DialogSection[];
   isAdmin: boolean;
   // Today's date in the venue's local format (YYYY-MM-DD).
   today: string;
-  // React Query key used to invalidate the day's reservation list after a save.
+  // React Query keys used to invalidate after a save.
   reservationsQueryKey: readonly unknown[];
+  tablesQueryKey: readonly unknown[];
 }
 
 function fmt12(hhmm: string): string {
@@ -44,10 +57,12 @@ function fmt12(hhmm: string): string {
 }
 
 export function TableInfoDialog({
-  open, onOpenChange, venueId, table, reservation, isAdmin, today, reservationsQueryKey,
+  open, onOpenChange, venueId, table, reservation, sections, isAdmin, today,
+  reservationsQueryKey, tablesQueryKey,
 }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [movingSection, setMovingSection] = useState(false);
 
   const [guestName, setGuestName] = useState("");
   const [partySize, setPartySize] = useState("");
@@ -157,6 +172,73 @@ export function TableInfoDialog({
             Capacity {table.capacity} {table.capacity === 1 ? "guest" : "guests"}
           </DialogDescription>
         </DialogHeader>
+
+        {sections.length > 0 ? (
+          <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">Section</span>
+            {isAdmin ? (
+              <div className="flex items-center gap-2 flex-1 max-w-[260px]">
+                <Select
+                  value={table.sectionId ?? ""}
+                  onValueChange={async (v) => {
+                    if (v === table.sectionId) return;
+                    setMovingSection(true);
+                    try {
+                      const res = await fetch(`/api/tables/${table.id}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ sectionId: v }),
+                      });
+                      if (!res.ok) {
+                        const json = (await res.json().catch(() => ({}))) as { message?: string };
+                        throw new Error(json.message ?? `Move failed (${res.status})`);
+                      }
+                      await qc.invalidateQueries({ queryKey: tablesQueryKey });
+                      toast({ title: "Table moved", description: sections.find((s) => s.id === v)?.name ?? "Section updated" });
+                    } catch (err) {
+                      toast({
+                        title: "Failed to move table",
+                        description: err instanceof Error ? err.message : "Unknown error",
+                        variant: "destructive",
+                      });
+                    } finally {
+                      setMovingSection(false);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-8 flex-1">
+                    <SelectValue placeholder="(unassigned)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sections.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="inline-block w-2.5 h-2.5 rounded-full"
+                            style={{ backgroundColor: s.color }}
+                          />
+                          {s.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {movingSection ? <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" /> : null}
+              </div>
+            ) : (
+              (() => {
+                const s = sections.find((x) => x.id === table.sectionId);
+                if (!s) return <span className="text-muted-foreground">—</span>;
+                return (
+                  <span className="flex items-center gap-2 font-medium">
+                    <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                    {s.name}
+                  </span>
+                );
+              })()
+            )}
+          </div>
+        ) : null}
 
         {reserved ? (
           <div className="space-y-3">

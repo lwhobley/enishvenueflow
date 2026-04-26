@@ -55,6 +55,49 @@ router.post("/floor-sections", async (req, res) => {
   }
 });
 
+router.put("/floor-sections/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, color, capacity } = req.body;
+    const updates: Record<string, unknown> = {};
+    if (name !== undefined) updates.name = String(name).trim();
+    if (color !== undefined) updates.color = String(color);
+    if (capacity !== undefined) {
+      const n = Math.round(Number(capacity));
+      if (!Number.isFinite(n) || n < 0) return res.status(400).json({ message: "capacity must be a non-negative integer" });
+      updates.capacity = n;
+    }
+    if (Object.keys(updates).length === 0) return res.status(400).json({ message: "Nothing to update" });
+    const [updated] = await db.update(floorSections).set(updates).where(eq(floorSections.id, id)).returning();
+    if (!updated) return res.status(404).json({ message: "Section not found" });
+    res.json(updated);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to update section" });
+  }
+});
+
+router.delete("/floor-sections/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Refuse to delete a section that still has tables — the manager should
+    // reassign or remove those tables first so we don't orphan them.
+    const inUse = await db.select({ id: tables.id }).from(tables).where(eq(tables.sectionId, id));
+    if (inUse.length > 0) {
+      return res.status(400).json({
+        message: `Cannot delete section: ${inUse.length} table${inUse.length === 1 ? "" : "s"} still assigned. Move them to another section first.`,
+        tableCount: inUse.length,
+      });
+    }
+    const deleted = await db.delete(floorSections).where(eq(floorSections.id, id)).returning();
+    if (deleted.length === 0) return res.status(404).json({ message: "Section not found" });
+    res.json({ message: "Section deleted" });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to delete section" });
+  }
+});
+
 router.get("/tables", async (req, res) => {
   try {
     const { venueId, sectionId } = req.query as { venueId: string; sectionId?: string };

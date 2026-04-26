@@ -8,7 +8,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, Square, Armchair, RotateCw, ListOrdered, Copy } from "lucide-react";
+import { Plus, Trash2, Square, Armchair, RotateCw, ListOrdered, Copy, Layers } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -16,6 +16,10 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { TableLegend } from "@/components/table-legend";
 import { TableInfoDialog, type DialogReservation } from "@/components/table-info-dialog";
+import { SectionsDialog } from "@/components/sections-dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { format } from "date-fns";
 import floorPlanBg from "@assets/IMG_2248_1776293611211.png";
 
@@ -241,6 +245,8 @@ export default function ManagerFloor({
   const [editingId, setEditingId]       = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
   const [tableInfoOpenId, setTableInfoOpenId] = useState<string | null>(null);
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  const [sectionsOpen, setSectionsOpen] = useState(false);
   const [confirmRenumber, setConfirmRenumber] = useState(false);
   const [renumbering, setRenumbering]         = useState(false);
   const [confirmCopy, setConfirmCopy]         = useState(false);
@@ -418,17 +424,23 @@ export default function ManagerFloor({
     };
   }, [activeVenue?.id, scope]);
 
-  // Ensure at least one section exists
+  // Resolve which section a newly-placed table should belong to. Priority:
+  //   1. The toolbar's "active section" (if it still exists in this scope)
+  //   2. The first existing section
+  //   3. A freshly-created "Main Floor" if none exist yet
   const ensureSection = useCallback(async (): Promise<string | null> => {
-    if (sections?.[0]) return sections[0].id;
     if (!activeVenue?.id) return null;
+    if (activeSectionId && sections?.some((s) => s.id === activeSectionId)) {
+      return activeSectionId;
+    }
+    if (sections?.[0]) return sections[0].id;
     const s = await apiFetch("/floor-sections", {
       method: "POST",
       body: JSON.stringify({ venueId: activeVenue.id, name: "Main Floor", capacity: 0, scope }),
     });
     queryClient.invalidateQueries({ queryKey: sectionsQK });
     return s.id;
-  }, [sections, activeVenue?.id, queryClient, sectionsQK]);
+  }, [sections, activeVenue?.id, activeSectionId, scope, queryClient, sectionsQK]);
 
   // Canvas coordinates corrected for CSS scale
   const canvasPos = (e: React.MouseEvent) => {
@@ -721,7 +733,45 @@ export default function ManagerFloor({
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
         {isAdmin ? (
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap items-center">
+            <div className="flex items-center gap-1.5 mr-1">
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">Section</span>
+              <Select
+                value={activeSectionId ?? sections?.[0]?.id ?? ""}
+                onValueChange={(v) => setActiveSectionId(v)}
+              >
+                <SelectTrigger className="h-9 w-[170px]">
+                  <SelectValue placeholder="(none)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(sections ?? []).map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block w-2.5 h-2.5 rounded-full"
+                          style={{ backgroundColor: s.color }}
+                        />
+                        {s.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                  {(sections ?? []).length === 0 ? (
+                    <SelectItem value="__none__" disabled>
+                      No sections yet
+                    </SelectItem>
+                  ) : null}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setSectionsOpen(true)}
+                title="Manage sections"
+                aria-label="Manage sections"
+              >
+                <Layers className="w-4 h-4" />
+              </Button>
+            </div>
             <Button
               variant={addMode === "square" ? "default" : "outline"}
               onClick={() => setAddMode(addMode === "square" ? null : "square")}
@@ -975,13 +1025,25 @@ export default function ManagerFloor({
       )}
       </div>
 
+      <SectionsDialog
+        open={sectionsOpen}
+        onOpenChange={setSectionsOpen}
+        venueId={venueId}
+        scope={scope}
+        sections={(sections ?? []).map((s) => ({ id: s.id, name: s.name, color: s.color, capacity: s.capacity }))}
+        sectionsQueryKey={sectionsQK}
+        tablesQueryKey={tablesQK}
+      />
+
       <TableInfoDialog
         open={tableInfoOpenId !== null}
         onOpenChange={(v) => { if (!v) setTableInfoOpenId(null); }}
         venueId={venueId}
         table={(() => {
           const t = tables?.find((x) => x.id === tableInfoOpenId);
-          return t ? { id: t.id, label: t.label, capacity: t.capacity } : null;
+          return t
+            ? { id: t.id, label: t.label, capacity: t.capacity, sectionId: t.sectionId ?? null }
+            : null;
         })()}
         reservation={(() => {
           const r = tableInfoOpenId ? reservedByTableId.get(tableInfoOpenId) : null;
@@ -993,9 +1055,11 @@ export default function ManagerFloor({
           };
           return dr;
         })()}
+        sections={(sections ?? []).map((s) => ({ id: s.id, name: s.name, color: s.color }))}
         isAdmin={isAdmin}
         today={todayIso}
         reservationsQueryKey={reservationsQK}
+        tablesQueryKey={tablesQK}
       />
 
       <AlertDialog open={confirmCopy} onOpenChange={(v) => { if (!copying) setConfirmCopy(v); }}>
