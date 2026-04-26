@@ -49,21 +49,23 @@ import {
 
 const CATEGORY_ORDER: LiteratureCategory[] = ["sop", "cheat_sheet", "training", "policy", "other"];
 
+// Brand-tinted category tones — teal / mint / sky / navy / amber on white.
 const CATEGORY_TONES: Record<LiteratureCategory, { well: string; icon: string; ring: string }> = {
-  sop:         { well: "linear-gradient(135deg, #F6E6B8 0%, #E9CF8A 100%)", icon: "#7A5F1F", ring: "rgba(178,136,47,0.25)" },
-  cheat_sheet: { well: "linear-gradient(135deg, #FCE3BE 0%, #F1C88C 100%)", icon: "#8A5320", ring: "rgba(193,126,53,0.25)" },
-  training:    { well: "linear-gradient(135deg, #DDE5CC 0%, #C1CFA5 100%)", icon: "#4E6630", ring: "rgba(108,138,78,0.25)" },
-  policy:      { well: "linear-gradient(135deg, #E5D3DD 0%, #C9AFBE 100%)", icon: "#5E3344", ring: "rgba(121,84,100,0.25)" },
-  other:       { well: "linear-gradient(135deg, #E4DDD1 0%, #CDC2AE 100%)", icon: "#2A1F17", ring: "rgba(42,31,23,0.22)" },
+  sop:         { well: "linear-gradient(135deg, #DDF1F8 0%, #B5E0EE 100%)", icon: "#1A8AAB", ring: "rgba(31,156,194,0.25)" },  // teal
+  cheat_sheet: { well: "linear-gradient(135deg, #D4F2E8 0%, #9FE0CA 100%)", icon: "#1F8466", ring: "rgba(78,207,170,0.25)" },   // mint
+  training:    { well: "linear-gradient(135deg, #FFE7C2 0%, #F6C97A 100%)", icon: "#8A5320", ring: "rgba(193,126,53,0.25)" },   // amber
+  policy:      { well: "linear-gradient(135deg, #DCE5EE 0%, #B7C5D6 100%)", icon: "#264E7A", ring: "rgba(38,78,122,0.25)" },    // navy
+  other:       { well: "linear-gradient(135deg, #E2EBF1 0%, #CBD7E2 100%)", icon: "#142849", ring: "rgba(20,40,73,0.22)" },     // slate
 };
 
+// VenueFlow brand palette — variable names kept.
 const L = {
-  cream:     "#FFFDF7",
-  parchment: "#F0E8D3",
-  border:    "rgba(178,136,47,0.22)",
-  gold:      "#B2882F",
-  espresso:  "#2A1F17",
-  taupe:     "rgba(42,31,23,0.56)",
+  cream:     "#FFFFFF",
+  parchment: "#EAF4F8",
+  border:    "rgba(38,78,122,0.16)",
+  gold:      "#1F9CC2",
+  espresso:  "#142849",
+  taupe:     "rgba(20,40,73,0.56)",
 };
 
 export default function ManagerLiterature() {

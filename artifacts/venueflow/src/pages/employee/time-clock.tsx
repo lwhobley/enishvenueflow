@@ -9,20 +9,24 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { MapPin, CalendarCheck, Loader2, Clock4, Fingerprint, Smartphone } from "lucide-react";
 
-// ── Fine dining palette ───────────────────────────────────────────────────────
+// ── VenueFlow brand palette — light, navy/teal/mint ──────────────────────────
+// Variable names kept (gold/champ/etc.) so the file's many style refs resolve
+// unchanged; the values flipped from a dark fine-dining theme to the brand
+// navy + teal on near-white. "sage" / "rose" / "amber" semantic accents
+// stay (they signal success / error / warning) but are tuned for white bg.
 const G = {
-  bg:      "#0C0806",
-  surface: "rgba(201,168,75,0.04)",
-  border:  "rgba(201,168,75,0.10)",
-  borderHi:"rgba(201,168,75,0.22)",
-  gold:    "#C9A84B",
-  goldSoft:"rgba(201,168,75,0.55)",
-  champ:   "#EAD9A4",
-  sage:    "#85B878",      // warm sage green — success
-  rose:    "#C84848",      // deep rose — error/clock-out
-  amber:   "#C47C35",      // warm amber — warning
-  text:    "#EAD9A4",
-  sub:     "rgba(234,217,164,0.38)",
+  bg:       "#F4F8FA",                    // near-white page (was #0C0806)
+  surface:  "rgba(31,156,194,0.04)",      // very faint teal wash
+  border:   "rgba(38,78,122,0.12)",
+  borderHi: "rgba(31,156,194,0.30)",
+  gold:     "#1F9CC2",                    // brand teal (was warm gold)
+  goldSoft: "rgba(31,156,194,0.55)",
+  champ:    "#142849",                    // brand navy text (was champagne)
+  sage:     "#10B981",                    // emerald — success / clocked-in (was warm sage)
+  rose:     "#DC2626",                    // clean red — error / clock-out
+  amber:    "#D97706",                    // amber — warning
+  text:     "#142849",                    // brand navy primary text
+  sub:      "rgba(20,40,73,0.50)",
 };
 
 // We no longer enforce a venue-pin geofence. The phone just needs a real

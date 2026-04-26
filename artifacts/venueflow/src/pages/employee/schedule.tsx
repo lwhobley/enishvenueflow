@@ -17,11 +17,13 @@ import { findBlackoutOverlaps, describeBlackouts, upcomingBlackouts } from "@wor
 import { X, ArrowDownCircle, ArrowUpCircle, CalendarOff, Clock, ChevronDown } from "lucide-react";
 
 // ── palette ──────────────────────────────────────────────────────────────────
+// VenueFlow brand palette — light, navy/teal/mint. Variable names kept so
+// the rest of the file's many references resolve unchanged.
 const G = {
-  bg: "#0C0806", surface: "#18100A", surfaceHi: "#1E1510",
-  gold: "#C9A84B", goldDim: "rgba(201,168,75,0.14)", goldHair: "rgba(201,168,75,0.10)",
-  champ: "#EAD9A4", champDim: "rgba(234,217,164,0.48)", muted: "rgba(234,217,164,0.38)",
-  border: "rgba(201,168,75,0.11)", rose: "#C0392B", sage: "#8BA888",
+  bg: "#F4F8FA", surface: "#FFFFFF", surfaceHi: "#EAF4F8",
+  gold: "#1F9CC2", goldDim: "rgba(31,156,194,0.12)", goldHair: "rgba(31,156,194,0.08)",
+  champ: "#142849", champDim: "rgba(20,40,73,0.62)", muted: "rgba(20,40,73,0.46)",
+  border: "rgba(38,78,122,0.16)", rose: "#DC2626", sage: "#10B981",
 };
 
 // ── tiny modal ────────────────────────────────────────────────────────────────

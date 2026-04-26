@@ -21,14 +21,16 @@ async function fetchInsights(refresh = false): Promise<Insights> {
   return (await res.json()) as Insights;
 }
 
+// VenueFlow brand palette — variable names kept; values flipped from
+// luxury gold/espresso/cream to brand teal/navy/white.
 const L = {
-  gold:     "#B2882F",
-  goldSoft: "#D9B867",
-  espresso: "#2A1F17",
-  taupe:    "rgba(42,31,23,0.56)",
-  cream:    "#FFFDF7",
-  parchment:"#F0E8D3",
-  border:   "rgba(178,136,47,0.22)",
+  gold:     "#1F9CC2",                  // brand teal
+  goldSoft: "#7FE8C8",                  // mint accent
+  espresso: "#142849",                  // brand navy
+  taupe:    "rgba(20,40,73,0.56)",
+  cream:    "#FFFFFF",                  // pure white card top
+  parchment:"#EAF4F8",                  // soft cyan well at bottom
+  border:   "rgba(38,78,122,0.16)",
 };
 
 export function CosmicInsightsCard() {

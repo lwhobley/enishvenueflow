@@ -21,14 +21,15 @@ const POSITION_LABELS: Record<string, string> = {
   cook: "Cook",
 };
 
+// VenueFlow brand palette — variable names kept.
 const L = {
-  cream: "#FFFDF7",
-  parchment: "#F0E8D3",
-  border: "rgba(178,136,47,0.22)",
-  gold: "#B2882F",
-  espresso: "#2A1F17",
-  taupe: "rgba(42,31,23,0.56)",
-  rose: "#8A3D3D",
+  cream: "#FFFFFF",
+  parchment: "#EAF4F8",
+  border: "rgba(38,78,122,0.16)",
+  gold: "#1F9CC2",
+  espresso: "#142849",
+  taupe: "rgba(20,40,73,0.56)",
+  rose: "#DC2626",
 };
 
 export default function EnrollPage() {
@@ -121,7 +122,7 @@ export default function EnrollPage() {
         alignItems: "center",
         justifyContent: "center",
         padding: "32px 16px",
-        background: `linear-gradient(135deg, #F8F3E7 0%, #F0E8D3 100%)`,
+        background: `linear-gradient(135deg, #FFFFFF 0%, #EAF4F8 100%)`,
       }}
     >
       <motion.div

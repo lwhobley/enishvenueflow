@@ -48,55 +48,55 @@
   --radius-xl: calc(var(--radius) + 8px);
 }
 
-/* ── Fine Dining Light Luxury Palette ───────────────── */
+/* ── VenueFlow brand palette — navy / teal / mint on near-white ─── */
 :root {
-  /* Warm ivory foundation */
-  --background: 40 50% 96%;       /* #F8F3E7 soft ivory */
-  --foreground: 26 28% 14%;       /* #2A1F17 deep espresso text */
+  /* Page foundation — near-white with a faint cyan tint */
+  --background: 200 27% 97%;       /* #F4F8FA */
+  --foreground: 215 56% 18%;       /* #142849 brand navy */
 
-  /* Card surfaces */
-  --card: 42 60% 99%;             /* #FFFDF7 near-white cream */
-  --card-foreground: 26 28% 14%;
-  --card-border: 38 40% 84%;      /* warm parchment */
+  /* Card surfaces — pure white */
+  --card: 0 0% 100%;               /* #FFFFFF */
+  --card-foreground: 215 56% 18%;
+  --card-border: 213 27% 90%;      /* #DCE5EE */
 
-  /* Popover/dropdown */
-  --popover: 42 60% 99%;
-  --popover-foreground: 26 28% 14%;
-  --popover-border: 38 35% 82%;
+  /* Popover/dropdown — same as cards */
+  --popover: 0 0% 100%;
+  --popover-foreground: 215 56% 18%;
+  --popover-border: 213 27% 90%;
 
-  /* Warm antique gold primary */
-  --primary: 36 58% 44%;          /* #B2882F warm gold (readable on cream) */
-  --primary-foreground: 42 60% 98%;
-  --primary-border: hsl(36 58% 34%);
+  /* Brand teal primary */
+  --primary: 192 73% 44%;          /* #1F9CC2 brand teal */
+  --primary-foreground: 0 0% 100%;
+  --primary-border: hsl(192 73% 38%);
 
-  /* Soft champagne secondary */
-  --secondary: 40 35% 92%;        /* #EFE6D0 */
-  --secondary-foreground: 26 28% 18%;
-  --secondary-border: hsl(38 30% 80%);
+  /* Soft cyan secondary — for "ghosted" buttons + headers */
+  --secondary: 200 47% 95%;        /* #EAF4F8 */
+  --secondary-foreground: 215 56% 18%;
+  --secondary-border: hsl(213 27% 86%);
 
-  /* Muted */
-  --muted: 40 30% 90%;             /* #EDE4CE */
-  --muted-foreground: 28 14% 42%;  /* warm taupe */
+  /* Muted — backgrounds for subtle wells */
+  --muted: 207 30% 93%;            /* #E2EBF1 */
+  --muted-foreground: 213 21% 42%; /* #56678A slate */
 
-  /* Accent — soft blush/champagne */
-  --accent: 22 40% 90%;            /* #F0D9C6 whisper blush */
-  --accent-foreground: 26 28% 20%;
+  /* Accent — mint pop for highlights, "Available" badges, etc. */
+  --accent: 162 51% 89%;           /* #D4F2E8 */
+  --accent-foreground: 215 56% 18%;
 
-  /* Destructive — deep rose */
-  --destructive: 2 60% 50%;
-  --destructive-foreground: 42 60% 98%;
+  /* Destructive — clean red, readable on white */
+  --destructive: 0 75% 50%;        /* #DC2626 */
+  --destructive-foreground: 0 0% 100%;
 
-  --border: 38 32% 84%;            /* #E4D9BF parchment */
-  --input:  38 30% 90%;
-  --ring:   36 58% 44%;
-  --radius: 0.875rem;              /* slightly rounder */
+  --border: 213 27% 90%;           /* #DCE5EE */
+  --input:  213 27% 88%;
+  --ring:   192 73% 44%;           /* matches primary */
+  --radius: 0.875rem;
 
-  /* Sidebar — subtle warm cream, darker than page */
-  --sidebar: 38 38% 93%;           /* #F0E8D3 */
-  --sidebar-foreground: 26 28% 20%;
-  --sidebar-border: 38 28% 82%;
-  --sidebar-accent: 30 35% 88%;
-  --sidebar-accent-foreground: 26 28% 18%;
+  /* Sidebar — soft cyan well, slightly darker than background */
+  --sidebar: 200 47% 95%;          /* #EAF4F8 */
+  --sidebar-foreground: 215 56% 18%;
+  --sidebar-border: 213 27% 90%;
+  --sidebar-accent: 162 51% 89%;
+  --sidebar-accent-foreground: 215 56% 18%;
 }
 
 * { box-sizing: border-box; }
@@ -184,10 +184,10 @@ html, body {
     align-items: center;
     justify-content: center;
     z-index: 60;
-    border: 1px solid rgba(178, 136, 47, 0.45);
-    background: #FFFDF7;
-    color: #B2882F;
-    box-shadow: 0 12px 32px rgba(42, 31, 23, 0.2), 0 4px 10px rgba(42, 31, 23, 0.12);
+    border: 1px solid rgba(31, 156, 194, 0.45);
+    background: #FFFFFF;
+    color: #1F9CC2;
+    box-shadow: 0 12px 32px rgba(20, 40, 73, 0.18), 0 4px 10px rgba(20, 40, 73, 0.10);
     cursor: pointer;
     touch-action: manipulation;
     transition: transform 0.15s ease, background 0.2s ease;

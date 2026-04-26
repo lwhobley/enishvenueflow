@@ -83,29 +83,35 @@ function formatToday(timezone?: string): string {
   });
 }
 
-// ── Palette matches index.css / layout.tsx ──────────────────────────────────
+// ── VenueFlow brand palette — mirrors index.css / layout.tsx ───────────────
+// Variable names kept (gold/cream/parchment etc.) so the rest of the file's
+// many references resolve unchanged; the underlying colors moved from
+// luxury gold + ivory to brand teal + soft cyan.
 const L = {
-  gold:     "#B2882F",
-  goldSoft: "#D9B867",
-  espresso: "#2A1F17",
-  taupe:    "rgba(42,31,23,0.56)",
-  cream:    "#FFFDF7",
-  parchment:"#F0E8D3",
-  border:   "rgba(178,136,47,0.22)",
-  blush:    "#F0D9C6",
+  gold:     "#1F9CC2",                  // brand teal (was antique gold)
+  goldSoft: "#7FE8C8",                  // mint accent (was champagne)
+  espresso: "#142849",                  // brand navy (was espresso)
+  taupe:    "rgba(20,40,73,0.56)",
+  cream:    "#FFFFFF",                  // pure white card
+  parchment:"#EAF4F8",                  // soft cyan well (was parchment)
+  border:   "rgba(38,78,122,0.16)",
+  blush:    "#D4F2E8",                  // mint tint
 };
 
 type StatTone = "gold" | "amber" | "rose" | "sage" | "ink" | "blush" | "sky" | "plum";
 
+// Tone palettes for stat cards — each is (well, ring, icon). Re-tuned around
+// the brand: teal/mint pairs do most of the work, with a couple of warm
+// supporting tones (amber, rose) for "needs attention" stats.
 const toneStyles: Record<StatTone, { well: string; ring: string; icon: string }> = {
-  gold:  { well: "linear-gradient(135deg, #F6E6B8 0%, #E9CF8A 100%)", ring: "rgba(178,136,47,0.25)",  icon: "#7A5F1F" },
-  amber: { well: "linear-gradient(135deg, #FCE3BE 0%, #F1C88C 100%)", ring: "rgba(193,126,53,0.25)",  icon: "#8A5320" },
-  rose:  { well: "linear-gradient(135deg, #F7DCD0 0%, #ECBFB0 100%)", ring: "rgba(188,107,90,0.25)",  icon: "#8B4236" },
-  sage:  { well: "linear-gradient(135deg, #DDE5CC 0%, #C1CFA5 100%)", ring: "rgba(108,138,78,0.25)",  icon: "#4E6630" },
-  ink:   { well: "linear-gradient(135deg, #E4DDD1 0%, #CDC2AE 100%)", ring: "rgba(42,31,23,0.22)",    icon: "#2A1F17" },
-  blush: { well: "linear-gradient(135deg, #F5D6D6 0%, #E9B8B8 100%)", ring: "rgba(184,100,100,0.25)", icon: "#8A3D3D" },
-  sky:   { well: "linear-gradient(135deg, #D7E0E4 0%, #B8C7CF 100%)", ring: "rgba(84,111,123,0.25)",  icon: "#3A5562" },
-  plum:  { well: "linear-gradient(135deg, #E5D3DD 0%, #C9AFBE 100%)", ring: "rgba(121,84,100,0.25)",  icon: "#5E3344" },
+  gold:  { well: "linear-gradient(135deg, #DDF1F8 0%, #B5E0EE 100%)", ring: "rgba(31,156,194,0.25)",   icon: "#1A8AAB" }, // brand teal
+  amber: { well: "linear-gradient(135deg, #FFE7C2 0%, #F6C97A 100%)", ring: "rgba(193,126,53,0.25)",   icon: "#8A5320" },
+  rose:  { well: "linear-gradient(135deg, #FBD9D2 0%, #F3B8A8 100%)", ring: "rgba(188,107,90,0.25)",   icon: "#8B4236" },
+  sage:  { well: "linear-gradient(135deg, #D4F2E8 0%, #9FE0CA 100%)", ring: "rgba(78,207,170,0.30)",   icon: "#1F8466" }, // mint
+  ink:   { well: "linear-gradient(135deg, #DCE5EE 0%, #B7C5D6 100%)", ring: "rgba(38,78,122,0.25)",    icon: "#142849" }, // navy
+  blush: { well: "linear-gradient(135deg, #DDF1F8 0%, #C2E4F0 100%)", ring: "rgba(31,156,194,0.20)",   icon: "#1F9CC2" },
+  sky:   { well: "linear-gradient(135deg, #D8EEF5 0%, #A7D7E6 100%)", ring: "rgba(60,140,170,0.25)",   icon: "#2C7A95" },
+  plum:  { well: "linear-gradient(135deg, #DCE5EE 0%, #BCC9DA 100%)", ring: "rgba(38,78,122,0.25)",    icon: "#264E7A" },
 };
 
 type StatDef = {
