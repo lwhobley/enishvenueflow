@@ -10,18 +10,24 @@ import { ChangePinDialog } from "@/components/change-pin-dialog";
 import { useAuth } from "@/contexts/auth-context";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 
-// ── Fine dining light luxury palette ─────────────────────────────────────────
+// The brand icon lives in /public/icons/ so Vite serves it from root —
+// referenced as a plain string in <img src>, no bundler import needed.
+const VENUEFLOW_ICON_URL = "/icons/icon.svg";
+
+// ── VenueFlow brand palette — navy / teal / mint on near-white ──────────────
+// Variable names kept (gold/champ) so the rest of the file doesn't need to
+// change; the underlying colors moved from luxury gold to brand teal/navy.
 const G = {
-  bg:       "#F8F3E7",  // soft ivory page
-  surface:  "#FFFDF7",  // near-white cream (top bar, panels)
-  surfaceHi:"#F0E8D3",  // darker cream for contrast wells
-  gold:     "#B2882F",  // warm antique gold
-  goldDim:  "rgba(178,136,47,0.14)",
-  goldHair: "rgba(178,136,47,0.07)",
-  champ:    "#2A1F17",  // deep espresso — now used for primary text
-  champDim: "rgba(42,31,23,0.62)",
-  muted:    "rgba(42,31,23,0.48)",
-  border:   "rgba(178,136,47,0.22)",
+  bg:       "#F4F8FA",                       // near-white page with a faint cyan tint
+  surface:  "#FFFFFF",                       // pure white top bar / panels
+  surfaceHi:"#EAF4F8",                       // soft cyan well
+  gold:     "#1F9CC2",                       // brand teal (was antique gold)
+  goldDim:  "rgba(31,156,194,0.12)",
+  goldHair: "rgba(31,156,194,0.06)",
+  champ:    "#142849",                       // brand navy (was espresso)
+  champDim: "rgba(20,40,73,0.64)",
+  muted:    "rgba(20,40,73,0.50)",
+  border:   "rgba(38,78,122,0.16)",
 };
 
 const managerNavItems = [
@@ -385,34 +391,40 @@ export function Layout({ children, isEmployee = false }: { children: React.React
           )}
         </div>
 
-        {/* Wordmark */}
+        {/* Wordmark — VenueFlow brand icon + name, with ENISH as workplace context */}
         <div style={{
           display: "flex",
           alignItems: "center",
-          gap: 8,
+          gap: 10,
           userSelect: "none",
         }}>
+          <img
+            src={VENUEFLOW_ICON_URL}
+            alt=""
+            aria-hidden
+            width={22}
+            height={22}
+            style={{ display: "block", flexShrink: 0 }}
+          />
           <span style={{
             fontSize: 14,
             fontWeight: 700,
-            letterSpacing: 4,
-            textTransform: "uppercase",
-            color: G.gold,
+            letterSpacing: 1,
+            color: G.champ,
+            fontFamily: "system-ui, sans-serif",
           }}>
-            ENISH
+            <span>Venue</span><span style={{ color: G.gold }}>Flow</span>
           </span>
-          {!isEmployee && (
-            <span style={{
-              fontSize: 10,
-              letterSpacing: 2,
-              textTransform: "uppercase",
-              color: G.muted,
-              paddingLeft: 8,
-              borderLeft: `1px solid ${G.border}`,
-            }}>
-              Venue Management
-            </span>
-          )}
+          <span style={{
+            fontSize: 10,
+            letterSpacing: 2,
+            textTransform: "uppercase",
+            color: G.muted,
+            paddingLeft: 8,
+            borderLeft: `1px solid ${G.border}`,
+          }}>
+            ENISH{!isEmployee ? " · Manager" : ""}
+          </span>
         </div>
 
         {/* Breadcrumb */}

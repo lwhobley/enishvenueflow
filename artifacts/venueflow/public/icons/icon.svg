@@ -1,29 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="VenueFlow">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1A1008"/>
-      <stop offset="100%" style="stop-color:#0C0806"/>
+    <linearGradient id="vf-navy" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#264E7A"/>
+      <stop offset="1" stop-color="#142849"/>
     </linearGradient>
-    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#E8C85A"/>
-      <stop offset="100%" style="stop-color:#B8882A"/>
+    <linearGradient id="vf-teal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2EBED5"/>
+      <stop offset="1" stop-color="#1A8AAB"/>
     </linearGradient>
-    <linearGradient id="flame" x1="0%" y1="100%" x2="0%" y2="0%">
-      <stop offset="0%" style="stop-color:#FF3C00"/>
-      <stop offset="60%" style="stop-color:#FF8800"/>
-      <stop offset="100%" style="stop-color:#FFD700"/>
+    <linearGradient id="vf-mint" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7FE8C8"/>
+      <stop offset="1" stop-color="#4ECFAA"/>
     </linearGradient>
   </defs>
-  <!-- Background rounded square -->
-  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
-  <!-- Subtle border -->
-  <rect width="512" height="512" rx="110" fill="none" stroke="rgba(201,168,75,0.25)" stroke-width="2"/>
-  <!-- Letter E -->
-  <text x="168" y="345" font-family="Georgia, serif" font-size="260" font-weight="700" fill="url(#gold)" letter-spacing="-8">E</text>
-  <!-- Flame accent -->
-  <g transform="translate(340, 95)">
-    <ellipse cx="32" cy="80" rx="18" ry="30" fill="url(#flame)" opacity="0.9"/>
-    <ellipse cx="32" cy="60" rx="12" ry="22" fill="#FFD700" opacity="0.7"/>
-    <ellipse cx="32" cy="48" rx="7" ry="14" fill="white" opacity="0.5"/>
-  </g>
+
+  <!-- Rounded background tile (white) — looks intentional under PWA mask cropping -->
+  <rect width="512" height="512" rx="110" fill="#FFFFFF"/>
+
+  <!-- V — navy, two diagonal arms meeting at the bottom -->
+  <path d="M 96 120 L 154 120 L 256 376 L 198 376 Z" fill="url(#vf-navy)"/>
+  <path d="M 416 120 L 358 120 L 256 376 L 314 376 Z" fill="url(#vf-navy)"/>
+
+  <!-- Mint accent — leaf-shaped curve nestled inside the V -->
+  <path d="M 174 168 Q 256 184 338 156 Q 320 268 256 348 Q 200 268 174 168 Z"
+        fill="url(#vf-mint)" opacity="0.92"/>
+
+  <!-- F — teal, sitting across the right side of the V -->
+  <rect x="266" y="148" width="36" height="252" rx="8" fill="url(#vf-teal)"/>
+  <rect x="266" y="148" width="160" height="36" rx="8" fill="url(#vf-teal)"/>
+  <rect x="266" y="252" width="116" height="30" rx="8" fill="url(#vf-teal)"/>
 </svg>

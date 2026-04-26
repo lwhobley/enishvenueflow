@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 540" role="img" aria-label="VenueFlow — Workflow Simplified">
+  <defs>
+    <linearGradient id="vfl-navy" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#264E7A"/>
+      <stop offset="1" stop-color="#142849"/>
+    </linearGradient>
+    <linearGradient id="vfl-teal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2EBED5"/>
+      <stop offset="1" stop-color="#1A8AAB"/>
+    </linearGradient>
+    <linearGradient id="vfl-mint" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7FE8C8"/>
+      <stop offset="1" stop-color="#4ECFAA"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Monogram — V (navy), mint leaf accent inside, F (teal) overlapping the right shoulder -->
+  <g transform="translate(170, 0)">
+    <!-- V left arm -->
+    <path d="M 40 40 L 80 40 L 150 290 L 110 290 Z" fill="url(#vfl-navy)"/>
+    <!-- V right arm -->
+    <path d="M 260 40 L 220 40 L 150 290 L 190 290 Z" fill="url(#vfl-navy)"/>
+    <!-- Mint leaf nestled inside the V -->
+    <path d="M 90 80 Q 150 96 210 70 Q 200 178 150 260 Q 105 178 90 80 Z"
+          fill="url(#vfl-mint)" opacity="0.9"/>
+    <!-- F vertical -->
+    <rect x="160" y="60" width="26" height="232" rx="6" fill="url(#vfl-teal)"/>
+    <!-- F top horizontal -->
+    <rect x="160" y="60" width="118" height="26" rx="6" fill="url(#vfl-teal)"/>
+    <!-- F middle horizontal -->
+    <rect x="160" y="158" width="86" height="22" rx="6" fill="url(#vfl-teal)"/>
+  </g>
+
+  <!-- Wordmark — "VENUE FLOW" with split coloring -->
+  <g font-family="-apple-system, 'Segoe UI', Inter, system-ui, sans-serif" text-anchor="middle">
+    <text x="300" y="410" font-size="68" font-weight="700" letter-spacing="2">
+      <tspan fill="#142849">VENUE </tspan><tspan fill="#1F9CC2">FLOW</tspan>
+    </text>
+    <!-- Hairline separator -->
+    <line x1="190" y1="438" x2="410" y2="438" stroke="#1F9CC2" stroke-width="1" opacity="0.5"/>
+    <!-- Tagline -->
+    <text x="300" y="478" font-size="20" font-weight="500" letter-spacing="6" fill="#142849">
+      WORKFLOW SIMPLIFIED
+    </text>
+  </g>
+</svg>
