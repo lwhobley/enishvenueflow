@@ -30,7 +30,6 @@ import ManagerIntegrations from "@/pages/manager/integrations";
 import EmployeeDashboard from "@/pages/employee/dashboard";
 import EmployeeSchedule from "@/pages/employee/schedule";
 import EmployeeAvailability from "@/pages/employee/availability";
-import EmployeeFloor from "@/pages/employee/floor";
 import EmployeeChat from "@/pages/employee/chat";
 import EmployeeLiterature from "@/pages/employee/literature";
 import EmployeeTimeClock from "@/pages/employee/time-clock";
@@ -84,7 +83,8 @@ function Router({ isAdmin }: { isAdmin: boolean }) {
       <Route path="/employee/dashboard"><Layout isEmployee><EmployeeDashboard /></Layout></Route>
       <Route path="/employee/schedule"><Layout isEmployee><EmployeeSchedule /></Layout></Route>
       <Route path="/employee/availability"><Layout isEmployee><EmployeeAvailability /></Layout></Route>
-      <Route path="/employee/floor"><Layout isEmployee><EmployeeFloor /></Layout></Route>
+      <Route path="/employee/floor"><Layout isEmployee><ManagerFloor scope="restaurant" title="Floor Plan" readOnly /></Layout></Route>
+      <Route path="/employee/nightlife-floor"><Layout isEmployee><ManagerFloor scope="nightlife" title="Nightlife Floor Plan" readOnly /></Layout></Route>
       <Route path="/employee/chat"><Layout isEmployee><EmployeeChat /></Layout></Route>
       <Route path="/employee/literature"><Layout isEmployee><EmployeeLiterature /></Layout></Route>
       <Route path="/employee/time-clock"><Layout isEmployee><EmployeeTimeClock /></Layout></Route>

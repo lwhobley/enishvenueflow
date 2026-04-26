@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { TableLegend } from "@/components/table-legend";
+import { TableInfoDialog, type DialogReservation } from "@/components/table-info-dialog";
+import { format } from "date-fns";
 import floorPlanBg from "@assets/IMG_2248_1776293611211.png";
 
 type ChairRecord = { id: string; venueId: string; x: number; y: number; width: number; height: number; rotation?: number };
@@ -77,17 +79,19 @@ const CW = 1294;
 const CH = 832;
 
 // ── Table shape renderers ────────────────────────────────────────────────────
-function SquareTableShape({ w, h, selected }: { w: number; h: number; selected: boolean }) {
+function SquareTableShape({ w, h, selected, reserved }: { w: number; h: number; selected: boolean; reserved: boolean }) {
   return (
     <div
       style={{
         width: w, height: h,
-        backgroundColor: "rgba(255,255,255,0.88)",
-        border: `${selected ? 3 : 2}px solid ${selected ? "#fff" : "#1f2937"}`,
+        backgroundColor: reserved ? "rgba(254,202,202,0.92)" : "rgba(255,255,255,0.88)",
+        border: `${selected ? 3 : 2}px solid ${selected ? "#fff" : reserved ? "#dc2626" : "#1f2937"}`,
         borderRadius: 6,
         boxShadow: selected
           ? "0 0 0 3px #3b82f6, 0 4px 14px rgba(0,0,0,0.5)"
-          : "0 3px 10px rgba(0,0,0,0.45)",
+          : reserved
+            ? "0 0 0 1px rgba(220,38,38,0.35), 0 3px 10px rgba(0,0,0,0.45)"
+            : "0 3px 10px rgba(0,0,0,0.45)",
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center",
       }}
@@ -97,7 +101,7 @@ function SquareTableShape({ w, h, selected }: { w: number; h: number; selected: 
 
 // U-shape (banquette) — opens toward the bottom at rotation 0. Uses a shallow
 // elliptical arc at the top so the legs dominate and the curve is gentle.
-function UShapeTableShape({ w, h, selected }: { w: number; h: number; selected: boolean }) {
+function UShapeTableShape({ w, h, selected, reserved }: { w: number; h: number; selected: boolean; reserved: boolean }) {
   const t         = Math.max(6, Math.min(w, h) * 0.22); // band thickness
   const bowDepth  = Math.max(10, Math.min(w * 0.22, h * 0.30));
   const bowStartY = bowDepth; // legs start at y = bowStartY; arc apex sits at y = 0
@@ -135,8 +139,8 @@ function UShapeTableShape({ w, h, selected }: { w: number; h: number; selected: 
     >
       <path
         d={d}
-        fill="rgba(255,255,255,0.88)"
-        stroke={selected ? "#3b82f6" : "#1f2937"}
+        fill={reserved ? "rgba(254,202,202,0.92)" : "rgba(255,255,255,0.88)"}
+        stroke={selected ? "#3b82f6" : reserved ? "#dc2626" : "#1f2937"}
         strokeWidth={selected ? 3 : 2}
         strokeLinejoin="round"
       />
@@ -221,10 +225,13 @@ function ResizeHandle({
 export default function ManagerFloor({
   scope = "restaurant",
   title = "Floor Plan",
-}: { scope?: FloorScope; title?: string } = {}) {
+  readOnly = false,
+}: { scope?: FloorScope; title?: string; readOnly?: boolean } = {}) {
   const { activeVenue } = useAppContext();
   const { user }        = useAuth();
-  const isAdmin         = user?.isAdmin ?? false;
+  // readOnly forces view-only mode (used for the employee floor plans).
+  // Admins on the manager pages still get full editing.
+  const isAdmin         = !readOnly && (user?.isAdmin ?? false);
   const queryClient     = useQueryClient();
   const { toast }       = useToast();
 
@@ -233,6 +240,7 @@ export default function ManagerFloor({
   const [addMode, setAddMode]           = useState<"square" | "crescent" | "chair" | null>(null);
   const [editingId, setEditingId]       = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
+  const [tableInfoOpenId, setTableInfoOpenId] = useState<string | null>(null);
   const [confirmRenumber, setConfirmRenumber] = useState(false);
   const [renumbering, setRenumbering]         = useState(false);
   const [confirmCopy, setConfirmCopy]         = useState(false);
@@ -291,6 +299,37 @@ export default function ManagerFloor({
     refetchInterval: isInteracting ? false : 5000,
     refetchOnWindowFocus: true,
   });
+
+  // Reservations for today, used to color reserved tables red on the floor
+  // plan and to populate the table-info dialog. We refetch every 30s and on
+  // window focus — fast enough that a host's reservation shows up promptly
+  // on the manager's screen, slow enough to not hammer the API.
+  const todayIso = format(new Date(), "yyyy-MM-dd");
+  const reservationsQK = ["/reservations", venueId, todayIso] as const;
+  type ReservationRow = {
+    id: string; venueId: string; tableId: string | null;
+    guestName: string; partySize: number; date: string; time: string;
+    durationMinutes: number; status: string; notes: string | null;
+  };
+  const { data: reservations } = useQuery<ReservationRow[]>({
+    queryKey: reservationsQK,
+    enabled: !!venueId,
+    queryFn: async () => {
+      return await apiFetch(`/reservations?venueId=${venueId}&date=${todayIso}`);
+    },
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+
+  // Map of tableId → currently-active reservation. Cancelled / no-show
+  // entries don't tint the table; everything else (pending, confirmed,
+  // seated) does.
+  const reservedByTableId = new Map<string, ReservationRow>();
+  for (const r of reservations ?? []) {
+    if (!r.tableId) continue;
+    if (r.status === "cancelled" || r.status === "no_show") continue;
+    reservedByTableId.set(r.tableId, r);
+  }
 
   const updateTable    = useUpdateTable();
   const deleteTableMut = useDeleteTable();
@@ -721,6 +760,10 @@ export default function ManagerFloor({
               <Trash2 className="w-4 h-4 mr-2" /> Remove
             </Button>
           </div>
+        ) : readOnly ? (
+          <span className="text-sm text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
+            Tap a table to see if it's reserved
+          </span>
         ) : (
           <span className="text-sm text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
             View only — admin access required to edit
@@ -787,11 +830,13 @@ export default function ManagerFloor({
             const shape = (table as any).shape as TableShape ?? "square";
             const rot   = normalizeRot(ov?.r ?? (table as any).rotation ?? 0);
             const tgt: DragTarget = { type: "table", id: table.id };
+            const reservedRow = reservedByTableId.get(table.id);
+            const isReserved = !!reservedRow;
 
             return (
               <div
                 key={table.id}
-                className="absolute cursor-grab active:cursor-grabbing"
+                className={readOnly ? "absolute cursor-pointer" : "absolute cursor-grab active:cursor-grabbing"}
                 style={{
                   left: x, top: y, width: w, height: h,
                   userSelect: "none", touchAction: "none",
@@ -800,11 +845,20 @@ export default function ManagerFloor({
                 }}
                 onMouseDown={e => handleMouseDown(e, tgt, x, y)}
                 onTouchStart={e => handleTouchStart(e, tgt, x, y)}
+                onClick={(e) => {
+                  // Tapping a table opens the info dialog. The browser
+                  // suppresses click events that follow a drag (when the
+                  // pointer moves more than a few pixels), so this fires
+                  // only on real "tap-and-release" gestures — admins can
+                  // still drag without spawning a dialog.
+                  e.stopPropagation();
+                  setTableInfoOpenId(table.id);
+                }}
                 onDoubleClick={e => { e.stopPropagation(); setEditingId(table.id); setEditingLabel(table.label); }}
               >
                 {shape === "crescent"
-                  ? <UShapeTableShape w={w} h={h} selected={sel} />
-                  : <SquareTableShape w={w} h={h} selected={sel} />}
+                  ? <UShapeTableShape w={w} h={h} selected={sel} reserved={isReserved} />
+                  : <SquareTableShape w={w} h={h} selected={sel} reserved={isReserved} />}
 
                 {/* Resize handles */}
                 {sel && isAdmin && (
@@ -906,18 +960,43 @@ export default function ManagerFloor({
         </div>
       </div>
 
-      <TableLegend
-        venueId={activeVenue?.id ?? ""}
-        scope={scope}
-        tables={(tables ?? []).map((t) => ({
-          id: t.id,
-          label: t.label,
-          price: t.price ?? null,
-          purchaserName: t.purchaserName ?? null,
-        }))}
-        isAdmin={isAdmin}
-      />
+      {readOnly ? null : (
+        <TableLegend
+          venueId={activeVenue?.id ?? ""}
+          scope={scope}
+          tables={(tables ?? []).map((t) => ({
+            id: t.id,
+            label: t.label,
+            price: t.price ?? null,
+            purchaserName: t.purchaserName ?? null,
+          }))}
+          isAdmin={isAdmin}
+        />
+      )}
       </div>
+
+      <TableInfoDialog
+        open={tableInfoOpenId !== null}
+        onOpenChange={(v) => { if (!v) setTableInfoOpenId(null); }}
+        venueId={venueId}
+        table={(() => {
+          const t = tables?.find((x) => x.id === tableInfoOpenId);
+          return t ? { id: t.id, label: t.label, capacity: t.capacity } : null;
+        })()}
+        reservation={(() => {
+          const r = tableInfoOpenId ? reservedByTableId.get(tableInfoOpenId) : null;
+          if (!r) return null;
+          const dr: DialogReservation = {
+            id: r.id, guestName: r.guestName, partySize: r.partySize,
+            date: r.date, time: r.time, durationMinutes: r.durationMinutes,
+            status: r.status, notes: r.notes,
+          };
+          return dr;
+        })()}
+        isAdmin={isAdmin}
+        today={todayIso}
+        reservationsQueryKey={reservationsQK}
+      />
 
       <AlertDialog open={confirmCopy} onOpenChange={(v) => { if (!copying) setConfirmCopy(v); }}>
         <AlertDialogContent>
