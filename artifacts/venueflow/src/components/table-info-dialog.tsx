@@ -42,7 +42,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   venueId: string;
   table:
-    | { id: string; label: string; capacity: number; sectionId: string | null }
+    | { id: string; label: string; capacity: number; sectionId: string | null; status: string }
     | null;
   reservation: DialogReservation | null;
   sections: DialogSection[];
@@ -262,6 +262,19 @@ export function TableInfoDialog({
           </div>
         ) : null}
 
+        {/* Quick status transitions — admin-only. The host stand panel
+            covers the lifecycle for parties; these buttons cover the
+            "the table itself" cases (block off a broken table, mark
+            cleaned after a party clears, etc.) without going through
+            a reservation. */}
+        {isAdmin ? (
+          <TableStatusRow
+            tableId={table.id}
+            currentStatus={table.status}
+            tablesQueryKey={tablesQueryKey}
+          />
+        ) : null}
+
         {reserved ? (
           <div className="space-y-3">
             <div className="rounded-md border bg-muted/40 p-3 space-y-1.5 text-sm">
@@ -353,5 +366,72 @@ export function TableInfoDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Table-status quick action row ───────────────────────────────────────────
+// Buttons for the table-itself state machine, separate from the
+// reservation-driven flow on the host stand. The host stand sets a table
+// to `seated` on POST /reservations/:id/seat and to `dirty` on
+// /complete, so this row's most common use is: bus the table → click
+// "Cleaned" → table flips back to `available`. Or: a chair breaks →
+// click "Block" → the smart-assign service stops suggesting it.
+function TableStatusRow({
+  tableId, currentStatus, tablesQueryKey,
+}: { tableId: string; currentStatus: string; tablesQueryKey: readonly unknown[] }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+
+  const flip = async (status: "available" | "dirty" | "blocked") => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/tables/${tableId}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(json.message ?? `${res.status}`);
+      }
+      await qc.invalidateQueries({ queryKey: tablesQueryKey });
+      toast({ title: `Table marked ${status}` });
+    } catch (err) {
+      toast({
+        title: "Failed to update status",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally { setBusy(false); }
+  };
+
+  const STATUS_LABEL: Record<string, string> = {
+    available: "Available", reserved: "Reserved", seated: "Seated",
+    occupied: "Coursing", dirty: "Dirty (needs busing)", blocked: "Blocked",
+  };
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+      <span className="text-xs uppercase tracking-wider text-muted-foreground">Status</span>
+      <div className="flex items-center gap-2">
+        <span className="font-medium">{STATUS_LABEL[currentStatus] ?? currentStatus}</span>
+        {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" /> : (
+          <div className="flex gap-1">
+            {currentStatus !== "dirty" ? (
+              <Button size="sm" variant="ghost" onClick={() => void flip("dirty")}>Dirty</Button>
+            ) : null}
+            {currentStatus !== "available" ? (
+              <Button size="sm" variant="ghost" onClick={() => void flip("available")}>Cleaned</Button>
+            ) : null}
+            {currentStatus === "blocked" ? (
+              <Button size="sm" variant="ghost" onClick={() => void flip("available")}>Unblock</Button>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={() => void flip("blocked")}>Block</Button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

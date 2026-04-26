@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { TableLegend } from "@/components/table-legend";
+import { HostStandPanel } from "@/components/host-stand-panel";
 import { TableInfoDialog, type DialogReservation } from "@/components/table-info-dialog";
 import { SectionsDialog } from "@/components/sections-dialog";
 import {
@@ -83,30 +84,72 @@ async function apiFetch(path: string, init?: RequestInit) {
 const CW = 1294;
 const CH = 832;
 
+// Status → fill / border / shadow color tuple. The host-stand / floor plan
+// rendering reads this so the canvas becomes a live snapshot of the room
+// at a glance: red = reserved upcoming, amber = seated party, gray = dirty,
+// slate = blocked, white = available.
+type TableStatusName = "available" | "reserved" | "seated" | "occupied" | "dirty" | "blocked";
+type StatusVisual = { fill: string; border: string; shadowRing: string };
+const STATUS_VISUALS: Record<TableStatusName, StatusVisual> = {
+  available: { fill: "rgba(255,255,255,0.88)", border: "#1f2937", shadowRing: "rgba(0,0,0,0)" },
+  reserved:  { fill: "rgba(254,202,202,0.92)", border: "#dc2626", shadowRing: "rgba(220,38,38,0.35)" },
+  seated:    { fill: "rgba(254,243,199,0.95)", border: "#d97706", shadowRing: "rgba(217,119,6,0.35)" },
+  occupied:  { fill: "rgba(254,215,170,0.92)", border: "#c2410c", shadowRing: "rgba(194,65,12,0.35)" },
+  dirty:     { fill: "rgba(229,231,235,0.95)", border: "#6b7280", shadowRing: "rgba(107,114,128,0.30)" },
+  blocked:   { fill: "rgba(203,213,225,0.95)", border: "#475569", shadowRing: "rgba(71,85,105,0.30)" },
+};
+
+// Compute the effective status: an active reservation overrides the table's
+// stored status (so a table without `seated` written but with a reservation
+// today still paints red). seated/dirty/blocked stored on the row always win.
+function effectiveStatus(stored: string, hasActiveReservation: boolean): TableStatusName {
+  if (stored === "seated" || stored === "occupied" || stored === "dirty" || stored === "blocked") {
+    return stored as TableStatusName;
+  }
+  if (hasActiveReservation) return "reserved";
+  return "available";
+}
+
 // ── Table shape renderers ────────────────────────────────────────────────────
-function SquareTableShape({ w, h, selected, reserved }: { w: number; h: number; selected: boolean; reserved: boolean }) {
+function SquareTableShape({
+  w, h, selected, status, sectionColor,
+}: { w: number; h: number; selected: boolean; status: TableStatusName; sectionColor: string | null }) {
+  const v = STATUS_VISUALS[status];
   return (
     <div
       style={{
+        position: "relative",
         width: w, height: h,
-        backgroundColor: reserved ? "rgba(254,202,202,0.92)" : "rgba(255,255,255,0.88)",
-        border: `${selected ? 3 : 2}px solid ${selected ? "#fff" : reserved ? "#dc2626" : "#1f2937"}`,
+        backgroundColor: v.fill,
+        border: `${selected ? 3 : 2}px solid ${selected ? "#fff" : v.border}`,
         borderRadius: 6,
         boxShadow: selected
           ? "0 0 0 3px #3b82f6, 0 4px 14px rgba(0,0,0,0.5)"
-          : reserved
-            ? "0 0 0 1px rgba(220,38,38,0.35), 0 3px 10px rgba(0,0,0,0.45)"
+          : v.shadowRing !== "rgba(0,0,0,0)"
+            ? `0 0 0 1px ${v.shadowRing}, 0 3px 10px rgba(0,0,0,0.45)`
             : "0 3px 10px rgba(0,0,0,0.45)",
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center",
+        overflow: "hidden",
       }}
-    />
+    >
+      {/* Section color stripe — at-a-glance section identification. */}
+      {sectionColor ? (
+        <span aria-hidden style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: 4,
+          background: sectionColor,
+        }} />
+      ) : null}
+    </div>
   );
 }
 
 // U-shape (banquette) — opens toward the bottom at rotation 0. Uses a shallow
 // elliptical arc at the top so the legs dominate and the curve is gentle.
-function UShapeTableShape({ w, h, selected, reserved }: { w: number; h: number; selected: boolean; reserved: boolean }) {
+function UShapeTableShape({
+  w, h, selected, status, sectionColor,
+}: { w: number; h: number; selected: boolean; status: TableStatusName; sectionColor: string | null }) {
+  const v = STATUS_VISUALS[status];
   const t         = Math.max(6, Math.min(w, h) * 0.22); // band thickness
   const bowDepth  = Math.max(10, Math.min(w * 0.22, h * 0.30));
   const bowStartY = bowDepth; // legs start at y = bowStartY; arc apex sits at y = 0
@@ -144,11 +187,15 @@ function UShapeTableShape({ w, h, selected, reserved }: { w: number; h: number; 
     >
       <path
         d={d}
-        fill={reserved ? "rgba(254,202,202,0.92)" : "rgba(255,255,255,0.88)"}
-        stroke={selected ? "#3b82f6" : reserved ? "#dc2626" : "#1f2937"}
+        fill={v.fill}
+        stroke={selected ? "#3b82f6" : v.border}
         strokeWidth={selected ? 3 : 2}
         strokeLinejoin="round"
       />
+      {/* Section color stripe across the bottom edge (the closed-off side). */}
+      {sectionColor ? (
+        <rect x={t} y={H - 4} width={Math.max(0, w - 2 * t)} height={4} fill={sectionColor} />
+      ) : null}
     </svg>
   );
 }
@@ -912,6 +959,9 @@ export default function ManagerFloor({
             const tgt: DragTarget = { type: "table", id: table.id };
             const reservedRow = reservedByTableId.get(table.id);
             const isReserved = !!reservedRow;
+            const status = effectiveStatus(table.status, isReserved);
+            const tableSection = sections?.find((s) => s.id === table.sectionId);
+            const sectionColor = tableSection?.color ?? null;
 
             return (
               <div
@@ -937,8 +987,8 @@ export default function ManagerFloor({
                 onDoubleClick={e => { e.stopPropagation(); setEditingId(table.id); setEditingLabel(table.label); }}
               >
                 {shape === "crescent"
-                  ? <UShapeTableShape w={w} h={h} selected={sel} reserved={isReserved} />
-                  : <SquareTableShape w={w} h={h} selected={sel} reserved={isReserved} />}
+                  ? <UShapeTableShape w={w} h={h} selected={sel} status={status} sectionColor={sectionColor} />
+                  : <SquareTableShape w={w} h={h} selected={sel} status={status} sectionColor={sectionColor} />}
 
                 {/* Resize handles */}
                 {sel && isAdmin && (
@@ -1041,17 +1091,29 @@ export default function ManagerFloor({
       </div>
 
       {readOnly ? null : (
-        <TableLegend
-          venueId={activeVenue?.id ?? ""}
-          scope={scope}
-          tables={(tables ?? []).map((t) => ({
-            id: t.id,
-            label: t.label,
-            price: t.price ?? null,
-            purchaserName: t.purchaserName ?? null,
-          }))}
-          isAdmin={isAdmin}
-        />
+        <div className="flex flex-col gap-3" style={{ minWidth: 320, maxWidth: 380 }}>
+          <HostStandPanel
+            venueId={venueId}
+            today={todayIso}
+            reservations={(reservations ?? []) as unknown as Parameters<typeof HostStandPanel>[0]["reservations"]}
+            tables={(tables ?? []).map((t) => ({
+              id: t.id, label: t.label, capacity: t.capacity, status: t.status,
+            }))}
+            reservationsQueryKey={reservationsQK}
+            tablesQueryKey={tablesQK}
+          />
+          <TableLegend
+            venueId={activeVenue?.id ?? ""}
+            scope={scope}
+            tables={(tables ?? []).map((t) => ({
+              id: t.id,
+              label: t.label,
+              price: t.price ?? null,
+              purchaserName: t.purchaserName ?? null,
+            }))}
+            isAdmin={isAdmin}
+          />
+        </div>
       )}
       </div>
 
@@ -1076,7 +1138,7 @@ export default function ManagerFloor({
         table={(() => {
           const t = tables?.find((x) => x.id === tableInfoOpenId);
           return t
-            ? { id: t.id, label: t.label, capacity: t.capacity, sectionId: t.sectionId ?? null }
+            ? { id: t.id, label: t.label, capacity: t.capacity, sectionId: t.sectionId ?? null, status: t.status }
             : null;
         })()}
         reservation={(() => {
