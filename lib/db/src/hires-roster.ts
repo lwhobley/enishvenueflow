@@ -169,6 +169,37 @@ export const NEW_HIRES_ROSTER: Hire[] = [
     hireDate: "2026-04-23",
     hourlyRate: 7.25,
   },
+  // ── 4/18 + 4/23/2026 servers @ $5/hr ────────────────────────────────────
+  {
+    fullName: "Cheria R. Anderson",
+    email: "canderson8503@gmail.com",
+    phone: "716-812-2188",
+    dateOfBirth: "1985-11-16",
+    address: "5314 Brookway Drive, Houston, TX 77084",
+    positions: ["server"],
+    hireDate: "2026-04-23",
+    hourlyRate: 5,
+  },
+  {
+    fullName: "Tyra N. Williams",
+    email: "tnw100601@gmail.com",
+    phone: "254-458-4177",
+    dateOfBirth: "2001-10-06",
+    address: "9330 Main St Apt 127, Houston, TX 77025",
+    positions: ["server"],
+    hireDate: "2026-04-18",
+    hourlyRate: 5,
+  },
+  {
+    fullName: "Chaya E. Hayes",
+    email: "wordsofchaya@gmail.com",
+    phone: "713-282-5233",
+    dateOfBirth: "2000-04-21",
+    address: "11810 Moorcreek Dr, Houston, TX 77070",
+    positions: ["server"],
+    hireDate: "2026-04-23",
+    hourlyRate: 5,
+  },
 ];
 
 export function lastFourDigits(phone: string): string {
