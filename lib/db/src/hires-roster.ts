@@ -200,6 +200,16 @@ export const NEW_HIRES_ROSTER: Hire[] = [
     hireDate: "2026-04-23",
     hourlyRate: 5,
   },
+  {
+    fullName: "Jaydah N. Edwards",
+    email: "jaydahedwards2002@gmail.com",
+    phone: "732-322-0224",
+    dateOfBirth: "2002-08-24",
+    address: "1300 N Post Oak Rd Apt 2210, Houston, TX 77055",
+    positions: ["bartender", "server"],
+    hireDate: "2026-04-26",
+    hourlyRate: 5,
+  },
 ];
 
 export function lastFourDigits(phone: string): string {
