@@ -54,6 +54,78 @@ router.post("/guests", async (req, res) => {
   }
 });
 
+// POST /guests/bulk — CSV-driven import. Skips duplicates by email or phone
+// (case-insensitive email, digits-only phone) so re-uploading the same file
+// doesn't double-insert. Returns per-row outcomes so the UI can show
+// "added 18, skipped 4 duplicates, 1 invalid".
+router.post("/guests/bulk", async (req, res) => {
+  try {
+    const { venueId, guests: rows } = req.body as {
+      venueId?: string;
+      guests?: Array<{
+        fullName?: string;
+        email?: string | null;
+        phone?: string | null;
+        birthday?: string | null;
+        tags?: string[];
+        vipLevel?: number;
+        notes?: string | null;
+      }>;
+    };
+    if (!venueId) return res.status(400).json({ message: "venueId required" });
+    if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ message: "guests[] required" });
+
+    const existing = await db.select().from(guests).where(eq(guests.venueId, venueId));
+    const seenEmails = new Set(existing.map((g) => (g.email ?? "").toLowerCase()).filter(Boolean));
+    const seenPhones = new Set(existing.map((g) => (g.phone ?? "").replace(/\D/g, "")).filter(Boolean));
+
+    let inserted = 0;
+    let skipped = 0;
+    const errors: Array<{ row: number; reason: string }> = [];
+    const toInsert: typeof guests.$inferInsert[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const fullName = (r.fullName ?? "").trim();
+      if (!fullName) {
+        errors.push({ row: i + 1, reason: "Missing name" });
+        continue;
+      }
+      const emailNorm = (r.email ?? "").trim().toLowerCase() || null;
+      const phoneNorm = (r.phone ?? "").replace(/\D/g, "") || null;
+
+      // Dup check across the existing roster AND the rows we've already
+      // queued in this same batch — handles a CSV with internal duplicates.
+      if (emailNorm && seenEmails.has(emailNorm)) { skipped++; continue; }
+      if (phoneNorm && seenPhones.has(phoneNorm)) { skipped++; continue; }
+
+      if (emailNorm) seenEmails.add(emailNorm);
+      if (phoneNorm) seenPhones.add(phoneNorm);
+
+      toInsert.push({
+        venueId,
+        fullName,
+        email: r.email?.trim() || null,
+        phone: r.phone?.trim() || null,
+        birthday: r.birthday?.trim() || null,
+        tags: Array.isArray(r.tags) ? r.tags : [],
+        vipLevel: Number.isFinite(Number(r.vipLevel)) ? Number(r.vipLevel) : 0,
+        notes: r.notes?.trim() || null,
+      });
+      inserted++;
+    }
+
+    if (toInsert.length > 0) {
+      await db.insert(guests).values(toInsert);
+    }
+
+    res.json({ inserted, skipped, errors, total: rows.length });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to import guests" });
+  }
+});
+
 router.get("/guests/:id", async (req, res) => {
   try {
     const { id } = req.params;
