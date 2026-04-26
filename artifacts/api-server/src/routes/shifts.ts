@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { shifts, shiftRequests, users, roles, schedules } from "@workspace/db";
+import { shifts, shiftRequests, users, roles, schedules, availability, timeOffRequests } from "@workspace/db";
 import { eq, and, inArray, gte, lte, ne } from "drizzle-orm";
 import { notifyUser, notifyManagers } from "../lib/push";
 import { assertSelf } from "../lib/auth-guards";
+import { autoAssign } from "../lib/auto-assign";
 
 // Build a human-readable shift summary for push bodies.
 function describeShift(s: { startTime: Date | string; endTime: Date | string }): string {
@@ -510,6 +511,134 @@ router.put("/shift-requests/:id/reject", async (req, res) => {
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to reject" });
+  }
+});
+
+// ── Auto-assign open shifts in a date range ─────────────────────────────────
+// Wraps the lib/auto-assign engine. By default this is a dry run — the
+// response carries the proposed assignments + reasons + warnings, the
+// manager reviews, and a follow-up call with apply=true commits them.
+//
+// Body: { venueId, from?: ISO, to?: ISO, apply?: boolean, config?: AutoAssignConfig }
+// `from`/`to` default to the union of all open shifts' weeks; in
+// practice the manager schedule page sends the visible-month range.
+router.post("/shifts/auto-assign", async (req, res) => {
+  try {
+    const { venueId, from, to, apply = false, config = {} } = req.body as {
+      venueId?: string;
+      from?: string;
+      to?: string;
+      apply?: boolean;
+      config?: { maxHoursPerWeek?: number; maxHoursPerDay?: number; overtimeWarnAtWeeklyHours?: number; preferFairness?: boolean };
+    };
+    if (!venueId) return res.status(400).json({ message: "venueId required" });
+
+    const fromDate = from ? new Date(from) : new Date(Date.now() - 7 * 86_400_000);
+    const toDate = to ? new Date(to) : new Date(Date.now() + 30 * 86_400_000);
+
+    // Resolve every venue-scoped scheduleId; shifts join through scheduleId.
+    const venueScheduleIds = (
+      await db.select({ id: schedules.id }).from(schedules).where(eq(schedules.venueId, venueId))
+    ).map((s) => s.id);
+    if (venueScheduleIds.length === 0) {
+      return res.json({ assignments: [], openCount: 0, applied: 0 });
+    }
+
+    // Pull all shifts in the window: open ones become candidates,
+    // assigned ones feed the conflict + hour-cap state.
+    const allShifts = await db.select().from(shifts).where(and(
+      inArray(shifts.scheduleId, venueScheduleIds),
+      gte(shifts.startTime, fromDate),
+      lte(shifts.startTime, toDate),
+    ));
+
+    const openShifts = allShifts.filter((s) => s.userId === null);
+    const existingShifts = allShifts
+      .filter((s) => s.userId !== null)
+      .map((s) => ({ userId: s.userId!, startTime: s.startTime, endTime: s.endTime }));
+
+    if (openShifts.length === 0) {
+      return res.json({ assignments: [], openCount: 0, applied: 0, message: "No open shifts in range" });
+    }
+
+    // Cross-reference role names from the venue's roles table — the
+    // engine matches roleName against users.positions[].
+    const venueRoles = await db.select().from(roles).where(eq(roles.venueId, venueId));
+    const roleNameById = new Map(venueRoles.map((r) => [r.id, r.name]));
+
+    const venueUsers = await db.select().from(users).where(eq(users.venueId, venueId));
+    const venueAvailability = await db.select().from(availability).where(eq(availability.venueId, venueId));
+    const approvedTimeOff = await db.select().from(timeOffRequests).where(and(
+      eq(timeOffRequests.venueId, venueId),
+      eq(timeOffRequests.status, "approved"),
+    ));
+
+    const assignments = autoAssign(
+      openShifts.map((s) => ({
+        id: s.id,
+        roleId: s.roleId,
+        roleName: roleNameById.get(s.roleId) ?? "",
+        startTime: s.startTime,
+        endTime: s.endTime,
+      })),
+      venueUsers.map((u) => ({
+        id: u.id,
+        fullName: u.fullName,
+        isActive: u.isActive ?? true,
+        positions: Array.isArray(u.positions) ? u.positions : [],
+        hourlyRate: u.hourlyRate ? parseFloat(u.hourlyRate) : null,
+      })),
+      existingShifts,
+      venueAvailability.map((a) => ({
+        userId: a.userId,
+        dayOfWeek: a.dayOfWeek,
+        isAvailable: a.isAvailable ?? true,
+        startTime: a.startTime,
+        endTime: a.endTime,
+      })),
+      approvedTimeOff.map((t) => ({
+        userId: t.userId,
+        startDate: t.startDate,
+        endDate: t.endDate,
+      })),
+      config,
+    );
+
+    let applied = 0;
+    if (apply) {
+      // Commit each assignment that resolved to a user. Shifts the
+      // engine couldn't fill stay open. Per-row transactions are fine
+      // here — these are independent flips and any failure leaves the
+      // others in place.
+      for (const a of assignments) {
+        if (!a.userId) continue;
+        await db.update(shifts)
+          .set({ userId: a.userId, status: "scheduled" })
+          .where(eq(shifts.id, a.shiftId));
+        applied++;
+        // Push notify the assignee — non-blocking.
+        const shiftRow = openShifts.find((s) => s.id === a.shiftId);
+        if (shiftRow) {
+          void notifyUser(a.userId, {
+            title: "New shift assigned",
+            body: describeShift(shiftRow),
+            url: "/employee/schedule",
+            tag: `shift-${a.shiftId}`,
+          });
+        }
+      }
+    }
+
+    res.json({
+      assignments,
+      openCount: openShifts.length,
+      assignedCount: assignments.filter((a) => a.userId !== null).length,
+      applied,
+      dryRun: !apply,
+    });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to auto-assign" });
   }
 });
 

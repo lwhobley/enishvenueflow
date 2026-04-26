@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ScheduleHoursSidebar } from "@/components/schedule-hours-sidebar";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -248,6 +249,9 @@ export default function ManagerSchedule() {
         </div>
       </div>
 
+      {/* Calendar + hours sidebar — column-stack on mobile, side-by-side on lg+ */}
+      <div className="flex gap-3 items-stretch flex-col lg:flex-row">
+      <div className="lg:flex-1 min-w-0 w-full">
       {/* Weekday header */}
       <div className="grid grid-cols-7 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
@@ -300,6 +304,25 @@ export default function ManagerSchedule() {
             </button>
           );
         })}
+      </div>
+      </div>
+
+      <ScheduleHoursSidebar
+        venueId={venueId}
+        fromIso={fromIso}
+        toIso={toIso}
+        shifts={(monthShifts ?? []).map((s) => ({
+          id: s.id, userId: s.userId, startTime: s.startTime, endTime: s.endTime,
+        }))}
+        users={(users ?? []).map((u) => ({
+          id: u.id,
+          fullName: u.fullName,
+          hourlyRate: (u as unknown as { hourlyRate?: number | string | null }).hourlyRate
+            ? Number((u as unknown as { hourlyRate?: number | string | null }).hourlyRate)
+            : null,
+        }))}
+        shiftsQueryKey={shiftsKey}
+      />
       </div>
 
       {/* Add dialog */}
