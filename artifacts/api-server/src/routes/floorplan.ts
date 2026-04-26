@@ -180,6 +180,30 @@ router.put("/tables/:id", async (req, res) => {
   }
 });
 
+// Status-only endpoint for the host-stand quick actions and the
+// TableInfoDialog. Writes lastStatusAt so the canvas can show "dirty
+// 3 min ago" / "seated 24 min" overlays. Distinct from the bigger
+// PUT /tables/:id (which is the geometry/sales editor) so a status
+// flip can't accidentally drop a label or move the table.
+router.put("/tables/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body as { status?: string };
+    const allowed = new Set(["available", "reserved", "seated", "occupied", "dirty", "blocked"]);
+    if (!status || !allowed.has(status)) {
+      return res.status(400).json({ message: `status must be one of ${[...allowed].join(", ")}` });
+    }
+    const [updated] = await db.update(tables)
+      .set({ status, lastStatusAt: new Date() })
+      .where(eq(tables.id, id)).returning();
+    if (!updated) return res.status(404).json({ message: "Table not found" });
+    res.json(formatTable(updated));
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ message: "Failed to update table status" });
+  }
+});
+
 router.delete("/tables/:id", async (req, res) => {
   try {
     const { id } = req.params;

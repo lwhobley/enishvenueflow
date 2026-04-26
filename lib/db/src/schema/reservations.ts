@@ -18,6 +18,13 @@ export const reservations = pgTable("reservations", {
   notes: text("notes"),
   source: text("source"),
   externalId: text("external_id"),
+  // Host-stand lifecycle timestamps. Each transition (arrive, seat,
+  // complete) writes the matching column once; nulls mean "the party
+  // hasn't reached that step yet". Used to compute waited-time +
+  // seated-time on the host stand without scanning a separate event log.
+  arrivedAt: timestamp("arrived_at"),
+  seatedAt: timestamp("seated_at"),
+  completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

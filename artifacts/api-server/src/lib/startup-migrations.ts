@@ -52,6 +52,28 @@ const STATEMENTS: { name: string; sql: string }[] = [
     sql: `ALTER TABLE "floor_sections" ADD COLUMN IF NOT EXISTS "assigned_user_id" text`,
   },
 
+  // ── Host-stand lifecycle (reservations + tables) ─────────────────────────
+  {
+    name: "reservations.arrived_at",
+    sql: `ALTER TABLE "reservations" ADD COLUMN IF NOT EXISTS "arrived_at" timestamp`,
+  },
+  {
+    name: "reservations.seated_at",
+    sql: `ALTER TABLE "reservations" ADD COLUMN IF NOT EXISTS "seated_at" timestamp`,
+  },
+  {
+    name: "reservations.completed_at",
+    sql: `ALTER TABLE "reservations" ADD COLUMN IF NOT EXISTS "completed_at" timestamp`,
+  },
+  {
+    name: "tables.last_status_at",
+    sql: `ALTER TABLE "tables" ADD COLUMN IF NOT EXISTS "last_status_at" timestamp`,
+  },
+  {
+    name: "tables.combinable_with",
+    sql: `ALTER TABLE "tables" ADD COLUMN IF NOT EXISTS "combinable_with" text[] NOT NULL DEFAULT '{}'`,
+  },
+
   // ── Venue: enrollment token + GPS pin + clock-in radius ─────────────────
   {
     name: "venues.enrollment_token",

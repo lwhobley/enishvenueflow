@@ -1,4 +1,4 @@
-import { pgTable, text, integer, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, numeric, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -43,6 +43,14 @@ export const tables = pgTable("tables", {
   // Same scope discriminator as floor_sections — "restaurant" (default)
   // or "nightlife".
   scope: text("scope").notNull().default("restaurant"),
+  // Timestamp of the last `status` change, written by the host-stand
+  // lifecycle endpoints. Drives the "seated 24 min" / "dirty 3 min ago"
+  // overlays on the floor plan canvas.
+  lastStatusAt: timestamp("last_status_at"),
+  // Tables this one can be combined with for larger parties. Reserved
+  // for the upcoming combine-tables flow — smart-assign currently
+  // ignores this column. Stored as text JSON via drizzle.
+  combinableWith: text("combinable_with").array().default([]),
 });
 
 export const insertTableSchema = createInsertSchema(tables).omit({ id: true });
