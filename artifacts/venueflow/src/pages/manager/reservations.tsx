@@ -6,10 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Upload } from "lucide-react";
+import { format, parseISO } from "date-fns";
 import { CsvImportDialog, type CsvImportConfig, type ImportResult } from "@/components/csv-import-dialog";
 import { normalizeDate, normalizeTime } from "@/lib/csv";
 import { BookingFlow } from "@/components/booking-flow";
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 // Maps the strings restaurants typically export ("Reserved" / "Seated" /
 // "No-show" / "Confirmed" / etc.) to the canonical statuses our schema
@@ -78,10 +85,16 @@ export default function ManagerReservations() {
   const { activeVenue } = useAppContext();
   const queryClient = useQueryClient();
   const [importOpen, setImportOpen] = useState(false);
+  // Date the operational list is scoped to. The list endpoint filters
+  // server-side when `date` is passed; without it, every reservation
+  // ever booked or imported comes back, which is not what "Today's
+  // Reservations" should mean.
+  const [listDate, setListDate] = useState(todayIso());
+  const isToday = listDate === todayIso();
 
   const { data: reservations, isLoading } = useListReservations(
-    { venueId: activeVenue?.id || "" },
-    { query: { enabled: !!activeVenue?.id, queryKey: getListReservationsQueryKey({ venueId: activeVenue?.id || "" }) } }
+    { venueId: activeVenue?.id || "", date: listDate },
+    { query: { enabled: !!activeVenue?.id, queryKey: getListReservationsQueryKey({ venueId: activeVenue?.id || "", date: listDate }) } }
   );
 
   const handleImport = async (rows: Array<Record<string, unknown>>): Promise<ImportResult> => {
@@ -93,7 +106,9 @@ export default function ManagerReservations() {
     });
     const json = (await res.json().catch(() => ({}))) as ImportResult & { message?: string };
     if (!res.ok) throw new Error(json.message ?? `Import failed (${res.status})`);
-    await queryClient.invalidateQueries({ queryKey: getListReservationsQueryKey({ venueId: activeVenue.id }) });
+    // Invalidate every list query for this venue regardless of date so
+    // a CSV import that spans dates updates the visible list correctly.
+    await queryClient.invalidateQueries({ queryKey: ["/api/reservations"] });
     return json;
   };
 
@@ -108,7 +123,7 @@ export default function ManagerReservations() {
     }
   };
 
-  const reservationsQK = getListReservationsQueryKey({ venueId: activeVenue?.id || "" });
+  const reservationsQK = getListReservationsQueryKey({ venueId: activeVenue?.id || "", date: listDate });
 
   return (
     <div className="space-y-6">
@@ -129,23 +144,37 @@ export default function ManagerReservations() {
         onSubmit={handleImport}
       />
 
-      {/* OpenTable-style booking widget — primary action on this page. */}
+      {/* OpenTable-style booking widget — primary action on this page. The
+          widget fetches its own per-search-date reservation snapshot for
+          availability, so it stays accurate independent of the list date
+          chosen below. */}
       <BookingFlow
         venueId={activeVenue?.id || ""}
         venueName={activeVenue?.name ?? "Reserve a table"}
-        reservations={(reservations ?? []).map((r) => ({
-          tableId: r.tableId ?? null,
-          date: r.date,
-          time: r.time,
-          durationMinutes: r.durationMinutes ?? 90,
-          status: r.status,
-        }))}
-        reservationsQueryKey={reservationsQK}
       />
 
       <Card>
         <CardHeader>
-          <CardTitle>Today's Reservations</CardTitle>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <CardTitle>
+              {isToday ? "Today's Reservations" : `Reservations on ${format(parseISO(listDate), "EEE, MMM d")}`}
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="rsv-date" className="text-xs text-muted-foreground">Date</Label>
+              <Input
+                id="rsv-date"
+                type="date"
+                value={listDate}
+                onChange={(e) => setListDate(e.target.value || todayIso())}
+                className="h-9 w-auto"
+              />
+              {!isToday ? (
+                <Button variant="ghost" size="sm" onClick={() => setListDate(todayIso())}>
+                  Today
+                </Button>
+              ) : null}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (

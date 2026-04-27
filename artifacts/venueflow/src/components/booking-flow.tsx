@@ -22,11 +22,15 @@ import {
 interface Props {
   venueId: string;
   venueName: string;
-  /** Reservations already loaded by the parent page — used for availability. */
-  reservations: SlotReservation[];
-  /** Query key whose invalidation refreshes the parent's reservation list. */
-  reservationsQueryKey: readonly unknown[];
 }
+
+/**
+ * Invalidate every reservation query regardless of which date filter the
+ * caller used. The orval-generated key always starts with "/api/reservations",
+ * so prefix-matching catches both the page-level list and BookingFlow's
+ * own per-search fetch.
+ */
+const RESERVATIONS_QK_PREFIX = ["/api/reservations"] as const;
 
 // ── State machine ────────────────────────────────────────────────────────────
 type Step =
@@ -65,7 +69,7 @@ function fmt12(hhmm: string): string {
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
-export function BookingFlow({ venueId, venueName, reservations, reservationsQueryKey }: Props) {
+export function BookingFlow({ venueId, venueName }: Props) {
   const [step, setStep] = useState<Step>({ kind: "search" });
   const [date, setDate] = useState(todayIso());
   const [time, setTime] = useState("19:00");
@@ -101,7 +105,6 @@ export function BookingFlow({ venueId, venueName, reservations, reservationsQuer
           venueId={venueId}
           step={step}
           tables={tables}
-          reservations={reservations}
           onBack={() => setStep({ kind: "search" })}
           onPick={(slot) => {
             if (!slot.bestTableId) return;
@@ -121,7 +124,6 @@ export function BookingFlow({ venueId, venueName, reservations, reservationsQuer
         <GuestPanel
           venueId={venueId}
           step={step}
-          reservationsQueryKey={reservationsQueryKey}
           onBack={() => setStep({
             kind: "results",
             date: step.date, time: step.time,
@@ -139,7 +141,6 @@ export function BookingFlow({ venueId, venueName, reservations, reservationsQuer
       {step.kind === "confirmed" && (
         <ConfirmationPanel
           step={step}
-          reservationsQueryKey={reservationsQueryKey}
           onNew={() => setStep({ kind: "search" })}
         />
       )}
@@ -215,15 +216,28 @@ function SearchPanel({
 }
 
 function ResultsPanel({
-  venueId: _venueId, step, tables, reservations, onBack, onPick,
+  venueId, step, tables, onBack, onPick,
 }: {
   venueId: string;
   step: Extract<Step, { kind: "results" }>;
   tables: SlotTable[];
-  reservations: SlotReservation[];
   onBack: () => void;
   onPick: (slot: AvailabilitySlot) => void;
 }) {
+  // Per-search-date reservation snapshot. Decoupled from the page-level
+  // list so a manager booking, say, two weeks out doesn't see "all
+  // tables free" just because the operational list is filtered to today.
+  const { data: dayReservations = [], isLoading } = useQuery<SlotReservation[]>({
+    queryKey: ["/api/reservations", { venueId, date: step.date }],
+    enabled: !!venueId && !!step.date,
+    queryFn: async () => {
+      const res = await fetch(`/api/reservations?venueId=${venueId}&date=${step.date}`);
+      if (!res.ok) throw new Error(`${res.status}`);
+      return (await res.json()) as SlotReservation[];
+    },
+    staleTime: 10_000,
+  });
+
   const slots = useMemo(() => computeAvailability(
     {
       date: step.date,
@@ -231,8 +245,8 @@ function ResultsPanel({
       durationMinutes: step.durationMinutes,
     },
     tables,
-    reservations,
-  ), [step, tables, reservations]);
+    dayReservations,
+  ), [step, tables, dayReservations]);
 
   const exact = slots.find((s) => s.time === step.time);
   const exactAvailable = !!exact?.available;
@@ -250,8 +264,12 @@ function ResultsPanel({
         </div>
       </div>
 
-      {!anyAvailable ? (
-        <WaitlistPrompt date={step.date} partySize={step.partySize} venueId={_venueId} />
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+          <Loader2 className="w-4 h-4 animate-spin" /> Checking availability…
+        </div>
+      ) : !anyAvailable ? (
+        <WaitlistPrompt date={step.date} partySize={step.partySize} venueId={venueId} />
       ) : (
         <>
           <div className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-2">
@@ -289,11 +307,10 @@ function ResultsPanel({
 }
 
 function GuestPanel({
-  venueId, step, reservationsQueryKey, onBack, onConfirmed,
+  venueId, step, onBack, onConfirmed,
 }: {
   venueId: string;
   step: Extract<Step, { kind: "guest" }>;
-  reservationsQueryKey: readonly unknown[];
   onBack: () => void;
   onConfirmed: (id: string, guestName: string) => void;
 }) {
@@ -327,7 +344,10 @@ function GuestPanel({
       });
       const body = (await res.json().catch(() => ({}))) as { id?: string; message?: string };
       if (!res.ok) throw new Error(body.message ?? `${res.status}`);
-      await qc.invalidateQueries({ queryKey: reservationsQueryKey });
+      // Prefix-invalidate every reservations query — the page-level list
+      // (filtered to its picked date), this widget's per-search fetch,
+      // and the host-stand panel's "today" view all refresh together.
+      await qc.invalidateQueries({ queryKey: RESERVATIONS_QK_PREFIX });
       onConfirmed(body.id ?? "", name.trim());
     } catch (err) {
       toast({
@@ -400,10 +420,9 @@ function GuestPanel({
 }
 
 function ConfirmationPanel({
-  step, reservationsQueryKey, onNew,
+  step, onNew,
 }: {
   step: Extract<Step, { kind: "confirmed" }>;
-  reservationsQueryKey: readonly unknown[];
   onNew: () => void;
 }) {
   const { toast } = useToast();
@@ -416,7 +435,7 @@ function ConfirmationPanel({
     try {
       const res = await fetch(`/api/reservations/${step.reservationId}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`${res.status}`);
-      await qc.invalidateQueries({ queryKey: reservationsQueryKey });
+      await qc.invalidateQueries({ queryKey: RESERVATIONS_QK_PREFIX });
       toast({ title: "Reservation cancelled" });
       onNew();
     } catch (err) {
