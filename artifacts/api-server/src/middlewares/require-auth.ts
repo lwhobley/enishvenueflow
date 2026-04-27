@@ -21,6 +21,10 @@ const PUBLIC_PATH_REGEXES: RegExp[] = [
   /^\/auth\/pin$/,
   /^\/push\/vapid-public-key$/,
   /^\/enroll\/[^/]+\/[^/]+$/,
+  // Customer-facing booking site. Authentication for the few endpoints
+  // that need it (cancel my booking, /me) is layered on inside the
+  // public-booking router via its own requireCustomer middleware.
+  /^\/public\//,
 ];
 
 function isPublic(path: string): boolean {

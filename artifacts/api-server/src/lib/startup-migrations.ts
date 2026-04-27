@@ -223,6 +223,117 @@ const STATEMENTS: { name: string; sql: string }[] = [
     name: "availability(venue_id, user_id) index",
     sql: `CREATE INDEX IF NOT EXISTS "availability_venue_user_idx" ON "availability" ("venue_id", "user_id")`,
   },
+
+  // ── Public booking site: events, customers, payments, reservation columns ─
+  {
+    name: "events table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "events" (
+        "id" text PRIMARY KEY,
+        "venue_id" text NOT NULL,
+        "title" text NOT NULL,
+        "description" text,
+        "date" text NOT NULL,
+        "start_time" text NOT NULL,
+        "end_time" text,
+        "cover_charge" numeric(10, 2) NOT NULL DEFAULT '0',
+        "deposit_per_guest" numeric(10, 2) NOT NULL DEFAULT '0',
+        "image_url" text,
+        "is_published" boolean NOT NULL DEFAULT true,
+        "capacity" integer,
+        "created_at" timestamp NOT NULL DEFAULT now()
+      )
+    `,
+  },
+  {
+    name: "events(venue_id, date) index",
+    sql: `CREATE INDEX IF NOT EXISTS "events_venue_date_idx" ON "events" ("venue_id", "date")`,
+  },
+  {
+    name: "customers table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "customers" (
+        "id" text PRIMARY KEY,
+        "venue_id" text NOT NULL,
+        "email" text NOT NULL,
+        "full_name" text NOT NULL,
+        "phone" text,
+        "password_hash" text,
+        "marketing_opt_in" boolean NOT NULL DEFAULT false,
+        "created_at" timestamp NOT NULL DEFAULT now()
+      )
+    `,
+  },
+  {
+    name: "customers(venue_id, email) unique index",
+    sql: `CREATE UNIQUE INDEX IF NOT EXISTS "customers_venue_email_idx" ON "customers" ("venue_id", LOWER("email"))`,
+  },
+  {
+    name: "customer_sessions table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "customer_sessions" (
+        "id" text PRIMARY KEY,
+        "customer_id" text NOT NULL,
+        "venue_id" text NOT NULL,
+        "token_hash" text NOT NULL UNIQUE,
+        "expires_at" timestamp NOT NULL,
+        "created_at" timestamp NOT NULL DEFAULT now()
+      )
+    `,
+  },
+  {
+    name: "customer_sessions token_hash index",
+    sql: `CREATE INDEX IF NOT EXISTS "customer_sessions_token_hash_idx" ON "customer_sessions" ("token_hash")`,
+  },
+  {
+    name: "payments table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS "payments" (
+        "id" text PRIMARY KEY,
+        "venue_id" text NOT NULL,
+        "reservation_id" text NOT NULL,
+        "customer_id" text,
+        "kind" text NOT NULL DEFAULT 'deposit',
+        "amount" numeric(10, 2) NOT NULL,
+        "provider" text NOT NULL DEFAULT 'mock',
+        "provider_ref" text,
+        "status" text NOT NULL DEFAULT 'pending',
+        "created_at" timestamp NOT NULL DEFAULT now()
+      )
+    `,
+  },
+  {
+    name: "payments(reservation_id) index",
+    sql: `CREATE INDEX IF NOT EXISTS "payments_reservation_id_idx" ON "payments" ("reservation_id")`,
+  },
+  {
+    name: "reservations.kind",
+    sql: `ALTER TABLE "reservations" ADD COLUMN IF NOT EXISTS "kind" text NOT NULL DEFAULT 'dining'`,
+  },
+  {
+    name: "reservations.event_id",
+    sql: `ALTER TABLE "reservations" ADD COLUMN IF NOT EXISTS "event_id" text`,
+  },
+  {
+    name: "reservations.customer_id",
+    sql: `ALTER TABLE "reservations" ADD COLUMN IF NOT EXISTS "customer_id" text`,
+  },
+  {
+    name: "reservations.deposit_amount",
+    sql: `ALTER TABLE "reservations" ADD COLUMN IF NOT EXISTS "deposit_amount" numeric(10, 2) NOT NULL DEFAULT '0'`,
+  },
+  {
+    name: "reservations.deposit_paid",
+    sql: `ALTER TABLE "reservations" ADD COLUMN IF NOT EXISTS "deposit_paid" boolean NOT NULL DEFAULT false`,
+  },
+  {
+    name: "reservations.total_amount",
+    sql: `ALTER TABLE "reservations" ADD COLUMN IF NOT EXISTS "total_amount" numeric(10, 2)`,
+  },
+  {
+    name: "reservations.confirmation_code",
+    sql: `ALTER TABLE "reservations" ADD COLUMN IF NOT EXISTS "confirmation_code" text`,
+  },
 ];
 
 export async function applyStartupMigrations(): Promise<void> {

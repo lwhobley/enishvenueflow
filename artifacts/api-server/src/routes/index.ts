@@ -20,6 +20,8 @@ import reportsRouter from "./reports";
 import literatureRouter from "./literature";
 import enrollmentRouter from "./enrollment";
 import aiRouter from "./ai";
+import eventsRouter from "./events";
+import publicBookingRouter from "./public-booking";
 import { requireAuth } from "../middlewares/require-auth";
 import { enforceVenueScope } from "../middlewares/enforce-venue-scope";
 
@@ -58,5 +60,7 @@ router.use(reportsRouter);
 router.use(literatureRouter);
 router.use(enrollmentRouter);
 router.use(aiRouter);
+router.use(eventsRouter);
+router.use(publicBookingRouter);
 
 export default router;

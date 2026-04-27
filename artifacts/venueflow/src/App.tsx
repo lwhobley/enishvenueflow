@@ -34,6 +34,20 @@ import EmployeeChat from "@/pages/employee/chat";
 import EmployeeLiterature from "@/pages/employee/literature";
 import EmployeeTimeClock from "@/pages/employee/time-clock";
 
+// Public booking site (customer-facing, no staff auth required)
+import { BookingProvider } from "@/contexts/booking-context";
+import { BookingLayout } from "@/components/book/booking-layout";
+import BookLanding from "@/pages/book/landing";
+import BookEvents from "@/pages/book/events";
+import BookEventDetail from "@/pages/book/event-detail";
+import BookFloorPicker from "@/pages/book/floor-picker";
+import BookCheckout from "@/pages/book/checkout";
+import BookDashboard from "@/pages/book/dashboard";
+import BookAuth from "@/pages/book/auth";
+
+// Manager: events admin
+import ManagerEvents from "@/pages/manager/events";
+
 // Global sync cadence: 30 s polling with a 20 s staleTime keeps the whole
 // app roughly live across browsers and PWAs without hammering aggregation
 // endpoints like analytics/payroll. Pages that need sub-5-s sync (floor plan,
@@ -69,6 +83,7 @@ function Router({ isAdmin }: { isAdmin: boolean }) {
       <Route path="/manager/employees"><RequireAdmin><Layout><ManagerEmployees /></Layout></RequireAdmin></Route>
       <Route path="/manager/floor"><RequireAdmin><Layout><ManagerFloor scope="restaurant" title="Floor Plan" /></Layout></RequireAdmin></Route>
       <Route path="/manager/nightlife-floor"><RequireAdmin><Layout><ManagerFloor scope="nightlife" title="Nightlife Floor Plan" /></Layout></RequireAdmin></Route>
+      <Route path="/manager/events"><RequireAdmin><Layout><ManagerEvents /></Layout></RequireAdmin></Route>
       <Route path="/manager/reservations"><RequireAdmin><Layout><ManagerReservations /></Layout></RequireAdmin></Route>
       <Route path="/manager/guests"><RequireAdmin><Layout><ManagerGuests /></Layout></RequireAdmin></Route>
       <Route path="/manager/analytics"><RequireAdmin><Layout><ManagerAnalytics /></Layout></RequireAdmin></Route>
@@ -109,6 +124,33 @@ function AppContent() {
           <Route component={NotFound} />
         </Switch>
       </WouterRouter>
+    );
+  }
+
+  // Customer-facing booking site lives at /book/* — also public, with its
+  // own auth realm (BookingProvider holds a customer_sessions token, NOT
+  // the staff PIN session). Staff users who are also booking a table get
+  // their staff session preserved untouched.
+  const bookPrefix = `${base}/book`;
+  if (path === bookPrefix || path.startsWith(`${bookPrefix}/`) || path.startsWith("/book")) {
+    return (
+      <BookingProvider>
+        <WouterRouter base={base}>
+          <BookingLayout>
+            <Switch>
+              <Route path="/book" component={BookLanding} />
+              <Route path="/book/events" component={BookEvents} />
+              <Route path="/book/events/:id" component={BookEventDetail} />
+              <Route path="/book/floor-plan" component={BookFloorPicker} />
+              <Route path="/book/checkout" component={BookCheckout} />
+              <Route path="/book/dashboard" component={BookDashboard} />
+              <Route path="/book/login">{() => <BookAuth mode="login" />}</Route>
+              <Route path="/book/register">{() => <BookAuth mode="register" />}</Route>
+              <Route component={NotFound} />
+            </Switch>
+          </BookingLayout>
+        </WouterRouter>
+      </BookingProvider>
     );
   }
 

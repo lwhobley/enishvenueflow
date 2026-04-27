@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Calendar, Users, Map, BookOpen,
   UserSquare, BarChart, Clock, CalendarOff, Coins,
   FileText, Library, MessageSquare, Settings, Menu, X, CalendarCheck, Plug,
-  LogOut, Bell, KeyRound,
+  LogOut, Bell, KeyRound, Sparkles,
 } from "lucide-react";
 import { ChangePinDialog } from "@/components/change-pin-dialog";
 import { useAuth } from "@/contexts/auth-context";
@@ -36,6 +36,7 @@ const managerNavItems = [
   { href: "/manager/employees",  icon: Users,           label: "Employees"    },
   { href: "/manager/floor",          icon: Map,             label: "Floor Plan"           },
   { href: "/manager/nightlife-floor", icon: Map,             label: "Nightlife Floor Plan" },
+  { href: "/manager/events",     icon: Sparkles,        label: "Events"       },
   { href: "/manager/reservations",icon: BookOpen,       label: "Reservations" },
   { href: "/manager/guests",     icon: UserSquare,      label: "Guests"       },
   { href: "/manager/analytics",  icon: BarChart,        label: "Analytics"    },
