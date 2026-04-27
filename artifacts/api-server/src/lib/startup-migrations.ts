@@ -74,6 +74,28 @@ const STATEMENTS: { name: string; sql: string }[] = [
     sql: `ALTER TABLE "tables" ADD COLUMN IF NOT EXISTS "combinable_with" text[] NOT NULL DEFAULT '{}'`,
   },
 
+  // ── Make managers schedulable ───────────────────────────────────────────
+  // The auto-assign engine matches a shift's role name against each user's
+  // positions[] array, but admin users were seeded with empty positions
+  // even though they have a non-null role_id (typically Manager). Result:
+  // managers were invisible to auto-assign and to any future position-
+  // aware filtering. Backfill once: any user with a role_id and an
+  // empty/missing positions array gets their role's name as their first
+  // position. Idempotent — re-running is a no-op once positions is set,
+  // and the WHERE clause won't touch users who've already been edited.
+  {
+    name: "users.positions backfill from role_id",
+    sql: `
+      UPDATE "users"
+      SET "positions" = jsonb_build_array(r."name")
+      FROM "roles" r
+      WHERE "users"."role_id" = r."id"
+        AND ("users"."positions" IS NULL
+             OR "users"."positions" = '[]'::jsonb
+             OR jsonb_array_length("users"."positions") = 0)
+    `,
+  },
+
   // ── Venue: enrollment token + GPS pin + clock-in radius ─────────────────
   {
     name: "venues.enrollment_token",
