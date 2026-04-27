@@ -6,9 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Plus, Upload } from "lucide-react";
+import { Upload } from "lucide-react";
 import { CsvImportDialog, type CsvImportConfig, type ImportResult } from "@/components/csv-import-dialog";
 import { normalizeDate, normalizeTime } from "@/lib/csv";
+import { BookingFlow } from "@/components/booking-flow";
 
 // Maps the strings restaurants typically export ("Reserved" / "Seated" /
 // "No-show" / "Confirmed" / etc.) to the canonical statuses our schema
@@ -107,18 +108,15 @@ export default function ManagerReservations() {
     }
   };
 
+  const reservationsQK = getListReservationsQueryKey({ venueId: activeVenue?.id || "" });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Reservations</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setImportOpen(true)}>
-            <Upload className="w-4 h-4 mr-2" /> Import CSV
-          </Button>
-          <Button>
-            <Plus className="w-4 h-4 mr-2" /> New Reservation
-          </Button>
-        </div>
+        <Button variant="outline" onClick={() => setImportOpen(true)}>
+          <Upload className="w-4 h-4 mr-2" /> Import CSV
+        </Button>
       </div>
 
       <CsvImportDialog
@@ -129,6 +127,20 @@ export default function ManagerReservations() {
         sampleHeaders="Guest Name,Email,Phone,Party Size,Date,Time,Duration,Table,Notes"
         config={reservationImportConfig}
         onSubmit={handleImport}
+      />
+
+      {/* OpenTable-style booking widget — primary action on this page. */}
+      <BookingFlow
+        venueId={activeVenue?.id || ""}
+        venueName={activeVenue?.name ?? "Reserve a table"}
+        reservations={(reservations ?? []).map((r) => ({
+          tableId: r.tableId ?? null,
+          date: r.date,
+          time: r.time,
+          durationMinutes: r.durationMinutes ?? 90,
+          status: r.status,
+        }))}
+        reservationsQueryKey={reservationsQK}
       />
 
       <Card>
