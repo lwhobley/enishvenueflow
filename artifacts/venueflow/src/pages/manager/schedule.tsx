@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScheduleHoursSidebar } from "@/components/schedule-hours-sidebar";
+import { DayEditorPanel } from "@/components/day-editor-panel";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -111,6 +112,10 @@ export default function ManagerSchedule() {
   const [addDate, setAddDate] = useState<string>(() => isoDay(new Date()));
   const [editing, setEditing] = useState<ShiftRow | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  // When set, the right column swaps from "this month's hours / projected
+  // labor" to a per-day editor for the selected calendar cell. Click the
+  // same cell again to close. The hours sidebar comes back automatically.
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   // Calendar grid: start-of-week of the first day of the month through
   // end-of-week of the last, so the grid is always 6 rows of 7.
@@ -284,11 +289,17 @@ export default function ManagerSchedule() {
             <button
               type="button"
               key={key}
-              onClick={() => { setAddDate(key); setAddOpen(true); }}
+              onClick={() => {
+                setSelectedDay((cur) => (cur === key ? null : key));
+                setAddDate(key);
+              }}
               className={`min-h-[118px] text-left p-2 transition-colors ${
                 inMonth ? "bg-card hover:bg-accent/40" : "bg-muted/40 hover:bg-muted text-muted-foreground"
-              } ${today ? "ring-2 ring-primary ring-inset" : ""}`}
-              aria-label={`Add shift for ${format(day, "EEEE, MMMM d")}`}
+              } ${today ? "ring-2 ring-primary ring-inset" : ""} ${
+                selectedDay === key ? "outline outline-2 outline-primary -outline-offset-2" : ""
+              }`}
+              aria-label={`Open day editor for ${format(day, "EEEE, MMMM d")}`}
+              aria-pressed={selectedDay === key}
             >
               <div className="flex items-center justify-between mb-1.5">
                 <span className={`text-sm ${today ? "font-bold text-primary" : inMonth ? "font-semibold" : ""}`}>
@@ -321,22 +332,50 @@ export default function ManagerSchedule() {
       </div>
       </div>
 
-      <ScheduleHoursSidebar
-        venueId={venueId}
-        fromIso={fromIso}
-        toIso={toIso}
-        shifts={(monthShifts ?? []).map((s) => ({
-          id: s.id, userId: s.userId, startTime: s.startTime, endTime: s.endTime,
-        }))}
-        users={(users ?? []).map((u) => ({
-          id: u.id,
-          fullName: u.fullName,
-          hourlyRate: (u as unknown as { hourlyRate?: number | string | null }).hourlyRate
-            ? Number((u as unknown as { hourlyRate?: number | string | null }).hourlyRate)
-            : null,
-        }))}
-        shiftsQueryKey={shiftsKey}
-      />
+      {selectedDay ? (
+        <DayEditorPanel
+          date={selectedDay}
+          shifts={(shiftsByDay[selectedDay] ?? []).map((s) => ({
+            id: s.id,
+            userId: s.userId,
+            userName: s.userName ?? null,
+            roleName: s.roleName ?? null,
+            roleColor: s.roleColor ?? null,
+            startTime: s.startTime,
+            endTime: s.endTime,
+          }))}
+          users={(users ?? []).map((u) => ({
+            id: u.id,
+            fullName: u.fullName,
+            isActive: (u as unknown as { isActive?: boolean }).isActive,
+            positions: (u as unknown as { positions?: string[] }).positions,
+            hourlyRate: (u as unknown as { hourlyRate?: number | string | null }).hourlyRate
+              ? Number((u as unknown as { hourlyRate?: number | string | null }).hourlyRate)
+              : null,
+          }))}
+          availability={availability}
+          shiftsQueryKey={shiftsKey}
+          onAddShift={() => { setAddDate(selectedDay); setAddOpen(true); }}
+          onClose={() => setSelectedDay(null)}
+        />
+      ) : (
+        <ScheduleHoursSidebar
+          venueId={venueId}
+          fromIso={fromIso}
+          toIso={toIso}
+          shifts={(monthShifts ?? []).map((s) => ({
+            id: s.id, userId: s.userId, startTime: s.startTime, endTime: s.endTime,
+          }))}
+          users={(users ?? []).map((u) => ({
+            id: u.id,
+            fullName: u.fullName,
+            hourlyRate: (u as unknown as { hourlyRate?: number | string | null }).hourlyRate
+              ? Number((u as unknown as { hourlyRate?: number | string | null }).hourlyRate)
+              : null,
+          }))}
+          shiftsQueryKey={shiftsKey}
+        />
+      )}
       </div>
 
       {/* Add dialog */}
