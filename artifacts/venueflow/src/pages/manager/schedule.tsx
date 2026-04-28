@@ -56,7 +56,21 @@ type ShiftRow = {
 };
 
 type Role = { id: string; name: string; color?: string | null };
-type UserRow = { id: string; fullName: string };
+type UserRow = { id: string; fullName: string; isActive?: boolean; positions?: string[] };
+
+/**
+ * Active employees only, sorted alphabetically. Used by every shift-
+ * dialog dropdown so the same person is always in the same place and
+ * soft-deleted accounts don't clutter the picker. `isActive` is read
+ * with a default of true so a row that's missing the field (older
+ * cached payloads) still appears.
+ */
+function schedulableUsers(users: UserRow[]): UserRow[] {
+  return users
+    .filter((u) => u.isActive !== false)
+    .slice()
+    .sort((a, b) => a.fullName.localeCompare(b.fullName));
+}
 
 function isoDay(d: Date): string {
   return format(d, "yyyy-MM-dd");
@@ -678,13 +692,19 @@ function ShiftDialog({
               <SelectTrigger id="sh-user"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__open__">Open shift (anyone can pick up)</SelectItem>
-                {users.map((u) => {
+                {schedulableUsers(users).map((u) => {
                   const status = statusForUserOnDate(availability, u.id, form.date, form.startTime, form.endTime);
                   const tag = shortAvailabilityLabel(status);
+                  const positionTag = u.positions && u.positions.length > 0 ? u.positions[0] : null;
                   return (
                     <SelectItem key={u.id} value={u.id}>
                       <span className="flex items-center gap-2">
                         <span>{u.fullName}</span>
+                        {positionTag ? (
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                            {positionTag}
+                          </span>
+                        ) : null}
                         {tag ? (
                           <span
                             className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${
@@ -804,9 +824,9 @@ function BulkShiftDialog({
     }));
   };
 
-  const sortedUsers = useMemo(() => {
-    return [...users].sort((a, b) => a.fullName.localeCompare(b.fullName));
-  }, [users]);
+  // Active employees only, sorted A→Z. Same surface as the single-shift
+  // dialog so the manager sees the same roster everywhere.
+  const sortedUsers = useMemo(() => schedulableUsers(users), [users]);
 
   const conflictedSelected = form.userIds
     .map((id) => ({
@@ -905,13 +925,21 @@ function BulkShiftDialog({
               ) : sortedUsers.map((u) => {
                 const status = statusForUserOnDate(availability, u.id, form.date, form.startTime, form.endTime);
                 const checked = form.userIds.includes(u.id);
+                const positionTag = u.positions && u.positions.length > 0 ? u.positions[0] : null;
                 return (
                   <label
                     key={u.id}
                     className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-accent/40"
                   >
                     <Checkbox checked={checked} onCheckedChange={() => toggleUser(u.id)} />
-                    <span className="flex-1 text-sm">{u.fullName}</span>
+                    <span className="flex-1 text-sm flex items-center gap-2">
+                      <span>{u.fullName}</span>
+                      {positionTag ? (
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          {positionTag}
+                        </span>
+                      ) : null}
+                    </span>
                     <AvailabilityChip status={status} />
                   </label>
                 );
