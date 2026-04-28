@@ -60,6 +60,12 @@ export interface AvailabilityInput {
   /** "HH:MM" in the venue's local time; null = "all day". */
   startTime: string | null;
   endTime: string | null;
+  /**
+   * Optional one-off date override ("YYYY-MM-DD"). When set, this row
+   * takes precedence over the recurring (date === null) rule for the
+   * same user on that exact calendar day.
+   */
+  date?: string | null;
 }
 
 export interface ApprovedTimeOff {
@@ -153,9 +159,15 @@ export function autoAssign(
     timeOffByUser.set(t.userId, arr);
   }
 
-  // (userId, dayOfWeek) → availability row.
-  const availByUserDow = new Map<string, AvailabilityInput>();
-  for (const a of availability) availByUserDow.set(`${a.userId}:${a.dayOfWeek}`, a);
+  // Two indexes — date-specific overrides win when present; recurring
+  // DOW rules are the fallback. Building once up front keeps the inner
+  // candidate loop O(1) per lookup.
+  const availByUserDate = new Map<string, AvailabilityInput>();   // key: "userId:YYYY-MM-DD"
+  const availByUserDow  = new Map<string, AvailabilityInput>();   // key: "userId:dow"
+  for (const a of availability) {
+    if (a.date) availByUserDate.set(`${a.userId}:${a.date}`, a);
+    else        availByUserDow.set(`${a.userId}:${a.dayOfWeek}`, a);
+  }
 
   // Process shifts in start-time order so earlier shifts get the wider
   // pool. Assigning the latest first would force later shifts onto users
@@ -197,11 +209,14 @@ export function autoAssign(
         continue;
       }
 
-      // Availability: if no row exists for that DOW, assume available
-      // (employee hasn't filled in a preference). If a row exists with
-      // isAvailable=false, blocked. If a window is supplied, the shift
-      // must sit inside it.
-      const avail = availByUserDow.get(`${user.id}:${shiftDow}`);
+      // Availability resolution: a date-specific override on the shift's
+      // exact calendar day wins over the recurring DOW rule. If neither
+      // exists, the user is treated as available (no preference). When
+      // a row exists with isAvailable=false, the user is blocked. When
+      // a window is supplied, the shift must sit inside it.
+      const avail =
+        availByUserDate.get(`${user.id}:${shiftDate}`) ??
+        availByUserDow.get(`${user.id}:${shiftDow}`);
       if (avail) {
         if (!avail.isAvailable) {
           skippedReasons.push(`${user.fullName}: marked unavailable on day ${shiftDow}`);

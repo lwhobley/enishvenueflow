@@ -595,6 +595,7 @@ router.post("/shifts/auto-assign", async (req, res) => {
         isAvailable: a.isAvailable ?? true,
         startTime: a.startTime,
         endTime: a.endTime,
+        date: a.date,
       })),
       approvedTimeOff.map((t) => ({
         userId: t.userId,

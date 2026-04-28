@@ -74,6 +74,21 @@ const STATEMENTS: { name: string; sql: string }[] = [
     sql: `ALTER TABLE "tables" ADD COLUMN IF NOT EXISTS "combinable_with" text[] NOT NULL DEFAULT '{}'`,
   },
 
+  // ── Per-date availability overrides ─────────────────────────────────────
+  // The recurring weekly availability is keyed by (userId, dayOfWeek).
+  // Add an optional date column so an employee can mark a one-off
+  // override ("out on May 15") that takes precedence for that single
+  // calendar day. Auto-assign + scheduling guards prefer rows where
+  // date matches the shift's date over the recurring fallback.
+  {
+    name: "availability.date",
+    sql: `ALTER TABLE "availability" ADD COLUMN IF NOT EXISTS "date" text`,
+  },
+  {
+    name: "availability(user_id, date) index",
+    sql: `CREATE INDEX IF NOT EXISTS "availability_user_date_idx" ON "availability" ("user_id", "date") WHERE "date" IS NOT NULL`,
+  },
+
   // ── Make managers schedulable ───────────────────────────────────────────
   // The auto-assign engine matches a shift's role name against each user's
   // positions[] array, but admin users were seeded with empty positions

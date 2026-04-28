@@ -11,6 +11,11 @@ export const availability = pgTable("availability", {
   startTime: text("start_time"), // "HH:MM" 24-hr, null = all day
   endTime: text("end_time"),     // "HH:MM" 24-hr, null = all day
   notes: text("notes"),
+  // When set, this row is a one-off override for that specific date and
+  // takes precedence over the recurring (date IS NULL) rule for the same
+  // dayOfWeek. Format: "YYYY-MM-DD". Used by the employee availability
+  // page to mark "I'm out on May 15" / "I can only work 5-9pm on June 22".
+  date: text("date"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 

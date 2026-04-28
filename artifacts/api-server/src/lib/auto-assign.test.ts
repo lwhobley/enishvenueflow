@@ -129,3 +129,33 @@ test("emits a warning when assignment lands near the OT cap", () => {
   assert.ok(result[0].warnings.length > 0, "should warn when near the OT band");
   assert.match(result[0].warnings[0], /near OT/);
 });
+
+test("date-specific availability override beats the recurring DOW rule", () => {
+  const u = user();
+  // Recurring: available all day Wed (DOW=3). Override: not available
+  // on this specific date (2026-04-29). The override must win.
+  const result = autoAssign(
+    [shift()], [u], [],
+    [
+      avail({ isAvailable: true, startTime: null, endTime: null }),
+      { userId: "u1", dayOfWeek: 3, isAvailable: false, startTime: null, endTime: null, date: "2026-04-29" },
+    ],
+    [],
+  );
+  assert.equal(result[0].userId, null);
+  assert.match(result[0].reasons[0], /unavailable/);
+});
+
+test("date override of `available` rescues a user the DOW rule blocks", () => {
+  const u = user();
+  // Recurring: NOT available Wed. Override: available 17:00-22:00 on 4/29.
+  const result = autoAssign(
+    [shift()], [u], [],
+    [
+      avail({ isAvailable: false, startTime: null, endTime: null }),
+      { userId: "u1", dayOfWeek: 3, isAvailable: true, startTime: "17:00", endTime: "22:00", date: "2026-04-29" },
+    ],
+    [],
+  );
+  assert.equal(result[0].userId, "u1", "override should let the user be picked");
+});

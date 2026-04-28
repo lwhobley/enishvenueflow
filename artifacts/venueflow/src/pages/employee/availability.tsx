@@ -6,9 +6,10 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Loader2, Clock, CalendarDays } from "lucide-react";
+import { CheckCircle2, Loader2, Clock, CalendarDays, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { format, addDays, parseISO, isToday, isSameDay } from "date-fns";
 
 const DAYS = [
   { label: "Sunday",    short: "Sun", value: 0 },
@@ -27,6 +28,14 @@ type DayAvailability = {
   startTime: string;
   endTime: string;
   notes: string;
+};
+
+type DateOverride = {
+  date: string;                // YYYY-MM-DD
+  isAvailable: boolean;
+  startTime: string | null;    // null = all day
+  endTime: string | null;
+  notes: string | null;
 };
 
 const DEFAULT_START = "09:00";
@@ -56,32 +65,48 @@ export default function EmployeeAvailability() {
   const { toast } = useToast();
 
   const [days, setDays] = useState<DayAvailability[]>(makeDefaults());
+  const [overrides, setOverrides] = useState<DateOverride[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // Load saved availability
+  // Load both recurring rules + per-date overrides in one call. The API
+  // returns every row for this user; we partition client-side by whether
+  // `date` is set.
   useEffect(() => {
     if (!activeVenue?.id || !activeUser?.id) return;
     setLoading(true);
     fetch(`/api/availability?userId=${activeUser.id}&venueId=${activeVenue.id}`)
       .then((r) => r.json())
-      .then((rows: Array<{ dayOfWeek: number; isAvailable: boolean; startTime: string | null; endTime: string | null; notes: string | null }>) => {
-        if (rows.length === 0) { setLoading(false); return; }
-        setDays((prev) =>
-          prev.map((d) => {
-            const row = rows.find((r) => r.dayOfWeek === d.dayOfWeek);
-            if (!row) return d;
-            return {
-              ...d,
-              isAvailable: row.isAvailable,
-              allDay: !row.startTime && !row.endTime,
-              startTime: row.startTime || DEFAULT_START,
-              endTime: row.endTime || DEFAULT_END,
-              notes: row.notes || "",
-            };
-          })
-        );
+      .then((rows: Array<{ dayOfWeek: number; isAvailable: boolean; startTime: string | null; endTime: string | null; notes: string | null; date: string | null }>) => {
+        if (rows.length === 0) return;
+        const recurring = rows.filter((r) => !r.date);
+        const dateRows  = rows.filter((r) => !!r.date) as Array<typeof rows[number] & { date: string }>;
+
+        if (recurring.length > 0) {
+          setDays((prev) =>
+            prev.map((d) => {
+              const row = recurring.find((r) => r.dayOfWeek === d.dayOfWeek);
+              if (!row) return d;
+              return {
+                ...d,
+                isAvailable: row.isAvailable,
+                allDay: !row.startTime && !row.endTime,
+                startTime: row.startTime || DEFAULT_START,
+                endTime: row.endTime || DEFAULT_END,
+                notes: row.notes || "",
+              };
+            })
+          );
+        }
+
+        setOverrides(dateRows.map((r) => ({
+          date: r.date,
+          isAvailable: r.isAvailable,
+          startTime: r.startTime,
+          endTime: r.endTime,
+          notes: r.notes,
+        })));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -259,6 +284,15 @@ export default function EmployeeAvailability() {
         </CardContent>
       </Card>
 
+      {/* Specific dates — overrides for the next 31 days */}
+      <SpecificDatesPanel
+        userId={activeUser?.id ?? null}
+        venueId={activeVenue?.id ?? null}
+        recurring={days}
+        overrides={overrides}
+        onChange={setOverrides}
+      />
+
       {/* Quick presets */}
       <Card>
         <CardHeader className="pb-2">
@@ -297,6 +331,252 @@ export default function EmployeeAvailability() {
             <CheckCircle2 className="w-4 h-4" /> Saved
           </span>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Specific dates (next 31 days) ───────────────────────────────────────────
+function SpecificDatesPanel({
+  userId, venueId, recurring, overrides, onChange,
+}: {
+  userId: string | null;
+  venueId: string | null;
+  recurring: DayAvailability[];
+  overrides: DateOverride[];
+  onChange: (next: DateOverride[]) => void;
+}) {
+  const { toast } = useToast();
+  const [editingDate, setEditingDate] = useState<string | null>(null);
+  const [savingDate, setSavingDate] = useState<string | null>(null);
+
+  const days = Array.from({ length: 31 }, (_, i) => addDays(new Date(), i));
+
+  const overrideByDate = new Map(overrides.map((o) => [o.date, o]));
+  const recurringFor = (date: Date) => recurring.find((r) => r.dayOfWeek === date.getDay())!;
+
+  const upsertOverride = async (override: DateOverride) => {
+    if (!userId || !venueId) return;
+    setSavingDate(override.date);
+    try {
+      const res = await fetch("/api/availability/override", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId, venueId,
+          date: override.date,
+          isAvailable: override.isAvailable,
+          startTime: override.startTime,
+          endTime: override.endTime,
+          notes: override.notes,
+        }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const next = overrides.filter((o) => o.date !== override.date).concat(override);
+      onChange(next);
+      setEditingDate(null);
+    } catch (err) {
+      toast({ title: "Couldn't save override", description: String(err), variant: "destructive" });
+    } finally { setSavingDate(null); }
+  };
+
+  const removeOverride = async (date: string) => {
+    if (!userId || !venueId) return;
+    setSavingDate(date);
+    try {
+      const res = await fetch(
+        `/api/availability/override?userId=${userId}&venueId=${venueId}&date=${date}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) throw new Error(`${res.status}`);
+      onChange(overrides.filter((o) => o.date !== date));
+      setEditingDate(null);
+    } catch (err) {
+      toast({ title: "Couldn't remove override", description: String(err), variant: "destructive" });
+    } finally { setSavingDate(null); }
+  };
+
+  const overrideCount = overrides.filter((o) => {
+    const d = parseISO(o.date);
+    return days.some((x) => isSameDay(x, d));
+  }).length;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <CardTitle className="text-base">Specific Dates</CardTitle>
+            <CardDescription>
+              Mark a one-off override for any of the next 31 days. Overrides win over your weekly rule.
+            </CardDescription>
+          </div>
+          {overrideCount > 0 ? (
+            <Badge variant="default">{overrideCount} override{overrideCount === 1 ? "" : "s"}</Badge>
+          ) : null}
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <ul className="divide-y">
+          {days.map((d) => {
+            const iso = format(d, "yyyy-MM-dd");
+            const override = overrideByDate.get(iso);
+            const rec = recurringFor(d);
+            const isEditing = editingDate === iso;
+            const effective = override ?? {
+              date: iso,
+              isAvailable: rec.isAvailable,
+              startTime: rec.isAvailable && !rec.allDay ? rec.startTime : null,
+              endTime: rec.isAvailable && !rec.allDay ? rec.endTime : null,
+              notes: rec.notes || null,
+            };
+            return (
+              <li key={iso} className="px-4 py-2.5 text-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 flex-shrink-0">
+                    <div className={cn(
+                      "text-[10px] uppercase tracking-wider",
+                      isToday(d) ? "text-primary font-semibold" : "text-muted-foreground",
+                    )}>
+                      {format(d, "EEE")}
+                    </div>
+                    <div className="text-base font-semibold tabular-nums leading-tight">
+                      {format(d, "d")}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">{format(d, "MMM").toUpperCase()}</div>
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {override ? (
+                        <Badge variant="default" className="text-[10px] uppercase tracking-wider">
+                          Override
+                        </Badge>
+                      ) : null}
+                      <span className={cn(
+                        "text-sm font-medium",
+                        !effective.isAvailable && "text-muted-foreground",
+                      )}>
+                        {effective.isAvailable
+                          ? (effective.startTime && effective.endTime
+                              ? `${fmt12(effective.startTime)} – ${fmt12(effective.endTime)}`
+                              : "Available all day")
+                          : "Not available"}
+                      </span>
+                    </div>
+                    {override?.notes ? (
+                      <div className="text-xs text-muted-foreground truncate">{override.notes}</div>
+                    ) : null}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {savingDate === iso ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                    ) : null}
+                    {override ? (
+                      <Button size="sm" variant="ghost" onClick={() => void removeOverride(iso)} title="Remove override">
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    ) : null}
+                    <Button size="sm" variant="outline" onClick={() => setEditingDate(isEditing ? null : iso)}>
+                      {isEditing ? "Close" : (override ? "Edit" : "Override")}
+                    </Button>
+                  </div>
+                </div>
+
+                {isEditing ? (
+                  <OverrideEditor
+                    initial={effective}
+                    onSave={upsertOverride}
+                    onCancel={() => setEditingDate(null)}
+                    saving={savingDate === iso}
+                  />
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+function OverrideEditor({
+  initial, onSave, onCancel, saving,
+}: {
+  initial: DateOverride;
+  onSave: (next: DateOverride) => void;
+  onCancel: () => void;
+  saving: boolean;
+}) {
+  const [available, setAvailable] = useState(initial.isAvailable);
+  const [allDay, setAllDay] = useState(!initial.startTime && !initial.endTime);
+  const [start, setStart] = useState(initial.startTime ?? DEFAULT_START);
+  const [end, setEnd] = useState(initial.endTime ?? DEFAULT_END);
+  const [notes, setNotes] = useState(initial.notes ?? "");
+
+  const submit = () => {
+    onSave({
+      date: initial.date,
+      isAvailable: available,
+      startTime: available && !allDay ? start : null,
+      endTime: available && !allDay ? end : null,
+      notes: notes.trim() || null,
+    });
+  };
+
+  return (
+    <div className="mt-3 ml-[60px] rounded-md border bg-muted/30 p-3 space-y-2.5">
+      <div className="flex items-center gap-3">
+        <Switch checked={available} onCheckedChange={setAvailable} id={`av-${initial.date}`} />
+        <Label htmlFor={`av-${initial.date}`} className="text-sm cursor-pointer">
+          {available ? "Available this day" : "Not available this day"}
+        </Label>
+      </div>
+      {available ? (
+        <div className="flex items-center gap-2 flex-wrap">
+          {allDay ? (
+            <span className="text-sm text-muted-foreground flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" /> All day
+            </span>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                type="time" value={start} onChange={(e) => setStart(e.target.value)}
+                className="h-8 rounded-md border border-input bg-background px-2 text-sm tabular-nums"
+              />
+              <span className="text-muted-foreground text-sm">–</span>
+              <input
+                type="time" value={end} onChange={(e) => setEnd(e.target.value)}
+                className="h-8 rounded-md border border-input bg-background px-2 text-sm tabular-nums"
+              />
+            </div>
+          )}
+          <button
+            onClick={() => setAllDay(!allDay)}
+            className={cn(
+              "text-xs px-2 py-0.5 rounded-full border transition-colors",
+              allDay
+                ? "bg-primary text-primary-foreground border-primary"
+                : "text-muted-foreground border-border hover:border-primary hover:text-primary",
+            )}
+          >
+            All day
+          </button>
+        </div>
+      ) : null}
+      <Textarea
+        placeholder="Notes (e.g. doctor's appt, school event…)"
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        rows={1}
+        className="text-sm resize-none min-h-0 h-8 py-1.5"
+      />
+      <div className="flex gap-2">
+        <Button size="sm" variant="ghost" onClick={onCancel} disabled={saving}>Cancel</Button>
+        <Button size="sm" onClick={submit} disabled={saving}>
+          {saving ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</> : "Save override"}
+        </Button>
       </div>
     </div>
   );
