@@ -357,6 +357,7 @@ export default function ManagerSchedule() {
           shiftsQueryKey={shiftsKey}
           onAddShift={() => { setAddDate(selectedDay); setAddOpen(true); }}
           onClose={() => setSelectedDay(null)}
+          isAdmin={isAdmin}
         />
       ) : (
         <ScheduleHoursSidebar

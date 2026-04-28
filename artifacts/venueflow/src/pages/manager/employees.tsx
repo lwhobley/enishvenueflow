@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { useAppContext } from "@/hooks/use-app-context";
 import {
   useListUsers, useCreateUser, useUpdateUser, useListRoles,
@@ -21,7 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { UserPlus, RefreshCw, Pencil, Phone, MapPin, Calendar, Link2, Copy, Check, RotateCw, Users } from "lucide-react";
+import { UserPlus, RefreshCw, Pencil, Phone, Calendar, Link2, Copy, Check, RotateCw, Users } from "lucide-react";
 
 type FormData = {
   fullName: string;
@@ -189,6 +189,38 @@ export default function ManagerEmployees() {
 
   const roleById = Object.fromEntries((roles ?? []).map(r => [r.id, r]));
 
+  // Group employees by primary position, alphabetical inside each group.
+  // Roles themselves are listed alphabetically by display name. Anyone
+  // without a roleId lands in an "Unassigned" bucket at the bottom. New
+  // hires automatically slot into the right group + alphabetical slot
+  // because the source list is re-sorted on every render.
+  type Group = { key: string; label: string; color: string | null; users: User[] };
+  const groupedUsers: Group[] = (() => {
+    if (!users || users.length === 0) return [];
+    const buckets = new Map<string, Group>();
+    for (const u of users) {
+      const role = u.roleId ? roleById[u.roleId] : null;
+      const key = role?.id ?? "__unassigned__";
+      const label = role?.name ?? "Unassigned";
+      const color = role?.color ?? null;
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = { key, label, color, users: [] };
+        buckets.set(key, bucket);
+      }
+      bucket.users.push(u);
+    }
+    for (const g of buckets.values()) {
+      g.users.sort((a, b) => a.fullName.localeCompare(b.fullName));
+    }
+    return Array.from(buckets.values()).sort((a, b) => {
+      // Unassigned always last; everything else alphabetical.
+      if (a.key === "__unassigned__") return 1;
+      if (b.key === "__unassigned__") return -1;
+      return a.label.localeCompare(b.label);
+    });
+  })();
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
@@ -271,65 +303,84 @@ export default function ManagerEmployees() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users?.map(user => {
-                    const allPositions = [
-                      ...(user.roleId ? [user.roleId] : []),
-                      ...(user.positions ?? []).filter(p => p !== user.roleId),
-                    ];
-                    return (
-                      <TableRow key={user.id}>
-                        <TableCell>
-                          <div className="font-medium">{user.fullName}</div>
-                          {user.email && <div className="text-xs text-muted-foreground">{user.email}</div>}
-                          {user.isAdmin && (
-                            <Badge className="mt-1 text-xs" style={{ background: "var(--gold)", color: "#0a0502" }}>Admin</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {allPositions.length > 0 ? allPositions.map(pid => {
-                              const role = roleById[pid];
-                              return role ? (
-                                <Badge key={pid} variant="outline" style={{ borderColor: role.color, color: role.color }}>
-                                  {role.name}
-                                </Badge>
-                              ) : null;
-                            }) : (
-                              <span className="text-xs text-muted-foreground">Unassigned</span>
-                            )}
+                  {groupedUsers.map(group => (
+                    <Fragment key={group.key}>
+                      <TableRow className="bg-muted/40 hover:bg-muted/40">
+                        <TableCell colSpan={6} className="py-2">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="text-[11px] font-semibold uppercase tracking-wider"
+                              style={{ color: group.color ?? undefined }}
+                            >
+                              {group.label}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">
+                              · {group.users.length}
+                            </span>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          {user.phone ? (
-                            <div className="flex items-center gap-1 text-sm">
-                              <Phone className="h-3 w-3 text-muted-foreground" />
-                              {user.phone}
-                            </div>
-                          ) : <span className="text-muted-foreground text-sm">—</span>}
-                        </TableCell>
-                        <TableCell>
-                          {user.dateOfBirth ? (
-                            <div className="flex items-center gap-1 text-sm">
-                              <Calendar className="h-3 w-3 text-muted-foreground" />
-                              {user.dateOfBirth}
-                            </div>
-                          ) : <span className="text-muted-foreground text-sm">—</span>}
-                        </TableCell>
-                        <TableCell>
-                          {user.isActive ? (
-                            <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Active</Badge>
-                          ) : (
-                            <Badge variant="secondary">Inactive</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button size="icon" variant="ghost" onClick={() => openEdit(user)} title="Edit">
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
                       </TableRow>
-                    );
-                  })}
+                      {group.users.map(user => {
+                        const allPositions = [
+                          ...(user.roleId ? [user.roleId] : []),
+                          ...(user.positions ?? []).filter((p: string) => p !== user.roleId),
+                        ];
+                        return (
+                          <TableRow key={user.id}>
+                            <TableCell>
+                              <div className="font-medium">{user.fullName}</div>
+                              {user.email && <div className="text-xs text-muted-foreground">{user.email}</div>}
+                              {user.isAdmin && (
+                                <Badge className="mt-1 text-xs" style={{ background: "var(--gold)", color: "#0a0502" }}>Admin</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {allPositions.length > 0 ? allPositions.map(pid => {
+                                  const role = roleById[pid];
+                                  return role ? (
+                                    <Badge key={pid} variant="outline" style={{ borderColor: role.color, color: role.color }}>
+                                      {role.name}
+                                    </Badge>
+                                  ) : null;
+                                }) : (
+                                  <span className="text-xs text-muted-foreground">Unassigned</span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {user.phone ? (
+                                <div className="flex items-center gap-1 text-sm">
+                                  <Phone className="h-3 w-3 text-muted-foreground" />
+                                  {user.phone}
+                                </div>
+                              ) : <span className="text-muted-foreground text-sm">—</span>}
+                            </TableCell>
+                            <TableCell>
+                              {user.dateOfBirth ? (
+                                <div className="flex items-center gap-1 text-sm">
+                                  <Calendar className="h-3 w-3 text-muted-foreground" />
+                                  {user.dateOfBirth}
+                                </div>
+                              ) : <span className="text-muted-foreground text-sm">—</span>}
+                            </TableCell>
+                            <TableCell>
+                              {user.isActive ? (
+                                <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Active</Badge>
+                              ) : (
+                                <Badge variant="secondary">Inactive</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button size="icon" variant="ghost" onClick={() => openEdit(user)} title="Edit">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
                   {!users?.length && (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">

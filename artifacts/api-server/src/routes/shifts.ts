@@ -2,9 +2,10 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { shifts, shiftRequests, users, roles, schedules, availability, timeOffRequests } from "@workspace/db";
 import { eq, and, inArray, gte, lte, ne } from "drizzle-orm";
-import { notifyUser, notifyManagers } from "../lib/push";
+import { notifyUser, notifyManagers, notifyEligibleForRole } from "../lib/push";
 import { assertSelf } from "../lib/auth-guards";
 import { autoAssign } from "../lib/auto-assign";
+import { checkWeeklyCap } from "../lib/hour-cap";
 
 // Build a human-readable shift summary for push bodies.
 function describeShift(s: { startTime: Date | string; endTime: Date | string }): string {
@@ -18,6 +19,31 @@ function describeShift(s: { startTime: Date | string; endTime: Date | string }):
 async function venueIdForSchedule(scheduleId: string): Promise<string | null> {
   const [row] = await db.select({ venueId: schedules.venueId }).from(schedules).where(eq(schedules.id, scheduleId));
   return row?.venueId ?? null;
+}
+
+/**
+ * Push to every active employee trained for this position. Used whenever
+ * a shift becomes open — fresh creation with no userId, manager
+ * unassigning the holder, drop request approved, etc. Fire-and-forget.
+ */
+function announceOpenShift(
+  venueId: string,
+  shift: { id: string; startTime: Date | string; endTime: Date | string },
+  roleName: string | null,
+  exceptUserId?: string,
+): void {
+  if (!roleName) return;
+  void notifyEligibleForRole(
+    venueId,
+    roleName,
+    {
+      title: "Open shift available",
+      body: `${roleName} · ${describeShift(shift)} — first to claim it gets it.`,
+      url: "/employee/schedule",
+      tag: `shift-open-${shift.id}`,
+    },
+    { exceptUserId },
+  );
 }
 
 const router = Router();
@@ -75,10 +101,26 @@ router.get("/shifts", async (req, res) => {
 
 router.post("/shifts", async (req, res) => {
   try {
-    const { scheduleId, userId, roleId, sectionId, startTime, endTime, notes } = req.body;
+    const { scheduleId, userId, roleId, sectionId, startTime, endTime, notes, force } = req.body;
     if (!scheduleId || !roleId || !startTime || !endTime) {
       return res.status(400).json({ message: "scheduleId, roleId, startTime, endTime required" });
     }
+    const venueId = await venueIdForSchedule(scheduleId);
+
+    if (userId && venueId && !force) {
+      const cap = await checkWeeklyCap({
+        userId, venueId,
+        start: new Date(startTime),
+        end: new Date(endTime),
+      });
+      if (cap.exceeds) {
+        return res.status(409).json({
+          message: `This would put the employee at ${cap.projectedWeeklyHours.toFixed(1)}h this week, past the ${cap.cap}h cap. Pass force:true to override.`,
+          ...cap,
+        });
+      }
+    }
+
     const [shift] = await db.insert(shifts).values({
       scheduleId, userId: userId ?? null, roleId,
       sectionId: sectionId ?? null,
@@ -96,6 +138,8 @@ router.post("/shifts", async (req, res) => {
         url: "/employee/schedule",
         tag: `shift-${shift.id}`,
       });
+    } else if (venueId) {
+      announceOpenShift(venueId, shift, enriched.roleName);
     }
   } catch (err) {
     req.log.error(err);
@@ -119,9 +163,47 @@ router.get("/shifts/open", async (req, res) => {
 
 router.post("/shifts/bulk", async (req, res) => {
   try {
-    const { shifts: shiftData } = req.body;
+    const { shifts: shiftData, force } = req.body as {
+      shifts: Array<{ scheduleId: string; roleId: string; startTime: string; endTime: string; userId?: string; sectionId?: string; notes?: string }>;
+      force?: boolean;
+    };
     if (!Array.isArray(shiftData) || !shiftData.length) return res.status(400).json({ message: "shifts array required" });
-    const inserted = await db.insert(shifts).values(shiftData.map((s: { scheduleId: string; roleId: string; startTime: string; endTime: string; userId?: string; sectionId?: string; notes?: string }) => ({
+
+    if (!force) {
+      // Bulk-add typically lands many shifts on the same user — check the
+      // cap per row, but pre-resolve venues per scheduleId so we don't
+      // re-query for each shift. Hours added by earlier rows in the same
+      // batch don't count toward the cap (they're not in the DB yet);
+      // that mirrors the engine's "current week + this single shift"
+      // semantics and keeps the manager flow clean. For tighter accuracy
+      // the manager can re-run after the bulk add commits.
+      const venueByScheduleId = new Map<string, string>();
+      for (const s of shiftData) {
+        if (!venueByScheduleId.has(s.scheduleId)) {
+          const v = await venueIdForSchedule(s.scheduleId);
+          if (v) venueByScheduleId.set(s.scheduleId, v);
+        }
+      }
+      for (const s of shiftData) {
+        if (!s.userId) continue;
+        const venueId = venueByScheduleId.get(s.scheduleId);
+        if (!venueId) continue;
+        const cap = await checkWeeklyCap({
+          userId: s.userId, venueId,
+          start: new Date(s.startTime),
+          end: new Date(s.endTime),
+        });
+        if (cap.exceeds) {
+          return res.status(409).json({
+            message: `One employee would land at ${cap.projectedWeeklyHours.toFixed(1)}h this week, past the ${cap.cap}h cap. Pass force:true to override.`,
+            userId: s.userId,
+            ...cap,
+          });
+        }
+      }
+    }
+
+    const inserted = await db.insert(shifts).values(shiftData.map((s) => ({
       scheduleId: s.scheduleId,
       roleId: s.roleId,
       userId: s.userId ?? null,
@@ -131,7 +213,16 @@ router.post("/shifts/bulk", async (req, res) => {
       status: s.userId ? "scheduled" : "open",
       notes: s.notes ?? null,
     }))).returning();
-    res.status(201).json(await enrichShifts(inserted));
+    const enriched = await enrichShifts(inserted);
+    res.status(201).json(enriched);
+
+    // Broadcast any rows that landed without a userId (rare in bulk-add
+    // but possible when the manager seeds an empty week).
+    for (const s of enriched) {
+      if (s.userId) continue;
+      const venueId = await venueIdForSchedule(s.scheduleId);
+      if (venueId) announceOpenShift(venueId, s, s.roleName);
+    }
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to bulk create shifts" });
@@ -195,12 +286,46 @@ router.post("/shifts/copy-day", async (req, res) => {
 
 router.put("/shifts/bulk-assign", async (req, res) => {
   try {
-    const { ids, userId } = req.body;
+    const { ids, userId, force } = req.body as { ids: string[]; userId: string; force?: boolean };
     if (!Array.isArray(ids) || !userId) return res.status(400).json({ message: "ids and userId required" });
     // Capture prior assignees so we can notify both the new assignee and
     // anyone who got reassigned away.
-    const priors = await db.select({ id: shifts.id, userId: shifts.userId }).from(shifts).where(inArray(shifts.id, ids));
+    const priors = await db.select({ id: shifts.id, userId: shifts.userId, scheduleId: shifts.scheduleId, startTime: shifts.startTime, endTime: shifts.endTime }).from(shifts).where(inArray(shifts.id, ids));
     const priorById = new Map(priors.map((p) => [p.id, p.userId]));
+
+    if (!force) {
+      // Group by week-bucket so we add up the bulk-added hours when the
+      // batch lands the same user on multiple shifts in the same week —
+      // otherwise each row passes the 40h check individually.
+      const weeklyAdds = new Map<string, number>();
+      for (const p of priors) {
+        const wkKey = (() => {
+          const d = new Date(p.startTime);
+          d.setHours(0, 0, 0, 0);
+          d.setDate(d.getDate() - d.getDay());
+          return d.toISOString();
+        })();
+        const venueId = await venueIdForSchedule(p.scheduleId);
+        if (!venueId) continue;
+        const cap = await checkWeeklyCap({
+          userId, venueId,
+          start: p.startTime,
+          end: p.endTime,
+          excludeShiftId: p.id,
+        });
+        const addedSoFar = weeklyAdds.get(wkKey) ?? 0;
+        const projected = cap.existingWeeklyHours + addedSoFar + cap.shiftHours;
+        if (projected > cap.cap) {
+          return res.status(409).json({
+            message: `${userId} would land at ${projected.toFixed(1)}h that week, past the ${cap.cap}h cap. Pass force:true to override.`,
+            userId,
+            cap: cap.cap,
+            projectedWeeklyHours: projected,
+          });
+        }
+        weeklyAdds.set(wkKey, addedSoFar + cap.shiftHours);
+      }
+    }
 
     const updated = await db.update(shifts).set({ userId, status: "scheduled" }).where(inArray(shifts.id, ids)).returning();
     const enriched = await enrichShifts(updated);
@@ -236,8 +361,28 @@ router.put("/shifts/bulk-assign", async (req, res) => {
 router.put("/shifts/:id/assign", async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId } = req.body;
+    const { userId, force } = req.body as { userId?: string | null; force?: boolean };
     const [prior] = await db.select().from(shifts).where(eq(shifts.id, id));
+    if (!prior) return res.status(404).json({ message: "Shift not found" });
+
+    if (userId && !force) {
+      const venueId = await venueIdForSchedule(prior.scheduleId);
+      if (venueId) {
+        const cap = await checkWeeklyCap({
+          userId, venueId,
+          start: prior.startTime,
+          end: prior.endTime,
+          excludeShiftId: id,
+        });
+        if (cap.exceeds) {
+          return res.status(409).json({
+            message: `This would put the employee at ${cap.projectedWeeklyHours.toFixed(1)}h this week, past the ${cap.cap}h cap. Pass force:true to override.`,
+            ...cap,
+          });
+        }
+      }
+    }
+
     const [updated] = await db.update(shifts).set({
       userId: userId ?? null,
       status: userId ? "scheduled" : "open",
@@ -261,6 +406,12 @@ router.put("/shifts/:id/assign", async (req, res) => {
         tag: `shift-${id}`,
       });
     }
+    // Manager unassigned the holder → shift is now open. Tell every other
+    // employee trained for the role so the first one to claim it gets it.
+    if (!userId && prior?.userId) {
+      const venueId = await venueIdForSchedule(updated.scheduleId);
+      if (venueId) announceOpenShift(venueId, updated, enriched.roleName, prior.userId);
+    }
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ message: "Failed to assign shift" });
@@ -275,11 +426,33 @@ router.post("/shifts/:id/pickup", async (req, res) => {
     // A user can only pick up an open shift for themselves. Admins use
     // PUT /shifts/:id/assign to reassign on someone else's behalf.
     if (!assertSelf(req, res, userId)) return;
+
+    // Employees can't push themselves past the 40-hour cap by claiming
+    // open shifts. There is no manager-override here — managers reassign
+    // through PUT /shifts/:id/assign, which exposes a force flag.
+    const [target] = await db.select().from(shifts).where(eq(shifts.id, id));
+    if (!target) return res.status(404).json({ message: "Shift not found" });
+    if (target.status !== "open") return res.status(400).json({ message: "Shift not available for pickup" });
+    const venueId = await venueIdForSchedule(target.scheduleId);
+    if (venueId) {
+      const cap = await checkWeeklyCap({
+        userId, venueId,
+        start: target.startTime,
+        end: target.endTime,
+        excludeShiftId: id,
+      });
+      if (cap.exceeds) {
+        return res.status(409).json({
+          message: `Picking this up would put you at ${cap.projectedWeeklyHours.toFixed(1)}h this week, past the ${cap.cap}h cap. Ask a manager if you need to go over.`,
+          ...cap,
+        });
+      }
+    }
+
     const [updated] = await db.update(shifts).set({ userId, status: "scheduled" }).where(and(eq(shifts.id, id), eq(shifts.status, "open"))).returning();
     if (!updated) return res.status(400).json({ message: "Shift not available for pickup" });
     const [enriched] = await enrichShifts([updated]);
     res.json(enriched);
-    const venueId = await venueIdForSchedule(updated.scheduleId);
     if (venueId) {
       const [picker] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, userId));
       void notifyManagers(venueId, {
@@ -300,8 +473,33 @@ router.post("/shifts/:id/pickup", async (req, res) => {
 router.put("/shifts/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId, roleId, sectionId, startTime, endTime, notes, status } = req.body;
+    const { userId, roleId, sectionId, startTime, endTime, notes, status, force } = req.body;
     const [prior] = await db.select().from(shifts).where(eq(shifts.id, id));
+    if (!prior) return res.status(404).json({ message: "Shift not found" });
+
+    // 40h cap: enforce when the update would land a user on this shift,
+    // or change its time window while keeping the same user. Skip when
+    // the manager explicitly passed force:true.
+    const targetUserId = userId !== undefined ? userId : prior.userId;
+    if (targetUserId && !force) {
+      const targetStart = startTime !== undefined ? new Date(startTime) : prior.startTime;
+      const targetEnd = endTime !== undefined ? new Date(endTime) : prior.endTime;
+      const venueId = await venueIdForSchedule(prior.scheduleId);
+      if (venueId) {
+        const cap = await checkWeeklyCap({
+          userId: targetUserId, venueId,
+          start: targetStart, end: targetEnd,
+          excludeShiftId: id,
+        });
+        if (cap.exceeds) {
+          return res.status(409).json({
+            message: `This would put the employee at ${cap.projectedWeeklyHours.toFixed(1)}h this week, past the ${cap.cap}h cap. Pass force:true to override.`,
+            ...cap,
+          });
+        }
+      }
+    }
+
     const updates: Record<string, unknown> = {};
     if (userId !== undefined) {
       updates.userId = userId;
@@ -317,6 +515,13 @@ router.put("/shifts/:id", async (req, res) => {
     if (!updated) return res.status(404).json({ message: "Shift not found" });
     const [enriched] = await enrichShifts([updated]);
     res.json(enriched);
+
+    // Manager nulled the holder on this row → broadcast to eligible
+    // employees. Same trigger as PUT /shifts/:id/assign with no userId.
+    if (prior.userId && !updated.userId) {
+      const venueId = await venueIdForSchedule(updated.scheduleId);
+      if (venueId) announceOpenShift(venueId, updated, enriched.roleName, prior.userId);
+    }
 
     // Push: notify anyone affected by the change.
     const priorUser = prior?.userId ?? null;
@@ -466,11 +671,35 @@ router.put("/shift-requests/:id/approve", async (req, res) => {
         .update(shifts)
         .set({ userId: null, status: "open" })
         .where(and(eq(shifts.id, request.shiftId), eq(shifts.userId, request.userId)))
-        .returning({ id: shifts.id });
+        .returning();
       if (released.length === 0) {
         return res.status(409).json({ message: "Shift is no longer assigned to the requester" });
       }
+      // The shift just opened up — push to every eligible employee so
+      // somebody else can claim it.
+      const [enriched] = await enrichShifts(released);
+      const venueId = await venueIdForSchedule(released[0].scheduleId);
+      if (venueId) announceOpenShift(venueId, released[0], enriched.roleName, request.userId);
     } else if (request.type === "pickup") {
+      // Cap check at approve time — the requester may have picked up
+      // other shifts since they filed this request.
+      const [target] = await db.select().from(shifts).where(eq(shifts.id, request.shiftId));
+      if (target) {
+        const venueId = await venueIdForSchedule(target.scheduleId);
+        if (venueId) {
+          const cap = await checkWeeklyCap({
+            userId: request.userId, venueId,
+            start: target.startTime, end: target.endTime,
+            excludeShiftId: target.id,
+          });
+          if (cap.exceeds && !req.body?.force) {
+            return res.status(409).json({
+              message: `Approving this would put the employee at ${cap.projectedWeeklyHours.toFixed(1)}h this week, past the ${cap.cap}h cap. Pass force:true to override.`,
+              ...cap,
+            });
+          }
+        }
+      }
       const claimed = await db
         .update(shifts)
         .set({ userId: request.userId, status: "scheduled" })

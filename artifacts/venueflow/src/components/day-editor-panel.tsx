@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import {
   X, Plus, GripVertical, AlertTriangle, CheckCircle2, Loader2, Calendar,
+  UserMinus, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +45,8 @@ interface Props {
   onAddShift: () => void;
   /** Manager closed the panel (clicked X or the same day again). */
   onClose: () => void;
+  /** When true, render Unassign / Delete actions on each shift row. */
+  isAdmin?: boolean;
 }
 
 // Default 5-9 window for the per-day availability ranking. The actual
@@ -61,6 +64,7 @@ function fmt12(iso: string): string {
 
 export function DayEditorPanel({
   date, shifts, users, availability, shiftsQueryKey, onAddShift, onClose,
+  isAdmin = false,
 }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -91,15 +95,17 @@ export function DayEditorPanel({
   }, [users, availability, date]);
 
   const assign = useMutation({
-    mutationFn: async (input: { shiftId: string; userId: string }) => {
+    mutationFn: async (input: { shiftId: string; userId: string; force?: boolean }) => {
       const res = await fetch(`/api/shifts/${input.shiftId}/assign`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: input.userId }),
+        body: JSON.stringify({ userId: input.userId, ...(input.force ? { force: true } : {}) }),
       });
       if (!res.ok) {
         const json = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(json.message ?? `${res.status}`);
+        const err = new Error(json.message ?? `${res.status}`) as Error & { status?: number };
+        err.status = res.status;
+        throw err;
       }
       return await res.json();
     },
@@ -108,8 +114,56 @@ export function DayEditorPanel({
       const userName = users.find((u) => u.id === input.userId)?.fullName ?? "Employee";
       toast({ title: "Shift assigned", description: userName });
     },
-    onError: (err: unknown) => {
+    onError: (err: unknown, input) => {
+      const status = (err as { status?: number })?.status;
+      if (status === 409 && !input.force) {
+        // 40h cap — offer the manager an override.
+        const msg = err instanceof Error ? err.message : "Over 40h cap";
+        if (typeof window !== "undefined" && window.confirm(`${msg}\n\nAssign anyway?`)) {
+          assign.mutate({ ...input, force: true });
+          return;
+        }
+      }
       toast({ title: "Couldn't assign", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    },
+  });
+
+  const unassign = useMutation({
+    mutationFn: async (shiftId: string) => {
+      const res = await fetch(`/api/shifts/${shiftId}/assign`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: null }),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(json.message ?? `${res.status}`);
+      }
+      return await res.json();
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: shiftsQueryKey });
+      toast({ title: "Shift unassigned", description: "Open shifts notify eligible employees automatically." });
+    },
+    onError: (err) => {
+      toast({ title: "Couldn't unassign", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
+    },
+  });
+
+  const deleteShift = useMutation({
+    mutationFn: async (shiftId: string) => {
+      const res = await fetch(`/api/shifts/${shiftId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(json.message ?? `${res.status}`);
+      }
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: shiftsQueryKey });
+      toast({ title: "Shift deleted" });
+    },
+    onError: (err) => {
+      toast({ title: "Couldn't delete", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     },
   });
 
@@ -180,10 +234,40 @@ export function DayEditorPanel({
                       </div>
                       <div className="mt-0.5 flex items-center gap-1.5">
                         {s.userId ? (
-                          <span className="font-medium truncate">{s.userName ?? "Assigned"}</span>
+                          <span className="font-medium truncate flex-1">{s.userName ?? "Assigned"}</span>
                         ) : (
-                          <span className="text-xs italic text-muted-foreground">Open shift — drop employee here</span>
+                          <span className="text-xs italic text-muted-foreground flex-1">Open shift — drop employee here</span>
                         )}
+                        {isAdmin ? (
+                          <div className="flex items-center gap-0.5 flex-shrink-0">
+                            {s.userId ? (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6"
+                                title="Unassign — opens the shift back up"
+                                disabled={unassign.isPending && unassign.variables === s.id}
+                                onClick={() => unassign.mutate(s.id)}
+                              >
+                                <UserMinus className="w-3.5 h-3.5" />
+                              </Button>
+                            ) : null}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              title="Delete shift"
+                              disabled={deleteShift.isPending && deleteShift.variables === s.id}
+                              onClick={() => {
+                                if (typeof window === "undefined" || window.confirm("Delete this shift?")) {
+                                  deleteShift.mutate(s.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </li>
@@ -242,9 +326,10 @@ export function DayEditorPanel({
         )}
       </div>
 
-      {assign.isPending ? (
+      {assign.isPending || unassign.isPending || deleteShift.isPending ? (
         <div className="border-t px-4 py-2 text-xs text-muted-foreground flex items-center gap-2">
-          <Loader2 className="w-3 h-3 animate-spin" /> Assigning…
+          <Loader2 className="w-3 h-3 animate-spin" />
+          {assign.isPending ? "Assigning…" : unassign.isPending ? "Opening up shift…" : "Deleting…"}
         </div>
       ) : null}
     </aside>

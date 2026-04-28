@@ -98,6 +98,49 @@ export async function notifyUser(userId: string, payload: PushPayload): Promise<
   }
 }
 
+/**
+ * Send to every active employee in the venue whose `positions[]` array
+ * includes `roleName` (case-insensitive). Used to broadcast newly-open
+ * shifts to anyone trained for the position. `exceptUserId` lets the
+ * caller skip the user who just dropped or got reassigned away from
+ * the shift — they don't need a "hey, your old shift is open" push.
+ */
+export async function notifyEligibleForRole(
+  venueId: string,
+  roleName: string,
+  payload: PushPayload,
+  opts: { exceptUserId?: string } = {},
+): Promise<void> {
+  if (!pushConfigured || !roleName) return;
+  try {
+    const conditions = [
+      eq(users.venueId, venueId),
+      eq(users.isActive, true),
+    ];
+    if (opts.exceptUserId) conditions.push(ne(users.id, opts.exceptUserId));
+    const venueUsers = await db
+      .select({ id: users.id, positions: users.positions })
+      .from(users)
+      .where(and(...conditions));
+    const targetLc = roleName.toLowerCase();
+    const eligibleIds = venueUsers
+      .filter((u) => (u.positions ?? []).some((p) => p.toLowerCase() === targetLc))
+      .map((u) => u.id);
+    if (eligibleIds.length === 0) return;
+    const subs = await db
+      .select({
+        endpoint: pushSubscriptions.endpoint,
+        p256dh: pushSubscriptions.p256dh,
+        auth: pushSubscriptions.auth,
+      })
+      .from(pushSubscriptions)
+      .where(inArray(pushSubscriptions.userId, eligibleIds));
+    await sendToSubs(subs, payload);
+  } catch (err) {
+    logger.warn({ err, venueId, roleName, title: payload.title }, "notifyEligibleForRole failed");
+  }
+}
+
 /** Send to every admin user in the venue (managers). */
 export async function notifyManagers(venueId: string, payload: PushPayload): Promise<void> {
   if (!pushConfigured) return;
