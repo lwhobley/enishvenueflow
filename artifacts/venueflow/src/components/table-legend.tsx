@@ -93,18 +93,23 @@ function LegendRow({
   venueId, scope, table, editable,
 }: { venueId: string; scope: "restaurant" | "nightlife"; table: LegendTable; editable: boolean }) {
   const qc = useQueryClient();
-  const [saving, setSaving] = useState<"price" | "name" | null>(null);
+  const [saving, setSaving] = useState<"price" | "name" | "label" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Track the last saved value so we can skip PUTs when the field hasn't
   // actually changed (an onBlur fires whether or not the user typed).
   const lastPriceRef = useRef<string>(table.price != null ? String(table.price) : "");
   const lastNameRef  = useRef<string>(table.purchaserName ?? "");
+  const lastLabelRef = useRef<string>(table.label);
 
-  const save = async (field: "price" | "name", raw: string) => {
+  const save = async (field: "price" | "name" | "label", raw: string) => {
     const trimmed = raw.trim();
-    const ref = field === "price" ? lastPriceRef : lastNameRef;
+    const ref = field === "price" ? lastPriceRef : field === "name" ? lastNameRef : lastLabelRef;
     if (trimmed === ref.current) return;
+    if (field === "label" && trimmed === "") {
+      // Don't allow blanking the label — silently revert.
+      return;
+    }
 
     setSaving(field);
     setError(null);
@@ -112,7 +117,9 @@ function LegendRow({
       const body =
         field === "price"
           ? { price: trimmed === "" ? null : Number(trimmed.replace(/[$,]/g, "")) }
-          : { purchaserName: trimmed === "" ? null : trimmed };
+          : field === "name"
+            ? { purchaserName: trimmed === "" ? null : trimmed }
+            : { label: trimmed };
       await putTable(table.id, body);
       ref.current = trimmed;
       // Match the manager floor plan's scope-aware query key so the
@@ -127,7 +134,15 @@ function LegendRow({
 
   return (
     <li className="px-4 py-2.5 flex items-center gap-2 text-sm">
-      <span className="font-mono font-semibold w-12 flex-shrink-0">{table.label}</span>
+      <input
+        type="text"
+        defaultValue={table.label}
+        readOnly={!editable}
+        onBlur={(e) => editable && void save("label", e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        className="font-mono font-semibold w-14 flex-shrink-0 px-1.5 py-1 rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+        aria-label={`Label for ${table.label}`}
+      />
       <input
         type="text"
         inputMode="decimal"
