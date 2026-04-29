@@ -210,6 +210,27 @@ export const NEW_HIRES_ROSTER: Hire[] = [
     hireDate: "2026-04-26",
     hourlyRate: 5,
   },
+  // ── 4/29/2026 barbacks ─────────────────────────────────────────────────
+  {
+    fullName: "Wilmer A. Tzul",
+    email: "tzulwilmer9@gmail.com",
+    phone: "832-607-3841",
+    dateOfBirth: "2000-12-02",
+    address: "7988 Locke Ln, Houston, TX 77063",
+    positions: ["barback"],
+    hireDate: "2026-04-29",
+    hourlyRate: null,
+  },
+  {
+    fullName: "Jaime D. Mejia",
+    email: "fabianttr82@gmail.com",
+    phone: "832-775-2213",
+    dateOfBirth: "2003-11-03",
+    address: "Houston, TX 77036",
+    positions: ["barback"],
+    hireDate: "2026-04-29",
+    hourlyRate: null,
+  },
 ];
 
 export function lastFourDigits(phone: string): string {
