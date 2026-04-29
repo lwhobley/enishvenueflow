@@ -231,6 +231,16 @@ export const NEW_HIRES_ROSTER: Hire[] = [
     hireDate: "2026-04-29",
     hourlyRate: null,
   },
+  {
+    fullName: "Yaseen Diatta",
+    email: "yaseendiatta@gmail.com",
+    phone: "313-738-7383",
+    dateOfBirth: "2002-06-29",
+    address: "800 Middle St, Houston, TX 77003",
+    positions: ["bartender", "server", "host"],
+    hireDate: "2026-04-29",
+    hourlyRate: null,
+  },
 ];
 
 export function lastFourDigits(phone: string): string {
