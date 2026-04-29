@@ -7,6 +7,7 @@ import {
   useUploadLiterature,
   useDeleteLiterature,
   literatureDownloadUrl,
+  literatureOpenUrl,
   formatBytes,
   LITERATURE_CATEGORY_LABELS,
   type LiteratureCategory,
@@ -44,7 +45,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Upload, Download, Trash2, FileText, Loader2, Search, BookOpen,
+  Upload, Download, Trash2, FileText, Loader2, Search, BookOpen, ExternalLink,
 } from "lucide-react";
 
 const CATEGORY_ORDER: LiteratureCategory[] = ["sop", "cheat_sheet", "training", "policy", "other"];
@@ -368,12 +369,22 @@ function LiteratureCard({
           {new Date(doc.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
         </span>
         <div style={{ display: "flex", gap: 6 }}>
-          <Button
-            variant="outline"
-            size="sm"
-            asChild
-          >
-            <a href={literatureDownloadUrl(doc.id)} target="_blank" rel="noreferrer" download={doc.fileName}>
+          <Button variant="outline" size="sm" asChild>
+            <a
+              href={literatureOpenUrl(doc.id)}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Open ${doc.title}`}
+            >
+              <ExternalLink className="w-3.5 h-3.5 mr-1.5" /> Open
+            </a>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a
+              href={literatureDownloadUrl(doc.id)}
+              download={doc.fileName}
+              aria-label={`Download ${doc.title}`}
+            >
               <Download className="w-3.5 h-3.5 mr-1.5" /> Download
             </a>
           </Button>

@@ -94,8 +94,23 @@ export function useDeleteLiterature() {
   });
 }
 
-export function literatureDownloadUrl(id: string): string {
+/**
+ * URL the browser opens in a new tab to *read* a document inline.
+ * Server returns `Content-Disposition: inline`, so PDFs, images, and
+ * text files render in the tab. Office formats fall back to a download
+ * because browsers can't render them natively.
+ */
+export function literatureOpenUrl(id: string): string {
   return `/api/literature/${id}/download`;
+}
+
+/**
+ * URL that forces a file save dialog. Same endpoint as the open URL but
+ * with `?disposition=attachment` so the server emits an attachment
+ * disposition regardless of the browser's `download` attribute support.
+ */
+export function literatureDownloadUrl(id: string): string {
+  return `/api/literature/${id}/download?disposition=attachment`;
 }
 
 export function formatBytes(n: number): string {

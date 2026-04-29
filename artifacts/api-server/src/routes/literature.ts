@@ -115,11 +115,16 @@ router.get("/literature/:id/download", async (req, res) => {
     const { id } = req.params;
     const [row] = await db.select().from(literature).where(eq(literature.id, id));
     if (!row) return res.status(404).json({ message: "Not found" });
+    // Default to inline so PDFs / images / text render in a new tab; the
+    // client passes ?disposition=attachment when it wants to force a save.
+    const wantsAttachment =
+      req.query.disposition === "attachment" || req.query.download === "1";
+    const disposition = wantsAttachment ? "attachment" : "inline";
     res.setHeader("Content-Type", row.mimeType);
     res.setHeader("Content-Length", String(row.sizeBytes));
     res.setHeader(
       "Content-Disposition",
-      `inline; filename="${encodeURIComponent(row.fileName)}"`,
+      `${disposition}; filename="${encodeURIComponent(row.fileName)}"`,
     );
     res.send(row.fileData);
   } catch (err) {
