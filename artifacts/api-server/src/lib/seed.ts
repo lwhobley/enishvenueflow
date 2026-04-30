@@ -96,6 +96,13 @@ export async function seedIfEmpty() {
         permissions: { schedule: true, timeclock: true },
         color: "#E57C4A",
       },
+      {
+        id: "role-hookah-tech",
+        venueId: "venue-enosh",
+        name: "Hookah Tech",
+        permissions: { schedule: true, timeclock: true },
+        color: "#0E7490",
+      },
     ]);
 
     await db.insert(users).values([

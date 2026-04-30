@@ -19,6 +19,7 @@ const POSITION_LABELS: Record<string, string> = {
   cleaner: "Cleaner",
   host: "Host",
   cook: "Cook",
+  "hookah tech": "Hookah Tech",
 };
 
 // VenueFlow brand palette — variable names kept.

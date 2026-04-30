@@ -681,7 +681,7 @@ function InviteLinkModal({
           </div>
           <div className="rounded-md border p-3 text-xs text-muted-foreground space-y-1.5">
             <div className="font-medium text-foreground">Available positions</div>
-            <div>Bartender, Server, Dishwasher, Busser, Cleaner, Host, Cook</div>
+            <div>Bartender, Server, Dishwasher, Busser, Cleaner, Host, Cook, Hookah Tech</div>
             <div className="pt-1">Rotate the link to revoke access for anyone who hasn't enrolled yet.</div>
           </div>
           {err ? (

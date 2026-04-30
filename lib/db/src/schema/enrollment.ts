@@ -8,6 +8,7 @@ export const ENROLLABLE_POSITIONS = [
   "cleaner",
   "host",
   "cook",
+  "hookah tech",
 ] as const;
 
 export type EnrollablePosition = (typeof ENROLLABLE_POSITIONS)[number];

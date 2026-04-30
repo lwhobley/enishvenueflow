@@ -238,6 +238,26 @@ const STATEMENTS: { name: string; sql: string }[] = [
     name: "availability(venue_id, user_id) index",
     sql: `CREATE INDEX IF NOT EXISTS "availability_venue_user_idx" ON "availability" ("venue_id", "user_id")`,
   },
+
+  // ── Hookah Tech role per venue ─────────────────────────────────────────
+  // hires-loader matches a hire's first position against role names
+  // (case-insensitive). Without a "Hookah Tech" row in `roles`, hookah
+  // tech hires get inserted with role_id=null and don't show up in the
+  // role-grouped employees list. Seed one row per venue that doesn't
+  // already have it; idempotent via NOT EXISTS.
+  {
+    name: "roles: ensure 'Hookah Tech' per venue",
+    sql: `
+      INSERT INTO "roles" (id, venue_id, name, permissions, color)
+      SELECT 'role-hookah-tech-' || v.id, v.id, 'Hookah Tech',
+             '{"schedule":true,"timeclock":true}'::jsonb, '#0E7490'
+      FROM "venues" v
+      WHERE NOT EXISTS (
+        SELECT 1 FROM "roles" r
+        WHERE r.venue_id = v.id AND lower(r.name) = 'hookah tech'
+      )
+    `,
+  },
 ];
 
 export async function applyStartupMigrations(): Promise<void> {
