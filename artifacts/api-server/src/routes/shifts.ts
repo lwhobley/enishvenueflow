@@ -372,6 +372,11 @@ router.put("/shifts/:id/assign", async (req, res) => {
           userId, venueId,
           start: prior.startTime,
           end: prior.endTime,
+          // The cap check should ignore the target shift only when we're
+          // about to overwrite it. When the shift is already held by
+          // someone else we'll clone, so the prior row will still count
+          // toward the new assignee's hours — but it's not theirs, so
+          // we still exclude the row we're cloning from.
           excludeShiftId: id,
         });
         if (cap.exceeds) {
@@ -381,6 +386,35 @@ router.put("/shifts/:id/assign", async (req, res) => {
           });
         }
       }
+    }
+
+    // Multi-occupant shifts: when a different employee is dropped onto a
+    // shift that's already held, clone the row instead of overwriting so
+    // both employees keep the slot. Overwrite still happens for unassign
+    // (userId === null), no-op self-assigns, and assigning into an open
+    // shift.
+    const isClone = !!userId && !!prior.userId && prior.userId !== userId;
+
+    if (isClone) {
+      const [created] = await db.insert(shifts).values({
+        scheduleId: prior.scheduleId,
+        userId,
+        roleId: prior.roleId,
+        sectionId: prior.sectionId,
+        startTime: prior.startTime,
+        endTime: prior.endTime,
+        status: "scheduled",
+        notes: prior.notes,
+      }).returning();
+      const [enriched] = await enrichShifts([created]);
+      res.status(201).json(enriched);
+      void notifyUser(userId, {
+        title: "Shift assigned to you",
+        body: `${enriched.roleName ?? "Shift"} · ${describeShift(created)}`,
+        url: "/employee/schedule",
+        tag: `shift-${created.id}`,
+      });
+      return;
     }
 
     const [updated] = await db.update(shifts).set({
